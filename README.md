@@ -1,6 +1,12 @@
 ![header](https://github.com/snuailab/assets/blob/main/snuailab/full/snuAiLab.black.300ppi.png?raw=true)
 
 # Waffle Hub
+- waffle 의 training core
+- 다양한 backend framework 를 제공
+- SNUAILAB 데이터 형식으로 모든 backend framework 를 사용 가능
+<img src="https://github.com/snuailab/assets/blob/main/waffle/docs/diagrams/hub_flow.png?raw=true" width="100%" />
+
+# Usage
 ### Query Format
 ```python
 # "wh help" for available backends.
