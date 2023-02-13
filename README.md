@@ -10,22 +10,22 @@
 ### Query Format
 ```python
 # "wh help" for available backends.
-# "wh <backend> help" for available jobs.
-# "wh <backend> <job> help" for available tasks.
-# "wh <backend> <job> <task> help" for available parameters.
-wh <backend> <job> <task> \  # base query
+# "wh <backend> help" for available tasks.
+# "wh <backend> <task> help" for available jobs.
+# "wh <backend> <task> <job> help" for available parameters.
+wh <backend> <task> <job> \  # base query
    name=<exp_name> \ 
    <param_key>=<value>  # params
 ```
 ### Basic Use
 ```python
-wh yolo train detection \
+wh yolo detection train \
    name=my_model \
    model=yolov8s \
    image_dir=./dataset/mnist/images \
    coco_file=./dataset/mnist/ann.json
    
-wh mm train pose_estimation \
+wh mm pose_estimation train \
    name=my_model \
    model=DeepPose \
    image_dir=./dataset/mnist/images \
@@ -34,7 +34,7 @@ wh mm train pose_estimation \
 ### Advanced Use
 ```python
 # check "wh yolo train detection help" for available parameters.
-wh yolo train detection \  
+wh yolo detection train \  
    name=my_model \
    model=yolov8s \
    image_dir=./dataset/mnist/images \
@@ -53,14 +53,14 @@ wh yolo train detection \
 ```
 or simply
 ```python
-wh yolo train detection \
+wh yolo detection train \
    name=my_model \
    config_from=config.yaml \
    <override>
 ```
 or from pretrained model
 ```python
-wh yolo train detection \
+wh yolo detection train \
    name=my_model \
    start_from=model.pt \
    <override>
