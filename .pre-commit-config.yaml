@@ -37,6 +37,12 @@ repos:
       - id: isort
         name: Sort imports
 
+  - repo: https://github.com/psf/black
+    rev: 22.12.0
+    hooks:
+    - id: black
+      args: [--line-length=79]
+
   - repo: https://github.com/PyCQA/flake8
     rev: 6.0.0
     hooks:
@@ -49,9 +55,3 @@ repos:
       - id: codespell
         args:
           - --ignore-words-list=crate,nd
-
-  - repo: https://github.com/psf/black
-    rev: 22.12.0
-    hooks:
-    - id: black
-      language_version: python3.9
