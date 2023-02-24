@@ -1,1 +1,5 @@
 # configurations of hub
+
+# backends version specifications
+[backends]
+ultralytics="8.0.25"
