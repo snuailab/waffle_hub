@@ -1,4 +1,5 @@
 from abc import abstractmethod
+from pathlib import Path
 
 from tabulate import tabulate
 
@@ -43,9 +44,26 @@ class BaseHub:
 
         return (name in backends) and (version in backends[name])
 
-    @classmethod
+    @property
     @abstractmethod
-    def new(cls):
+    def result_dir(self) -> Path:
+        raise NotImplementedError
+
+    @property
+    @abstractmethod
+    def log_file(self) -> Path:
+        raise NotImplementedError
+
+    @abstractmethod
+    def run(self):
+        raise NotImplementedError
+
+    @abstractmethod
+    def stop(self):
+        raise NotImplementedError
+
+    @abstractmethod
+    def remove(self):
         raise NotImplementedError
 
     @abstractmethod
