@@ -3,10 +3,7 @@ from abc import abstractmethod
 from functools import cached_property
 from pathlib import Path
 
-from tabulate import tabulate
 from waffle_utils.utils import type_validator
-
-from waffle_hub import get_backends
 
 logger = logging.getLogger(__name__)
 
@@ -38,18 +35,10 @@ class BaseHub:
     # export files
     EXPORT_LOG_FILE = EXPORT_DIR / "log.txt"
 
-    def __init__(
-        self,
-        name: str,
-        root_dir: str = None,
-        backend: str = None,
-        version: str = None,
-    ):
+    def __init__(self, name: str, root_dir: str = None):
 
         self.name = self._name = name
         self.root_dir = self._root_dir = root_dir
-        self.backend = self._backend = backend
-        self.version = self._version = version
 
     # properties
     @property
@@ -70,46 +59,6 @@ class BaseHub:
     def root_dir(self, v):
         self._root_dir = Path(v) if v else BaseHub.DEFAULT_ROOT_DIR
 
-    @property
-    def backend(self) -> str:
-        return self._backend
-
-    @backend.setter
-    @type_validator(str)
-    def backend(self, v):
-        backends = get_backends()
-        if v is None:
-            v = list(backends.keys())[0]
-            logger.info(f"Using default backend {v}.")
-        if v not in backends:
-            raise ValueError(
-                f"""
-                Backend {v} is not supported.
-                Choose one of {list(backends.keys())}
-                """
-            )
-        self._backend = v
-
-    @property
-    def version(self) -> str:
-        return self._version
-
-    @version.setter
-    @type_validator(str)
-    def version(self, v):
-        backends = get_backends()
-        if v is None:
-            v = backends[self.backend][-1]
-            logger.info(f"Using default backend version {v}.")
-        if v not in backends[self.backend]:
-            raise ValueError(
-                f"""
-                Backend version {v} is not supported.
-                Choose one of {backends[v]}
-                """
-            )
-        self._version = v
-
     @cached_property
     def model_dir(self) -> Path:
         return self.root_dir / self.name
@@ -129,25 +78,6 @@ class BaseHub:
     @cached_property
     def export_dir(self) -> Path:
         return self.model_dir / BaseHub.EXPORT_DIR
-
-    @classmethod
-    def get_available_backends(cls) -> str:
-        """Available backends"""
-        backends = get_backends()
-
-        table_data = []
-        for name, versions in backends.items():
-            for i, version in enumerate(versions):
-                table_data.append([name if i == 0 else "", version])
-
-        table = str(
-            tabulate(
-                table_data,
-                headers=["Backend", "Version"],
-                tablefmt="simple_outline",
-            )
-        )
-        return table
 
     @abstractmethod
     def train(self):
