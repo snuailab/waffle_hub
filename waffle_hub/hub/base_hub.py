@@ -47,19 +47,7 @@ class BaseHub:
     ):
 
         self.name = self._name = name
-        self.root_dir = self._root_dir = (
-            Path(root_dir) if root_dir else BaseHub.DEFAULT_ROOT_DIR
-        )
-
-        backends = get_backends()
-        if backend is None:
-            backend = list(backends.keys())[0]
-            logger.info(f"Using default backend {backend}.")
-
-        if version is None:
-            version = backends[backend][-1]
-            logger.info(f"Using default version {version}.")
-
+        self.root_dir = self._root_dir = root_dir
         self.backend = self._backend = backend
         self.version = self._version = version
 
@@ -74,13 +62,53 @@ class BaseHub:
         self._name = v
 
     @property
-    def root_dir(self):
+    def root_dir(self) -> Path:
         return self._root_dir
 
     @root_dir.setter
-    @type_validator(Path)
+    @type_validator(str)
     def root_dir(self, v):
-        self._root_dir = v
+        self._root_dir = Path(v) if v else BaseHub.DEFAULT_ROOT_DIR
+
+    @property
+    def backend(self) -> str:
+        return self._backend
+
+    @backend.setter
+    @type_validator(str)
+    def backend(self, v):
+        backends = get_backends()
+        if v is None:
+            v = list(backends.keys())[0]
+            logger.info(f"Using default backend {v}.")
+        if v not in backends:
+            raise ValueError(
+                f"""
+                Backend {v} is not supported.
+                Choose one of {list(backends.keys())}
+                """
+            )
+        self._backend = v
+
+    @property
+    def version(self) -> str:
+        return self._version
+
+    @version.setter
+    @type_validator(str)
+    def version(self, v):
+        backends = get_backends()
+        if v is None:
+            v = backends[self.backend][-1]
+            logger.info(f"Using default backend version {v}.")
+        if v not in backends[self.backend]:
+            raise ValueError(
+                f"""
+                Backend version {v} is not supported.
+                Choose one of {backends[v]}
+                """
+            )
+        self._version = v
 
     @cached_property
     def model_dir(self) -> Path:
@@ -120,21 +148,6 @@ class BaseHub:
             )
         )
         return table
-
-    @classmethod
-    def is_available_backend(cls, name: str, version: str) -> bool:
-        """Check if backend is available
-
-        Args:
-            name (str): backend name
-            version (str): backend version
-
-        Returns:
-            bool: is available?
-        """
-        backends = get_backends()
-
-        return (name in backends) and (version in backends[name])
 
     @abstractmethod
     def run(self):
