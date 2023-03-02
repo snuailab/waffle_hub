@@ -5,8 +5,7 @@ from collections import OrderedDict
 
 _backends = OrderedDict(
     {
-        "ultralytics": ["8.0.25", "8.0.26"],
-        "tx_model": ["0.1.0", "0.2.0"],
+        "ultralytics": ["8.0.25"],
     }
 )
 
