@@ -150,29 +150,17 @@ class BaseHub:
         return table
 
     @abstractmethod
-    def run(self):
+    def train(self):
         raise NotImplementedError
 
     @abstractmethod
-    def stop(self):
+    def inference(self):
         raise NotImplementedError
 
     @abstractmethod
-    def remove(self):
+    def evaluation(self):
         raise NotImplementedError
 
     @abstractmethod
-    def get_progress(self):
-        raise NotImplementedError
-
-    @abstractmethod
-    def get_status(self):
-        raise NotImplementedError
-
-    @abstractmethod
-    def get_results(self):
-        raise NotImplementedError
-
-    @abstractmethod
-    def get_log(self):
+    def export(self):
         raise NotImplementedError
