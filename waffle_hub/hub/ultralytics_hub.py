@@ -22,26 +22,23 @@ except ModuleNotFoundError as e:
     raise e
 
 
+from dataclasses import asdict
 from pathlib import Path
 
-from pydantic import BaseModel
 from ultralytics import YOLO
 from waffle_utils.file import io
 
+from waffle_hub.schemas.configs import Classes, Model, Train
+
 from . import BaseHub
-
-
-class BaseModelParams(BaseModel):
-    model_name: str
-    image_size: str
 
 
 class UltralyticsHub(BaseHub):
 
     # Common
-    AVAILABLE_TASK = ["detect", "classify"]  # TODO: segment
-    AVAILABLE_MODEL = ["yolov8"]
-    AVAILABLE_SIZE = list("nsmlx")
+    TASKS = ["detect", "classify"]  # TODO: segment
+    MODEL_TYPES = ["yolov8"]
+    MODEL_SIZES = list("nsmlx")
 
     # Backend Specifics
     TASK_SUFFIX = {
@@ -50,44 +47,13 @@ class UltralyticsHub(BaseHub):
         "segment": "-seg",
     }
 
-    def __init__(
-        self,
-        name: str,
-        task: str = None,
-        model_name: str = None,
-        model_size: str = None,
-        pretrained_model: str = None,
-        root_dir: str = None,
-    ):
-
-        super().__init__(
-            name=name,
-            task=task,
-            model_name=model_name,
-            model_size=model_size,
-            pretrained_model=pretrained_model,
-            root_dir=root_dir,
-        )
-
-        # ultralytics specific variables
-        self._model = (
-            self.model_name
-            + self.model_size
-            + self.TASK_SUFFIX[self.task]
-            + ".pt"
-            if pretrained_model is None
-            else pretrained_model
-        )
-
-    def validate_model(self):
-        return
-
     def train(
         self,
         dataset_dir: str,
         epochs: int,
         batch_size: int,
         image_size: int,
+        pretrained_model: str = None,
         device: str = "0",
         workers: int = 2,
         seed: int = 0,
@@ -117,26 +83,32 @@ class UltralyticsHub(BaseHub):
             data = dataset_dir.absolute()
         data = str(data)
 
-        # save train configs. TODO: Generalize using pydantic
+        # pretrained model
+        pretrained_model = (
+            pretrained_model
+            if pretrained_model
+            else self.model_type
+            + self.model_size
+            + self.TASK_SUFFIX[self.task]
+            + ".pt"
+        )
+
+        # save train config.
         io.save_yaml(
-            {
-                "task": self.task,
-                "model_name": self.model_name,
-                "model_size": self.model_size,
-                "pretrained_model": self.pretrained_model
-                if self.pretrained_model
-                else self._model,
-                "image_size": image_size,
-                "epochs": epochs,
-                "batch_size": batch_size,
-                "seed": seed,
-            },
-            self.train_option_file,
+            asdict(
+                Train(
+                    image_size=image_size,
+                    batch_size=batch_size,
+                    pretrained_model=pretrained_model,
+                    seed=seed,
+                )
+            ),
+            self.train_config_file,
             create_directory=True,
         )
 
         try:
-            model = YOLO(self._model, task=self.task)
+            model = YOLO(pretrained_model, task=self.task)
             model.train(
                 data=data,
                 epochs=epochs,
@@ -148,6 +120,13 @@ class UltralyticsHub(BaseHub):
                 verbose=verbose,
                 project=self.model_dir,
                 name=self.RAW_TRAIN_DIR,
+            )
+
+            # save classes config.
+            io.save_yaml(
+                asdict(Classes(names=model.names)),
+                self.classes_config_file,
+                create_directory=True,
             )
 
             # Parse Training Results

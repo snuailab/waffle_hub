@@ -1,19 +1,23 @@
 import logging
 from abc import abstractmethod
+from dataclasses import asdict
 from functools import cached_property
 from pathlib import Path
 
 from waffle_utils.file import io
 from waffle_utils.utils import type_validator
 
+from waffle_hub import get_backends
+from waffle_hub.schemas.configs import Model
+
 logger = logging.getLogger(__name__)
 
 
 class BaseHub:
 
-    AVAILABLE_TASK = []
-    AVAILABLE_MODEL = []
-    AVAILABLE_SIZE = []
+    TASKS = []
+    MODEL_TYPES = []
+    MODEL_SIZES = []
 
     # directory settings
     DEFAULT_ROOT_DIR = Path("./models")
@@ -25,8 +29,13 @@ class BaseHub:
     EVALUATION_DIR = Path("evaluations")
     EXPORT_DIR = Path("exports")
 
-    # common files
-    TRAIN_OPTION_FILE = "configs/common.yaml"
+    # config files
+    CONFIG_DIR = Path("configs")
+    MODEL_CONFIG_FILE = CONFIG_DIR / "model.yaml"
+    TRAIN_CONFIG_FILE = CONFIG_DIR / "train.yaml"
+    CLASS_CONFIG_FILE = CONFIG_DIR / "classes.yaml"
+
+    # train results
     LAST_CKPT_FILE = "weights/last_ckpt.pth"
     BEST_CKPT_FILE = "weights/best_ckpt.pth"
     METRIC_FILE = "metrics.txt"
@@ -34,21 +43,62 @@ class BaseHub:
     def __init__(
         self,
         name: str,
+        backend: str,
+        version: str = None,
         task: str = None,
-        model_name: str = None,
+        model_type: str = None,
         model_size: str = None,
-        pretrained_model: str = None,
         root_dir: str = None,
     ):
 
         self.name = name
         self.task = task
-        self.model_name = model_name
+        self.model_type = model_type
         self.model_size = model_size
-        self.pretrained_model = pretrained_model
+        self.backend = backend
+        self.version = version
         self.root_dir = root_dir
 
-        self.validate_model()
+        # save model config
+        io.save_yaml(
+            asdict(
+                Model(
+                    name=self.name,
+                    backend=self.backend,
+                    version=self.version,
+                    task=self.task,
+                    model_type=self.model_type,
+                    model_size=self.model_size,
+                )
+            ),
+            self.model_config_file,
+            create_directory=True,
+        )
+
+    @classmethod
+    def load(cls, name: str, root_dir: str = None):
+        model_config_file = (
+            Path(root_dir if root_dir else cls.DEFAULT_ROOT_DIR)
+            / name
+            / cls.MODEL_CONFIG_FILE
+        )
+        if not model_config_file.exists():
+            raise FileNotFoundError(
+                f"Model[{name}] does not exists. {model_config_file}"
+            )
+        return cls(**io.load_yaml(model_config_file))
+
+    @classmethod
+    def from_model_config(
+        cls, name: str, model_config_file: str, root_dir: str = None
+    ):
+        return cls(
+            **{
+                **io.load_yaml(model_config_file),
+                "name": name,
+                "root_dir": root_dir,
+            }
+        )
 
     # properties
     @property
@@ -76,24 +126,24 @@ class BaseHub:
     @task.setter
     @type_validator(str)
     def task(self, v):
-        if v not in self.AVAILABLE_TASK:
+        if v not in self.TASKS:
             raise ValueError(
-                f"Task {v} is not supported. Choose one of {self.AVAILABLE_TASK}"
+                f"Task {v} is not supported. Choose one of {self.TASKS}"
             )
         self.__task = v
 
     @property
-    def model_name(self) -> str:
-        return self.__model_name
+    def model_type(self) -> str:
+        return self.__model_type
 
-    @model_name.setter
+    @model_type.setter
     @type_validator(str)
-    def model_name(self, v):
-        if v not in self.AVAILABLE_MODEL:
+    def model_type(self, v):
+        if v not in self.MODEL_TYPES:
             raise ValueError(
-                f"Model {v} is not supported. Choose one of {self.AVAILABLE_MODEL}"
+                f"Model Type {v} is not supported. Choose one of {self.MODEL_TYPES}"
             )
-        self.__model_name = v
+        self.__model_type = v
 
     @property
     def model_size(self) -> str:
@@ -102,20 +152,40 @@ class BaseHub:
     @model_size.setter
     @type_validator(str)
     def model_size(self, v):
-        if v not in self.AVAILABLE_SIZE:
+        if v not in self.MODEL_SIZES:
             raise ValueError(
-                f"Model Size {v} is not supported. Choose one of {self.AVAILABLE_SIZE}"
+                f"Model Size {v} is not supported. Choose one of {self.MODEL_SIZES}"
             )
         self.__model_size = v
 
     @property
-    def pretrained_model(self) -> str:
-        return self.__pretrained_model
+    def backend(self) -> str:
+        return self.__backend
 
-    @pretrained_model.setter
+    @backend.setter
     @type_validator(str)
-    def pretrained_model(self, v):
-        self.__pretrained_model = v
+    def backend(self, v):
+        backends = list(get_backends().keys())
+        if v not in backends:
+            raise ValueError(
+                f"Backend {v} is not supported. Choose one of {backends}"
+            )
+        self.__backend = v
+
+    @property
+    def version(self) -> str:
+        return self.__version
+
+    @version.setter
+    @type_validator(str)
+    def version(self, v):
+        versions = get_backends()[self.backend]
+        if v is None or v not in versions:
+            v = versions[-1]
+            logger.info(
+                f"{self.backend} {v} is not supported. Using latest version {v}"
+            )
+        self.__version = v
 
     @cached_property
     def model_dir(self) -> Path:
@@ -142,20 +212,28 @@ class BaseHub:
         return self.model_dir / BaseHub.EXPORT_DIR
 
     @cached_property
-    def train_option_file(self) -> Path:
-        return self.train_dir / BaseHub.TRAIN_OPTION_FILE
+    def model_config_file(self) -> Path:
+        return self.model_dir / BaseHub.MODEL_CONFIG_FILE
+
+    @cached_property
+    def train_config_file(self) -> Path:
+        return self.model_dir / BaseHub.TRAIN_CONFIG_FILE
+
+    @cached_property
+    def classes_config_file(self) -> Path:
+        return self.model_dir / BaseHub.CLASS_CONFIG_FILE
 
     @cached_property
     def best_ckpt_file(self) -> Path:
-        return self.train_dir / BaseHub.BEST_CKPT_FILE
+        return self.model_dir / BaseHub.BEST_CKPT_FILE
 
     @cached_property
     def last_ckpt_file(self) -> Path:
-        return self.train_dir / BaseHub.LAST_CKPT_FILE
+        return self.model_dir / BaseHub.LAST_CKPT_FILE
 
     @cached_property
     def metric_file(self) -> Path:
-        return self.train_dir / BaseHub.METRIC_FILE
+        return self.model_dir / BaseHub.METRIC_FILE
 
     def delete_train(self):
         """Delete Raw Trained Data. It can be trained again."""
@@ -172,14 +250,11 @@ class BaseHub:
 
     def check_train_sanity(self) -> bool:
         return (
-            self.best_ckpt_file.exists()
+            self.classes_config_file.exists()
+            and self.best_ckpt_file.exists()
             and self.last_ckpt_file.exists()
             and self.metric_file.exists()
         )
-
-    @abstractmethod
-    def validate_model(self):
-        raise NotImplementedError
 
     @abstractmethod
     def train(self):

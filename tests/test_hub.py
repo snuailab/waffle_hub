@@ -22,40 +22,28 @@ def dummy_dataset(tmpdir: Path):
     ds = Dataset.from_coco(
         "mnist", dummy_coco_file, Path(dummy_coco_root_dir), root_dir=tmpdir
     )
+    ds.split_train_val(0.8)
     return ds
-
-
-def test_ultralytics_detection_train(tmpdir: Path, dummy_dataset: Dataset):
-
-    dummy_dataset.split_train_val(0.8)
-    export_dir = dummy_dataset.export("yolo_detection")
-    hub = UltralyticsHub(
-        name="test_det",
-        task="detect",
-        model_name="yolov8",
-        model_size="n",
-        pretrained_model=None,
-        root_dir=tmpdir,
-    )
-    hub.train(
-        dataset_dir=export_dir,
-        epochs=1,
-        batch_size=4,
-        image_size=64,
-        device="0",
-    )
 
 
 def test_ultralytics_detect_train(tmpdir: Path, dummy_dataset: Dataset):
 
-    dummy_dataset.split_train_val(0.8)
     export_dir = dummy_dataset.export("yolo_detection")
+
+    name = "test_det"
+
     hub = UltralyticsHub(
-        name="test_det",
+        name=name,
+        backend="ultralytics",
         task="detect",
-        model_name="yolov8",
+        model_type="yolov8",
         model_size="n",
-        pretrained_model=None,
+        root_dir=tmpdir,
+    )
+    hub = UltralyticsHub.load(name=name, root_dir=tmpdir)
+    hub = UltralyticsHub.from_model_config(
+        name=name,
+        model_config_file=tmpdir / name / UltralyticsHub.MODEL_CONFIG_FILE,
         root_dir=tmpdir,
     )
     hub.train(
@@ -63,6 +51,7 @@ def test_ultralytics_detect_train(tmpdir: Path, dummy_dataset: Dataset):
         epochs=1,
         batch_size=4,
         image_size=64,
+        pretrained_model=None,
         device="0",
     )
     assert hub.check_train_sanity()
@@ -70,14 +59,15 @@ def test_ultralytics_detect_train(tmpdir: Path, dummy_dataset: Dataset):
 
 def test_ultralytics_classify_train(tmpdir: Path, dummy_dataset: Dataset):
 
-    dummy_dataset.split_train_val(0.8)
+    name = "test_cls"
+
     export_dir = dummy_dataset.export("yolo_classification")
     hub = UltralyticsHub(
-        name="test_cls",
+        name=name,
+        backend="ultralytics",
         task="classify",
-        model_name="yolov8",
+        model_type="yolov8",
         model_size="n",
-        pretrained_model=None,
         root_dir=tmpdir,
     )
     hub.train(
@@ -85,6 +75,7 @@ def test_ultralytics_classify_train(tmpdir: Path, dummy_dataset: Dataset):
         epochs=1,
         batch_size=4,
         image_size=28,
+        pretrained_model=None,
         device="0",
     )
     assert hub.check_train_sanity()
