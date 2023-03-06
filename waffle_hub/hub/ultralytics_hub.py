@@ -39,7 +39,7 @@ class BaseModelParams(BaseModel):
 class UltralyticsHub(BaseHub):
 
     # Common
-    AVAILABLE_TASK = ["detect", "classify", "segment"]
+    AVAILABLE_TASK = ["detect", "classify"]  # TODO: segment
     AVAILABLE_MODEL = ["yolov8"]
     AVAILABLE_SIZE = list("nsmlx")
 

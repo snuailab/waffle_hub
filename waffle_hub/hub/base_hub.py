@@ -170,6 +170,13 @@ class BaseHub:
                 """
             )
 
+    def check_train_sanity(self) -> bool:
+        return (
+            self.best_ckpt_file.exists()
+            and self.last_ckpt_file.exists()
+            and self.metric_file.exists()
+        )
+
     @abstractmethod
     def validate_model(self):
         raise NotImplementedError

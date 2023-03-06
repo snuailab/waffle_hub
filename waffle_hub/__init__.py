@@ -6,7 +6,7 @@ from collections import OrderedDict
 from tabulate import tabulate
 
 # pytorch install check (necessary installation)
-pytorch_versions = ["1.12.1"]
+pytorch_versions = ["1.13.1"]
 try:
     import torch
 
@@ -32,7 +32,7 @@ except ModuleNotFoundError as e:
 
 _backends = OrderedDict(
     {
-        "ultralytics": ["8.0.25"],
+        "ultralytics": ["8.0.49"],
     }
 )
 
