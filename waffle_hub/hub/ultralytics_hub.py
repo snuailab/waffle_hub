@@ -38,7 +38,7 @@ class UltralyticsHub(BaseHub):
     # Common
     TASKS = ["detect", "classify"]  # TODO: segment
     MODEL_TYPES = ["yolov8"]
-    MODEL_SIZES = list("nsmlx")
+    MODEL_SIZES = list("nsmlx")  # TODO: generalize
 
     # Backend Specifics
     TASK_SUFFIX = {

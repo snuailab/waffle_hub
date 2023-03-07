@@ -37,7 +37,7 @@ class BaseHub:
 
     # train results
     LAST_CKPT_FILE = "weights/last_ckpt.pth"
-    BEST_CKPT_FILE = "weights/best_ckpt.pth"
+    BEST_CKPT_FILE = "weights/best_ckpt.pth"  # TODO: best metric?
     METRIC_FILE = "metrics.txt"
 
     def __init__(
