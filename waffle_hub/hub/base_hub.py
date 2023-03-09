@@ -59,7 +59,7 @@ class BaseHub:
         self.task: str = task
         self.model_type: str = model_type
         self.model_size: str = model_size
-        self.root_dir: Path = Path(root_dir)
+        self.root_dir: Path = Path(root_dir) if root_dir else None
 
         self.backend: str = backend
         self.version: str = version
