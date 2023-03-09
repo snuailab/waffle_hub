@@ -26,7 +26,9 @@ def dummy_dataset(tmpdir: Path):
     return ds
 
 
-def test_ultralytics_detect_train(tmpdir: Path, dummy_dataset: Dataset):
+def test_ultralytics_detect_train_inference(
+    tmpdir: Path, dummy_dataset: Dataset
+):
 
     export_dir = dummy_dataset.export("yolo_detection")
 
@@ -34,14 +36,13 @@ def test_ultralytics_detect_train(tmpdir: Path, dummy_dataset: Dataset):
 
     hub = UltralyticsHub(
         name=name,
-        backend="ultralytics",
         task="detect",
         model_type="yolov8",
         model_size="n",
         root_dir=tmpdir,
     )
     hub = UltralyticsHub.load(name=name, root_dir=tmpdir)
-    hub = UltralyticsHub.from_model_config(
+    hub: UltralyticsHub = UltralyticsHub.from_model_config(
         name=name,
         model_config_file=tmpdir / name / UltralyticsHub.MODEL_CONFIG_FILE,
         root_dir=tmpdir,
@@ -55,6 +56,8 @@ def test_ultralytics_detect_train(tmpdir: Path, dummy_dataset: Dataset):
         device="0",
     )
     assert hub.check_train_sanity()
+
+    hub.inference(source=export_dir)
 
 
 def test_ultralytics_classify_train(tmpdir: Path, dummy_dataset: Dataset):
@@ -79,3 +82,5 @@ def test_ultralytics_classify_train(tmpdir: Path, dummy_dataset: Dataset):
         device="0",
     )
     assert hub.check_train_sanity()
+
+    hub.inference(source=export_dir)
