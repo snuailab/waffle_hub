@@ -22,3 +22,24 @@ class Train:
 @dataclass
 class Classes:
     names: list[str]
+
+
+# TODO: Should be moved to waffle_utils. Define Prediction schema for now.
+@dataclass
+class Prediction:
+    image_path: str
+    predictions: list[dict]
+
+
+@dataclass
+class DetectionPrediction:
+    bbox: list[float]
+    class_name: str
+    confidence: float
+    segment: list[float] = list
+
+
+@dataclass
+class ClassificationPrediction:
+    score: float
+    class_name: str

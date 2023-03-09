@@ -7,13 +7,12 @@ from pathlib import Path
 from waffle_utils.file import io
 from waffle_utils.utils import type_validator
 
-from waffle_hub import get_backends
 from waffle_hub.schemas.configs import Model
 
 logger = logging.getLogger(__name__)
 
 
-class BaseHub:
+class Hub:
 
     TASKS = []
     MODEL_TYPES = []
@@ -22,8 +21,7 @@ class BaseHub:
     # directory settings
     DEFAULT_ROOT_DIR = Path("./models")
 
-    TRAIN_DIR = Path("trains")
-    RAW_TRAIN_DIR = Path("raw_train")
+    RAW_TRAIN_DIR = Path("artifacts")
 
     INFERENCE_DIR = Path("inferences")
     EVALUATION_DIR = Path("evaluations")
@@ -36,14 +34,14 @@ class BaseHub:
     CLASS_CONFIG_FILE = CONFIG_DIR / "classes.yaml"
 
     # train results
-    LAST_CKPT_FILE = "weights/last_ckpt.pth"
-    BEST_CKPT_FILE = "weights/best_ckpt.pth"  # TODO: best metric?
-    METRIC_FILE = "metrics.txt"
+    LAST_CKPT_FILE = "weights/last_ckpt.pt"
+    BEST_CKPT_FILE = "weights/best_ckpt.pt"  # TODO: best metric?
+    METRIC_FILE = "metrics.csv"
 
     def __init__(
         self,
         name: str,
-        backend: str,
+        backend: str = None,
         version: str = None,
         task: str = None,
         model_type: str = None,
@@ -55,46 +53,49 @@ class BaseHub:
         self.task = task
         self.model_type = model_type
         self.model_size = model_size
-        self.backend = backend
-        self.version = version
         self.root_dir = root_dir
 
+        self.backend = backend
+        self.version = version
+
         # save model config
+        model_config = Model(
+            name=self.name,
+            backend=self.backend,
+            version=self.version,
+            task=self.task,
+            model_type=self.model_type,
+            model_size=self.model_size,
+        )
         io.save_yaml(
-            asdict(
-                Model(
-                    name=self.name,
-                    backend=self.backend,
-                    version=self.version,
-                    task=self.task,
-                    model_type=self.model_type,
-                    model_size=self.model_size,
-                )
-            ),
+            asdict(model_config),
             self.model_config_file,
             create_directory=True,
         )
+        print(model_config)
 
     @classmethod
     def load(cls, name: str, root_dir: str = None):
         model_config_file = (
-            Path(root_dir if root_dir else cls.DEFAULT_ROOT_DIR)
+            Path(root_dir if root_dir else Hub.DEFAULT_ROOT_DIR)
             / name
-            / cls.MODEL_CONFIG_FILE
+            / Hub.MODEL_CONFIG_FILE
         )
         if not model_config_file.exists():
             raise FileNotFoundError(
                 f"Model[{name}] does not exists. {model_config_file}"
             )
-        return cls(**io.load_yaml(model_config_file))
+        model_config = io.load_yaml(model_config_file)
+        return cls(**model_config)
 
     @classmethod
     def from_model_config(
         cls, name: str, model_config_file: str, root_dir: str = None
     ):
+        model_config = io.load_yaml(model_config_file)
         return cls(
             **{
-                **io.load_yaml(model_config_file),
+                **model_config,
                 "name": name,
                 "root_dir": root_dir,
             }
@@ -117,7 +118,7 @@ class BaseHub:
     @root_dir.setter
     @type_validator(Path, strict=False)
     def root_dir(self, v):
-        self.__root_dir = Path(v) if v else BaseHub.DEFAULT_ROOT_DIR
+        self.__root_dir = Path(v) if v else Hub.DEFAULT_ROOT_DIR
 
     @property
     def task(self) -> str:
@@ -165,11 +166,6 @@ class BaseHub:
     @backend.setter
     @type_validator(str)
     def backend(self, v):
-        backends = list(get_backends().keys())
-        if v not in backends:
-            raise ValueError(
-                f"Backend {v} is not supported. Choose one of {backends}"
-            )
         self.__backend = v
 
     @property
@@ -179,12 +175,6 @@ class BaseHub:
     @version.setter
     @type_validator(str)
     def version(self, v):
-        versions = get_backends()[self.backend]
-        if v is None or v not in versions:
-            v = versions[-1]
-            logger.info(
-                f"{self.backend} {v} is not supported. Using latest version {v}"
-            )
         self.__version = v
 
     @cached_property
@@ -192,48 +182,44 @@ class BaseHub:
         return self.root_dir / self.name
 
     @cached_property
-    def train_dir(self) -> Path:
-        return self.model_dir / BaseHub.TRAIN_DIR
-
-    @cached_property
     def raw_train_dir(self) -> Path:
-        return self.model_dir / BaseHub.RAW_TRAIN_DIR
+        return self.model_dir / Hub.RAW_TRAIN_DIR
 
     @cached_property
     def inference_dir(self) -> Path:
-        return self.model_dir / BaseHub.INFERENCE_DIR
+        return self.model_dir / Hub.INFERENCE_DIR
 
     @cached_property
     def evaluation_dir(self) -> Path:
-        return self.model_dir / BaseHub.EVALUATION_DIR
+        return self.model_dir / Hub.EVALUATION_DIR
 
     @cached_property
     def export_dir(self) -> Path:
-        return self.model_dir / BaseHub.EXPORT_DIR
+        return self.model_dir / Hub.EXPORT_DIR
 
     @cached_property
     def model_config_file(self) -> Path:
-        return self.model_dir / BaseHub.MODEL_CONFIG_FILE
+        return self.model_dir / Hub.MODEL_CONFIG_FILE
 
     @cached_property
     def train_config_file(self) -> Path:
-        return self.model_dir / BaseHub.TRAIN_CONFIG_FILE
+        return self.model_dir / Hub.TRAIN_CONFIG_FILE
 
     @cached_property
     def classes_config_file(self) -> Path:
-        return self.model_dir / BaseHub.CLASS_CONFIG_FILE
+        return self.model_dir / Hub.CLASS_CONFIG_FILE
 
     @cached_property
     def best_ckpt_file(self) -> Path:
-        return self.model_dir / BaseHub.BEST_CKPT_FILE
+        return self.model_dir / Hub.BEST_CKPT_FILE
 
     @cached_property
     def last_ckpt_file(self) -> Path:
-        return self.model_dir / BaseHub.LAST_CKPT_FILE
+        return self.model_dir / Hub.LAST_CKPT_FILE
 
     @cached_property
     def metric_file(self) -> Path:
-        return self.model_dir / BaseHub.METRIC_FILE
+        return self.model_dir / Hub.METRIC_FILE
 
     def delete_train(self):
         """Delete Raw Trained Data. It can be trained again."""

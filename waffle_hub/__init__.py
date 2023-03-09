@@ -1,5 +1,6 @@
 __version__ = "0.1.0"
 
+import importlib
 import warnings
 from collections import OrderedDict
 
@@ -32,13 +33,48 @@ except ModuleNotFoundError as e:
 
 _backends = OrderedDict(
     {
-        "ultralytics": ["8.0.49"],
+        "ultralytics": ["8.0.49", "8.0.50"],
     }
 )
 
 
 def get_backends() -> dict:
     return _backends
+
+
+def get_installed_backend_version(backend: str) -> str:
+
+    backends = get_backends()
+    versions = backends[backend]
+
+    if backend not in backends:
+        raise ModuleNotFoundError(
+            f"{backend} is not supported.\n Available backends {list(backends.keys())}"
+        )
+
+    try:
+        module = importlib.import_module(backend)
+        if module.__version__ not in versions:
+            warnings.warn(
+                f"""
+                {backend} {module.__version__} has not been tested.
+                We recommend you to use one of {versions}
+                """
+            )
+        return module.__version__
+
+    except ModuleNotFoundError as e:
+
+        install_queries = "\n".join(
+            [f"- pip install {backend}=={version}" for version in versions]
+        )
+
+        e.msg = f"""
+            Need to install {backend}.
+            Tested versions:
+            {install_queries}
+            """
+        raise e
 
 
 def get_available_backends() -> str:
@@ -50,11 +86,10 @@ def get_available_backends() -> str:
         for i, version in enumerate(versions):
             table_data.append([name if i == 0 else "", version])
 
-    table = str(
-        tabulate(
-            table_data,
-            headers=["Backend", "Version"],
-            tablefmt="simple_outline",
-        )
+    table = tabulate(
+        table_data,
+        headers=["Backend", "Version"],
+        tablefmt="simple_outline",
     )
+
     return table

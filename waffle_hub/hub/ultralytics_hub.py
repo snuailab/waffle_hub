@@ -1,39 +1,27 @@
-import warnings
+from waffle_hub import get_installed_backend_version
 
-from waffle_hub import get_backends
-
-try:
-    import ultralytics
-
-    versions = get_backends()["ultralytics"]
-    if ultralytics.__version__ not in versions:
-        warnings.warn(
-            f"""
-            ultralytics {ultralytics.__version__} has not been tested.
-            We recommend you to use one of {versions}
-            """
-        )
-except ModuleNotFoundError as e:
-    versions = get_backends()["ultralytics"]
-
-    strings = [f"- pip install ultralytics=={version}" for version in versions]
-
-    e.msg = "Need to install ultralytics\n" + "\n".join(strings)
-    raise e
-
+BACKEND_NAME = "ultralytics"
+BACKEND_VERSION = get_installed_backend_version(BACKEND_NAME)
 
 from dataclasses import asdict
 from pathlib import Path
 
 from ultralytics import YOLO
+from ultralytics.yolo.engine.results import Results
 from waffle_utils.file import io
 
-from waffle_hub.schemas.configs import Classes, Model, Train
+from waffle_hub.schemas.configs import (
+    Classes,
+    ClassificationPrediction,
+    DetectionPrediction,
+    Prediction,
+    Train,
+)
 
-from . import BaseHub
+from . import Hub
 
 
-class UltralyticsHub(BaseHub):
+class UltralyticsHub(Hub):
 
     # Common
     TASKS = ["detect", "classify"]  # TODO: segment
@@ -47,6 +35,26 @@ class UltralyticsHub(BaseHub):
         "segment": "-seg",
     }
 
+    def __init__(
+        self,
+        name: str,
+        backend: str = None,
+        version: str = None,
+        task: str = None,
+        model_type: str = None,
+        model_size: str = None,
+        root_dir: str = None,
+    ):
+        super().__init__(
+            name=name,
+            backend=backend if backend else BACKEND_NAME,
+            version=version if version else BACKEND_VERSION,
+            task=task,
+            model_type=model_type,
+            model_size=model_size,
+            root_dir=root_dir,
+        )
+
     def train(
         self,
         dataset_dir: str,
@@ -58,7 +66,7 @@ class UltralyticsHub(BaseHub):
         workers: int = 2,
         seed: int = 0,
         verbose: bool = True,
-    ):
+    ) -> str:
         self.is_trainable()
 
         # set data
@@ -146,18 +154,121 @@ class UltralyticsHub(BaseHub):
                 create_directory=True,
             )
 
-            return str(self.train_dir)
+            return str(self.model_dir)
 
         except Exception as e:
             if self.raw_train_dir.exists():
                 io.remove_directory(self.raw_train_dir)
             raise e
 
-    def inference(self):
-        raise NotImplementedError
+    def inference(
+        self,
+        source: str,
+        recursive: bool = True,
+        image_size: int = None,
+        conf_thres: float = 0.25,
+        iou_thres: float = 0.7,
+        half: bool = False,
+        device: str = "0",
+    ) -> str:
+        self.check_train_sanity()
+
+        # TODO: get images function needed (in waffle_utils)
+        def _get_images(d, recursive: bool = True) -> list[str]:
+            exp = "**/*" if recursive else "*"
+            return list(
+                map(
+                    str,
+                    list(Path(d).glob(exp + ".png"))
+                    + list(Path(d).glob(exp + ".jpg"))
+                    + list(Path(d).glob(exp + ".PNG"))
+                    + list(Path(d).glob(exp + ".JPG")),
+                )
+            )
+
+        source = Path(source)
+        if source.is_file():
+            image_paths = [str(source)]
+            common_path = ""
+        elif source.is_dir():
+            image_paths = _get_images(source, recursive=recursive)
+            common_path = str(source)
+        else:
+            raise ValueError(f"Cannot recognize source {source}")
+
+        # overwrite training config
+        train_config = io.load_yaml(self.train_config_file)
+        image_size = (
+            image_size if image_size else train_config.get("image_size")
+        )
+
+        try:
+            model = YOLO(self.best_ckpt_file, task=self.task)
+
+            results: list[Results] = model.predict(
+                source=image_paths,
+                imgsz=image_size,
+                conf=conf_thres,
+                iou=iou_thres,
+                half=half,
+                device=device,
+            )
+
+            # parse predictions
+            for image_path, result in zip(image_paths, results):
+                relpath = str(Path(image_path).relative_to(common_path))
+
+                prediction = asdict(
+                    Prediction(
+                        image_path=relpath,
+                        predictions=self.parse_result(
+                            result
+                        ),  # TODO: cannot move to cpu now. https://github.com/ultralytics/ultralytics/issues/1318
+                    )
+                )
+
+                io.save_json(
+                    prediction,
+                    self.inference_dir / Path(relpath).with_suffix(".json"),
+                    create_directory=True,
+                )
+
+        except Exception as e:
+            raise e
 
     def evaluation(self):
         raise NotImplementedError
 
     def export(self):
         raise NotImplementedError
+
+    def parse_result(self, result: Results) -> dict:
+        results = []
+        if result.boxes is not None:
+            for xywh, cls_idx, conf, segment in zip(
+                result.boxes.xywh,
+                result.boxes.cls,
+                result.boxes.conf,
+                result.masks.segments
+                if result.masks
+                else [None] * len(result),
+            ):
+                results.append(
+                    DetectionPrediction(
+                        bbox=list(xywh.cpu().numpy().astype(float)),
+                        class_name=result.names[int(cls_idx)],
+                        confidence=float(conf.cpu()),
+                        segment=list(segment.numpy().astype(float))
+                        if segment
+                        else [],
+                    )
+                )
+        if result.probs is not None:
+            for cls_idx, prob in enumerate(result.probs):
+                results.append(
+                    ClassificationPrediction(
+                        score=float(prob.cpu()),
+                        class_name=result.names[int(cls_idx)],
+                    )
+                )
+        return results
