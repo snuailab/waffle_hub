@@ -14,9 +14,7 @@ jobs:
         os: [ubuntu-latest, windows-latest]
         python-version: ['3.9', '3.10', '3.11']
         pytorch-install: [
-          'torch==1.13.1 torchvision==0.13.1 torchaudio==0.14.1'
-          # 'torch==1.12.1 torchvision==0.13.1 torchaudio==0.12.1',
-          # 'torch==1.12.0 torchvision==0.13.0 torchaudio==0.12.0'
+          'torch torchvision torchaudio'
         ]
     steps:
       - uses: actions/checkout@v3
