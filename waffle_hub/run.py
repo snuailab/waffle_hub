@@ -1,3 +1,4 @@
+# TODO: add cli tool
 # import typer
 # from rich import print
 
