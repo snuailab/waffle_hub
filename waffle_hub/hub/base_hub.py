@@ -1,3 +1,9 @@
+"""
+Base Hub Class
+Do not use this Class directly.
+Use {Backend}Hub instead.
+"""
+
 import logging
 from abc import abstractmethod
 from dataclasses import asdict
@@ -12,14 +18,14 @@ from waffle_hub.schemas.configs import Model
 logger = logging.getLogger(__name__)
 
 
-class Hub:
+class BaseHub:
 
     TASKS = []
     MODEL_TYPES = []
     MODEL_SIZES = []
 
     # directory settings
-    DEFAULT_ROOT_DIR = Path("./models")
+    DEFAULT_ROOT_DIR = Path("./hubs")
 
     RAW_TRAIN_DIR = Path("artifacts")
 
@@ -49,14 +55,14 @@ class Hub:
         root_dir: str = None,
     ):
 
-        self.name = name
-        self.task = task
-        self.model_type = model_type
-        self.model_size = model_size
-        self.root_dir = root_dir
+        self.name: str = name
+        self.task: str = task
+        self.model_type: str = model_type
+        self.model_size: str = model_size
+        self.root_dir: Path = Path(root_dir)
 
-        self.backend = backend
-        self.version = version
+        self.backend: str = backend
+        self.version: str = version
 
         # save model config
         model_config = Model(
@@ -75,11 +81,23 @@ class Hub:
         print(model_config)
 
     @classmethod
-    def load(cls, name: str, root_dir: str = None):
+    def load(cls, name: str, root_dir: str = None) -> "BaseHub":
+        """Load Hub by name.
+
+        Args:
+            name (str): hub name.
+            root_dir (str, optional): hub root directory. Defaults to None.
+
+        Raises:
+            FileNotFoundError: if hub is not exist in root_dir
+
+        Returns:
+            Hub: Hub instance
+        """
         model_config_file = (
-            Path(root_dir if root_dir else Hub.DEFAULT_ROOT_DIR)
+            Path(root_dir if root_dir else BaseHub.DEFAULT_ROOT_DIR)
             / name
-            / Hub.MODEL_CONFIG_FILE
+            / BaseHub.MODEL_CONFIG_FILE
         )
         if not model_config_file.exists():
             raise FileNotFoundError(
@@ -91,7 +109,17 @@ class Hub:
     @classmethod
     def from_model_config(
         cls, name: str, model_config_file: str, root_dir: str = None
-    ):
+    ) -> "BaseHub":
+        """Create new Hub with model config.
+
+        Args:
+            name (str): hub name.
+            model_config_file (str): model config yaml file.
+            root_dir (str, optional): hub root directory. Defaults to None.
+
+        Returns:
+            Hub: New Hub instance
+        """
         model_config = io.load_yaml(model_config_file)
         return cls(
             **{
@@ -103,7 +131,8 @@ class Hub:
 
     # properties
     @property
-    def name(self):
+    def name(self) -> str:
+        """Hub name"""
         return self.__name
 
     @name.setter
@@ -113,15 +142,17 @@ class Hub:
 
     @property
     def root_dir(self) -> Path:
+        """Root Directory"""
         return self.__root_dir
 
     @root_dir.setter
     @type_validator(Path, strict=False)
     def root_dir(self, v):
-        self.__root_dir = Path(v) if v else Hub.DEFAULT_ROOT_DIR
+        self.__root_dir = Path(v) if v else BaseHub.DEFAULT_ROOT_DIR
 
     @property
     def task(self) -> str:
+        """Task Name"""
         return self.__task
 
     @task.setter
@@ -135,6 +166,7 @@ class Hub:
 
     @property
     def model_type(self) -> str:
+        """Model Type"""
         return self.__model_type
 
     @model_type.setter
@@ -148,6 +180,7 @@ class Hub:
 
     @property
     def model_size(self) -> str:
+        """Model Size"""
         return self.__model_size
 
     @model_size.setter
@@ -161,6 +194,7 @@ class Hub:
 
     @property
     def backend(self) -> str:
+        """Backend name"""
         return self.__backend
 
     @backend.setter
@@ -170,6 +204,7 @@ class Hub:
 
     @property
     def version(self) -> str:
+        """Version"""
         return self.__version
 
     @version.setter
@@ -178,63 +213,70 @@ class Hub:
         self.__version = v
 
     @cached_property
-    def model_dir(self) -> Path:
+    def hub_dir(self) -> Path:
+        """Hub(Model) Directory"""
         return self.root_dir / self.name
 
     @cached_property
-    def raw_train_dir(self) -> Path:
-        return self.model_dir / Hub.RAW_TRAIN_DIR
+    def artifact_dir(self) -> Path:
+        """Artifact Directory. This is raw output of each backend."""
+        return self.hub_dir / BaseHub.RAW_TRAIN_DIR
 
     @cached_property
     def inference_dir(self) -> Path:
-        return self.model_dir / Hub.INFERENCE_DIR
+        """Inference Results Directory"""
+        return self.hub_dir / BaseHub.INFERENCE_DIR
 
     @cached_property
     def evaluation_dir(self) -> Path:
-        return self.model_dir / Hub.EVALUATION_DIR
+        """Evaluation Results Directory"""
+        return self.hub_dir / BaseHub.EVALUATION_DIR
 
     @cached_property
     def export_dir(self) -> Path:
-        return self.model_dir / Hub.EXPORT_DIR
+        """Export Results Directory"""
+        return self.hub_dir / BaseHub.EXPORT_DIR
 
     @cached_property
     def model_config_file(self) -> Path:
-        return self.model_dir / Hub.MODEL_CONFIG_FILE
+        """Model Config yaml File"""
+        return self.hub_dir / BaseHub.MODEL_CONFIG_FILE
 
     @cached_property
     def train_config_file(self) -> Path:
-        return self.model_dir / Hub.TRAIN_CONFIG_FILE
+        """Train Config yaml File"""
+        return self.hub_dir / BaseHub.TRAIN_CONFIG_FILE
 
     @cached_property
     def classes_config_file(self) -> Path:
-        return self.model_dir / Hub.CLASS_CONFIG_FILE
+        """Class Config yaml File"""
+        return self.hub_dir / BaseHub.CLASS_CONFIG_FILE
 
     @cached_property
     def best_ckpt_file(self) -> Path:
-        return self.model_dir / Hub.BEST_CKPT_FILE
+        """Best Checkpoint File"""
+        return self.hub_dir / BaseHub.BEST_CKPT_FILE
 
     @cached_property
     def last_ckpt_file(self) -> Path:
-        return self.model_dir / Hub.LAST_CKPT_FILE
+        """Last Checkpoint File"""
+        return self.hub_dir / BaseHub.LAST_CKPT_FILE
 
     @cached_property
     def metric_file(self) -> Path:
-        return self.model_dir / Hub.METRIC_FILE
+        """Metric Csv File"""
+        return self.hub_dir / BaseHub.METRIC_FILE
 
-    def delete_train(self):
-        """Delete Raw Trained Data. It can be trained again."""
-        io.remove_directory(self.raw_train_dir)
-
-    def is_trainable(self):
-        if self.raw_train_dir.exists():
-            raise FileExistsError(
-                f"""
-                Train[{self.name}] already exists.
-                Use another name or delete trains (hub.delete_train()).
-                """
-            )
+    def delete_artifact(self):
+        """Delete Artifact Directory. It can be trained again."""
+        io.remove_directory(self.artifact_dir)
 
     def check_train_sanity(self) -> bool:
+        """Check if all essential files are exist.
+
+        Returns:
+            bool: True if all files are exist else False
+        """
         return (
             self.classes_config_file.exists()
             and self.best_ckpt_file.exists()
