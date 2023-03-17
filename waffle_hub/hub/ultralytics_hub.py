@@ -10,33 +10,82 @@ BACKEND_VERSION = get_installed_backend_version(BACKEND_NAME)
 from dataclasses import asdict
 from pathlib import Path
 
+import torch
+import tqdm
+from torchvision import transforms as T
+from torchvision.ops import batched_nms
 from ultralytics import YOLO
 from ultralytics.yolo.engine.results import Results
+from waffle_utils.dataset.fields import Annotation
 from waffle_utils.file import io
 
 from waffle_hub.schemas.configs import (
     Classes,
     ClassificationPrediction,
     DetectionPrediction,
-    Prediction,
     Train,
 )
+from waffle_hub.utils.image import ImageDataset
 
 from . import BaseHub
+from .model import ModelWrapper
+
+
+def preprocess():
+    normalize = T.Normalize([0, 0, 0], [1, 1, 1], inplace=True)
+
+    def inner(x):
+        return normalize(x)
+
+    return inner
+
+
+def postprocess(image_size):
+    image_size = (
+        image_size
+        if isinstance(image_size, list)
+        else [image_size, image_size]
+    )
+
+    def inner(x):
+        x = x[0]
+        x = x.transpose(1, 2)
+
+        cxcywh = x[:, :, :4]
+        cx, cy, w, h = torch.unbind(cxcywh, dim=-1)
+        x1 = cx - w / 2
+        y1 = cy - h / 2
+        x2 = cx + w / 2
+        y2 = cy + h / 2
+        xyxy = torch.stack([x1, y1, x2, y2], dim=-1)
+
+        xyxy[:, :, ::2] /= image_size[0]
+        xyxy[:, :, 1::2] /= image_size[1]
+        probs = x[:, :, 4:]
+        confidences, class_ids = torch.max(probs, dim=-1)
+
+        return xyxy, confidences, class_ids
+
+    return inner
 
 
 class UltralyticsHub(BaseHub):
 
     # Common
-    TASKS = ["detect", "classify"]  # TODO: segment
     MODEL_TYPES = ["yolov8"]
     MODEL_SIZES = list("nsmlx")  # TODO: generalize
 
     # Backend Specifics
+    TASK_MAP = {
+        "object_detection": "detect",
+        "classification": "classify",
+        # "segmentation": "segment"
+        # "keypoint_detection": "pose"
+    }
     TASK_SUFFIX = {
         "detect": "",
         "classify": "-cls",
-        "segment": "-seg",
+        # "segment": "-seg",
     }
 
     def __init__(
@@ -69,6 +118,12 @@ class UltralyticsHub(BaseHub):
             model_size=model_size,
             root_dir=root_dir,
         )
+
+        self.backend_task_name = self.TASK_MAP.get(self.task, None)
+        if self.backend_task_name is None:
+            raise ValueError(
+                f"{self.task} is not supported with {self.backend}"
+            )
 
     def train(
         self,
@@ -111,7 +166,7 @@ class UltralyticsHub(BaseHub):
 
         # set data
         dataset_dir: Path = Path(dataset_dir)
-        if self.task in ["detect", "segment"]:
+        if self.backend_task_name in ["detect", "segment"]:
             if dataset_dir.suffix not in [".yml", ".yaml"]:
                 yaml_files = list(dataset_dir.glob("*.yaml")) + list(
                     dataset_dir.glob("*.yml")
@@ -123,7 +178,7 @@ class UltralyticsHub(BaseHub):
                 data = Path(yaml_files[0]).absolute()
             else:
                 data = dataset_dir.absolute()
-        elif self.task == "classify":
+        elif self.backend_task_name == "classify":
             if not dataset_dir.is_dir():
                 raise ValueError(
                     f"Classification dataset should be directory. Not {dataset_dir}"
@@ -137,7 +192,7 @@ class UltralyticsHub(BaseHub):
             if pretrained_model
             else self.model_type
             + self.model_size
-            + self.TASK_SUFFIX[self.task]
+            + self.TASK_SUFFIX[self.backend_task_name]
             + ".pt"
         )
 
@@ -156,7 +211,7 @@ class UltralyticsHub(BaseHub):
         )
 
         try:
-            model = YOLO(pretrained_model, task=self.task)
+            model = YOLO(pretrained_model, task=self.backend_task_name)
             model.train(
                 data=data,
                 epochs=epochs,
@@ -204,11 +259,13 @@ class UltralyticsHub(BaseHub):
     def inference(
         self,
         source: str,
+        batch_size: int,
         recursive: bool = True,
         image_size: int = None,
         conf_thres: float = 0.25,
         iou_thres: float = 0.7,
         half: bool = False,
+        workers: int = 2,
         device: str = "0",
     ) -> str:
         """Start Inference
@@ -230,29 +287,7 @@ class UltralyticsHub(BaseHub):
             str: inference result directory
         """
         self.check_train_sanity()
-
-        # TODO: get images function needed (in waffle_utils)
-        def _get_images(d, recursive: bool = True) -> list[str]:
-            exp = "**/*" if recursive else "*"
-            return list(
-                map(
-                    str,
-                    list(Path(d).glob(exp + ".png"))
-                    + list(Path(d).glob(exp + ".jpg"))
-                    + list(Path(d).glob(exp + ".PNG"))
-                    + list(Path(d).glob(exp + ".JPG")),
-                )
-            )
-
-        source = Path(source)
-        if source.is_file():
-            image_paths = [str(source)]
-            common_path = ""
-        elif source.is_dir():
-            image_paths = _get_images(source, recursive=recursive)
-            common_path = str(source)
-        else:
-            raise ValueError(f"Cannot recognize source {source}")
+        parser = get_result_parser(self.task)
 
         # overwrite training config
         train_config = io.load_yaml(self.train_config_file)
@@ -260,83 +295,56 @@ class UltralyticsHub(BaseHub):
             image_size if image_size else train_config.get("image_size")
         )
 
-        try:
-            model = YOLO(self.best_ckpt_file, task=self.task)
+        # get images
+        image_dataset = ImageDataset(
+            source, image_size, letter_box=False
+        )  # TODO: add letter box option in train
 
-            results: list[Results] = model.predict(
-                source=image_paths,
-                imgsz=image_size,
-                conf=conf_thres,
-                iou=iou_thres,
-                half=half,
-                device=device,
-            )
+        # inference
+        device = "cpu" if device == "cpu" else f"cuda:{device}"
 
-        except Exception as e:
-            raise e
+        model = YOLO(self.best_ckpt_file).model.eval()
+        model = ModelWrapper(
+            model, preprocess=preprocess(), postprocess=postprocess(image_size)
+        )
+        model.to(device)
 
-        # parse predictions
-        for image_path, result in zip(image_paths, results):
-            relpath = str(Path(image_path).relative_to(common_path))
-
-            prediction = asdict(
-                Prediction(
-                    image_path=relpath,
-                    predictions=self.parse_result(
-                        result
-                    ),  # TODO: cannot move to cpu now. https://github.com/ultralytics/ultralytics/issues/1318
-                )
-            )
-
-            io.save_json(
-                prediction,
-                self.inference_dir / Path(relpath).with_suffix(".json"),
-                create_directory=True,
-            )
-
-        return str(self.inference_dir)
+        dl = image_dataset.get_dataloader(batch_size, workers)
+        for images, image_infos in tqdm.tqdm(dl, total=len(dl)):
+            results = model(images.to(device))
+            results = parser(results, image_infos)
+            results
 
     def evaluation(self):
         raise NotImplementedError
 
     def export(self):
-        raise NotImplementedError
+        self.check_train_sanity()
 
-    def parse_result(self, result: Results) -> dict:
-        """Parse Ultralytics predict results
+        train_config = Train(**io.load_yaml(self.train_config_file))
+        dynamic_batch = 16
+        image_size = [train_config.image_size, train_config.image_size]
 
-        Args:
-            result (Results): ultralytics prediction output. TODO: check segmentation compatibility.
+        model = YOLO(self.best_ckpt_file).model
+        model = ModelWrapper(
+            model, preprocess=preprocess(), postprocess=postprocess(image_size)
+        )
 
-        Returns:
-            dict: result dictionary
-        """
-        results = []
-        if result.boxes is not None:
-            for xywh, cls_idx, conf, segment in zip(
-                result.boxes.xywh,
-                result.boxes.cls,
-                result.boxes.conf,
-                result.masks.segments
-                if result.masks
-                else [None] * len(result),
-            ):
-                results.append(
-                    DetectionPrediction(
-                        bbox=list(xywh.cpu().numpy().astype(float)),
-                        class_name=result.names[int(cls_idx)],
-                        confidence=float(conf.cpu()),
-                        segment=list(segment.numpy().astype(float))
-                        if segment
-                        else [],
-                    )
-                )
-        if result.probs is not None:
-            for cls_idx, prob in enumerate(result.probs):
-                results.append(
-                    ClassificationPrediction(
-                        score=float(prob.cpu()),
-                        class_name=result.names[int(cls_idx)],
-                    )
-                )
-        return results
+        input_name = ["inputs"]
+        output_names = ["bbox", "conf", "class_id"]
+
+        dummy_input = torch.randn(dynamic_batch, 3, *image_size)
+
+        torch.onnx.export(
+            model,
+            dummy_input,
+            str(self.onnx_file),
+            input_names=input_name,
+            output_names=output_names,
+            opset_version=11,
+            dynamic_axes={
+                name: {0: "batch_size"} for name in input_name + output_names
+            },
+        )
+
+        return str(self.onnx_file)

@@ -29,8 +29,7 @@ except ModuleNotFoundError as e:
     e.msg = "Need to install torch\n" + "\n".join(strings)
     raise e
 
-# backend version specification (optional installation)
-
+# backend supports
 _backends = OrderedDict(
     {
         "ultralytics": ["8.0.49", "8.0.50"],

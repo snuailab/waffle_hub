@@ -20,7 +20,12 @@ logger = logging.getLogger(__name__)
 
 class BaseHub:
 
-    TASKS = []
+    TASKS = [
+        "object_detection",
+        "classification",
+        "segmentation",
+        "keypoint_detection",
+    ]
     MODEL_TYPES = []
     MODEL_SIZES = []
 
@@ -43,6 +48,9 @@ class BaseHub:
     LAST_CKPT_FILE = "weights/last_ckpt.pt"
     BEST_CKPT_FILE = "weights/best_ckpt.pt"  # TODO: best metric?
     METRIC_FILE = "metrics.csv"
+
+    # export results
+    ONNX_FILE = "weights/model.onnx"
 
     def __init__(
         self,
@@ -256,6 +264,11 @@ class BaseHub:
     def best_ckpt_file(self) -> Path:
         """Best Checkpoint File"""
         return self.hub_dir / BaseHub.BEST_CKPT_FILE
+
+    @cached_property
+    def onnx_file(self) -> Path:
+        """Best Checkpoint File"""
+        return self.hub_dir / BaseHub.ONNX_FILE
 
     @cached_property
     def last_ckpt_file(self) -> Path:
