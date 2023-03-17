@@ -1,3 +1,13 @@
+"""_summary_
+
+Raises:
+    NotImplementedError: _description_
+    ValueError: _description_
+
+Returns:
+    _type_: _description_
+"""
+
 import torch
 
 
@@ -57,12 +67,20 @@ class ModelWrapper(torch.nn.Module):
         return x
 
 
-def get_result_parser(task):
+def get_result_parser(task: str, *args, **kwargs):
+    """Get Result Parser
+
+    Args:
+        task (str): task name.
+    """
 
     if task == "classification":
 
-        def parser(results, image_info):
-            pass
+        def parser(results: torch.Tensor, image_info: dict):
+            scores, class_ids = results.cpu().topk(results.shape[1], dim=-1)
+            return torch.cat(
+                [class_ids.unsqueeze(-1), scores.unsqueeze(-1)], dim=-1
+            )
 
     elif task == "object_detection":
 
@@ -71,5 +89,8 @@ def get_result_parser(task):
 
     elif task == "segmentation":
         raise NotImplementedError(f"{task} is not supported yet.")
+
+    else:
+        raise ValueError(f"Unknow task: {task}")
 
     return parser

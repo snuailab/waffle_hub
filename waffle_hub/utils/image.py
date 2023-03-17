@@ -115,6 +115,7 @@ class ImageDataset:
         ) = resize_image(image, self.image_size, self.letter_box)
 
         return self.transform(image), {
+            "image_path": image_path,
             "ori_shape": (ori_w, ori_h),
             "new_shape": (new_w, new_h),
             "pad": (left_pad, top_pad),

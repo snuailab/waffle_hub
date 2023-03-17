@@ -28,43 +28,59 @@ from waffle_hub.schemas.configs import (
 from waffle_hub.utils.image import ImageDataset
 
 from . import BaseHub
-from .model import ModelWrapper
+from .model import ModelWrapper, get_result_parser
 
 
-def preprocess():
-    normalize = T.Normalize([0, 0, 0], [1, 1, 1], inplace=True)
+def get_preprocess(task: str, *args, **kwargs):
 
-    def inner(x):
-        return normalize(x)
+    if task == "classification":
+        normalize = T.Normalize([0, 0, 0], [1, 1, 1], inplace=True)
 
-    return inner
+        def preprocess(x):
+            return normalize(x)
+
+    elif task == "object_detection":
+        normalize = T.Normalize([0, 0, 0], [1, 1, 1], inplace=True)
+
+        def preprocess(x):
+            return normalize(x)
+
+    return preprocess
 
 
-def postprocess(image_size):
-    image_size = (
-        image_size
-        if isinstance(image_size, list)
-        else [image_size, image_size]
-    )
+def get_postprocess(task: str, *args, **kwargs):
 
-    def inner(x):
-        x = x[0]
-        x = x.transpose(1, 2)
+    if task == "classification":
 
-        cxcywh = x[:, :, :4]
-        cx, cy, w, h = torch.unbind(cxcywh, dim=-1)
-        x1 = cx - w / 2
-        y1 = cy - h / 2
-        x2 = cx + w / 2
-        y2 = cy + h / 2
-        xyxy = torch.stack([x1, y1, x2, y2], dim=-1)
+        def inner(x):
+            return x
 
-        xyxy[:, :, ::2] /= image_size[0]
-        xyxy[:, :, 1::2] /= image_size[1]
-        probs = x[:, :, 4:]
-        confidences, class_ids = torch.max(probs, dim=-1)
+    elif task == "object_detection":
+        image_size = kwargs.get("image_size")
+        image_size = (
+            image_size
+            if isinstance(image_size, list)
+            else [image_size, image_size]
+        )
 
-        return xyxy, confidences, class_ids
+        def inner(x):
+            x = x[0]
+            x = x.transpose(1, 2)
+
+            cxcywh = x[:, :, :4]
+            cx, cy, w, h = torch.unbind(cxcywh, dim=-1)
+            x1 = cx - w / 2
+            y1 = cy - h / 2
+            x2 = cx + w / 2
+            y2 = cy + h / 2
+            xyxy = torch.stack([x1, y1, x2, y2], dim=-1)
+
+            xyxy[:, :, ::2] /= image_size[0]
+            xyxy[:, :, 1::2] /= image_size[1]
+            probs = x[:, :, 4:]
+            confidences, class_ids = torch.max(probs, dim=-1)
+
+            return xyxy, confidences, class_ids
 
     return inner
 
@@ -262,8 +278,8 @@ class UltralyticsHub(BaseHub):
         batch_size: int,
         recursive: bool = True,
         image_size: int = None,
-        conf_thres: float = 0.25,
-        iou_thres: float = 0.7,
+        confidence_threshold: float = 0.25,
+        iou_thresold: float = 0.5,
         half: bool = False,
         workers: int = 2,
         device: str = "0",
@@ -287,12 +303,18 @@ class UltralyticsHub(BaseHub):
             str: inference result directory
         """
         self.check_train_sanity()
-        parser = get_result_parser(self.task)
 
         # overwrite training config
         train_config = io.load_yaml(self.train_config_file)
         image_size = (
             image_size if image_size else train_config.get("image_size")
+        )
+
+        # get adapt functions
+        preprocess = get_preprocess(self.task)
+        postprocess = get_postprocess(self.task, image_size=image_size)
+        parser = get_result_parser(
+            self.task, confidence_threshold, iou_thresold
         )
 
         # get images
@@ -305,7 +327,7 @@ class UltralyticsHub(BaseHub):
 
         model = YOLO(self.best_ckpt_file).model.eval()
         model = ModelWrapper(
-            model, preprocess=preprocess(), postprocess=postprocess(image_size)
+            model, preprocess=preprocess, postprocess=postprocess
         )
         model.to(device)
 
