@@ -11,14 +11,12 @@ from dataclasses import asdict
 from pathlib import Path
 from typing import Union
 
-import cv2
 import torch
-import tqdm
 from torchvision import transforms as T
 from ultralytics import YOLO
 from waffle_utils.file import io
 
-from waffle_hub.utils.image import ImageDataset, draw_results
+from waffle_hub.utils.image import ImageDataset
 
 from .base_hub import BaseHub, InferenceContext, TrainContext
 from .model.wrapper import ModelWrapper, ResultParser, get_parser
@@ -236,45 +234,6 @@ class UltralyticsHub(BaseHub):
         ctx.dataloader = ImageDataset(
             ctx.source, ctx.image_size, letter_box=ctx.letter_box
         ).get_dataloader(ctx.batch_size, ctx.workers)
-
-    def inferencing(self, ctx: InferenceContext) -> str:
-        model = ctx.model.to(ctx.device)
-        dataloader = ctx.dataloader
-        device = ctx.device
-
-        for images, image_infos in tqdm.tqdm(dataloader):
-            result_batch = model(images.to(device), image_infos)
-            for results, image_info in zip(result_batch, image_infos):
-                image_path = image_info.get("image_path")
-
-                relpath = Path(image_path).relative_to(ctx.source)
-                if relpath == Path("."):
-                    relpath = Path(
-                        "test.png"
-                    )  # TODO: path correction for none directory source.
-                io.save_json(
-                    results,
-                    self.inference_dir
-                    / "results"
-                    / relpath.with_suffix(".json"),
-                    create_directory=True,
-                )
-                if ctx.draw:
-                    draw = draw_results(
-                        image_path,
-                        results,
-                        task=self.task,
-                        names=[x["name"] for x in self.classes],
-                    )
-                    draw_path = (
-                        self.inference_dir
-                        / "draw"
-                        / relpath.with_suffix(".png")
-                    )
-                    io.make_directory(draw_path.parent)
-                    cv2.imwrite(str(draw_path), draw)
-
-        return results
 
     def on_inference_end(self, ctx: InferenceContext):
         pass
