@@ -9,19 +9,16 @@ class Model:
     task: str
     model_type: str
     model_size: str
+    classes: list
 
 
 @dataclass
 class Train:
     image_size: int
+    letter_box: bool
     batch_size: int
     pretrained_model: str
     seed: int
-
-
-@dataclass
-class Classes:
-    names: list[str]
 
 
 # TODO: Should be moved to waffle_utils. Define Prediction schema for now.

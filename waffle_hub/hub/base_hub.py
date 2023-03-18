@@ -6,16 +6,67 @@ Use {Backend}Hub instead.
 
 import logging
 from abc import abstractmethod
-from dataclasses import asdict
+from dataclasses import asdict, dataclass
 from functools import cached_property
 from pathlib import Path
+from typing import Union
 
+import torch
 from waffle_utils.file import io
 from waffle_utils.utils import type_validator
 
-from waffle_hub.schemas.configs import Model
+from waffle_hub.schemas.configs import Model, Train
 
 logger = logging.getLogger(__name__)
+
+
+class ConfigContext:
+    def __enter__(self):
+        return self
+
+    def __exit__(self, exc_type, exc_value, exc_traceback):
+        return
+
+
+@dataclass
+class TrainContext(ConfigContext):
+    dataset_path: str
+    epochs: int
+    batch_size: int
+    image_size: int
+    letter_box: bool
+    pretrained_model: str
+    device: str
+    workers: int
+    seed: int
+    verbose: bool
+
+
+@dataclass
+class InferenceContext(ConfigContext):
+    source: str
+    batch_size: int
+    recursive: bool
+    image_size: int
+    letter_box: bool
+    confidence_threshold: float
+    iou_thresold: float
+    half: bool
+    workers: int
+    device: str
+    draw: bool
+
+    model = None
+    dataloader = None
+
+
+@dataclass
+class ExportContext(ConfigContext):
+    image_size: Union[int, list]
+    batch_size: int
+    input_name: list[str]
+    output_name: list[str]
+    opset_version: int
 
 
 class BaseHub:
@@ -42,7 +93,6 @@ class BaseHub:
     CONFIG_DIR = Path("configs")
     MODEL_CONFIG_FILE = CONFIG_DIR / "model.yaml"
     TRAIN_CONFIG_FILE = CONFIG_DIR / "train.yaml"
-    CLASS_CONFIG_FILE = CONFIG_DIR / "classes.yaml"
 
     # train results
     LAST_CKPT_FILE = "weights/last_ckpt.pt"
@@ -60,33 +110,45 @@ class BaseHub:
         task: str = None,
         model_type: str = None,
         model_size: str = None,
+        classes: Union[list[dict], list] = None,
         root_dir: str = None,
     ):
-
         self.name: str = name
         self.task: str = task
         self.model_type: str = model_type
         self.model_size: str = model_size
+        self.classes: list[dict] = classes
         self.root_dir: Path = Path(root_dir) if root_dir else None
 
         self.backend: str = backend
         self.version: str = version
 
-        # save model config
-        model_config = Model(
-            name=self.name,
-            backend=self.backend,
-            version=self.version,
-            task=self.task,
-            model_type=self.model_type,
-            model_size=self.model_size,
-        )
-        io.save_yaml(
-            asdict(model_config),
-            self.model_config_file,
-            create_directory=True,
-        )
-        print(model_config)
+        # check task supports
+        self.backend_task_name = self.TASK_MAP.get(self.task, None)
+        if self.backend_task_name is None:
+            io.remove_directory()
+            raise ValueError(
+                f"{self.task} is not supported with {self.backend}"
+            )
+
+        try:
+            # save model config
+            model_config = Model(
+                name=self.name,
+                backend=self.backend,
+                version=self.version,
+                task=self.task,
+                model_type=self.model_type,
+                model_size=self.model_size,
+                classes=self.classes,
+            )
+            io.save_yaml(
+                asdict(model_config),
+                self.model_config_file,
+                create_directory=True,
+            )
+        except Exception as e:
+            raise e
 
     @classmethod
     def load(cls, name: str, root_dir: str = None) -> "BaseHub":
@@ -220,6 +282,17 @@ class BaseHub:
     def version(self, v):
         self.__version = v
 
+    @property
+    def classes(self) -> list[dict]:
+        return self.__classes
+
+    @classes.setter
+    @type_validator(list)
+    def classes(self, v):
+        if isinstance(v[0], str):
+            v = [{"supercategory": "object", "name": n} for n in v]
+        self.__classes = v
+
     @cached_property
     def hub_dir(self) -> Path:
         """Hub(Model) Directory"""
@@ -256,11 +329,6 @@ class BaseHub:
         return self.hub_dir / BaseHub.TRAIN_CONFIG_FILE
 
     @cached_property
-    def classes_config_file(self) -> Path:
-        """Class Config yaml File"""
-        return self.hub_dir / BaseHub.CLASS_CONFIG_FILE
-
-    @cached_property
     def best_ckpt_file(self) -> Path:
         """Best Checkpoint File"""
         return self.hub_dir / BaseHub.BEST_CKPT_FILE
@@ -280,6 +348,7 @@ class BaseHub:
         """Metric Csv File"""
         return self.hub_dir / BaseHub.METRIC_FILE
 
+    # common functions
     def delete_artifact(self):
         """Delete Artifact Directory. It can be trained again."""
         io.remove_directory(self.artifact_dir)
@@ -290,25 +359,245 @@ class BaseHub:
         Returns:
             bool: True if all files are exist else False
         """
-        return (
-            self.classes_config_file.exists()
+        if not (
+            self.model_config_file.exists()
             and self.best_ckpt_file.exists()
-            and self.last_ckpt_file.exists()
-            and self.metric_file.exists()
+            # and self.last_ckpt_file.exists()
+        ):
+            raise FileNotFoundError("Train first! hub.train(...).")
+        return True
+
+    # Train Hook
+    def before_train(self, ctx: TrainContext):
+        if self.artifact_dir.exists():
+            raise FileExistsError(
+                "Train artifacts already exist. Remove artifact to re-train (hub.delete_artifact())."
+            )
+
+    def on_train_start(self, ctx: TrainContext):
+        pass
+
+    def save_train_config(self, ctx: TrainContext):
+        io.save_yaml(
+            asdict(
+                Train(
+                    image_size=ctx.image_size,
+                    letter_box=ctx.letter_box,
+                    batch_size=ctx.batch_size,
+                    pretrained_model=ctx.pretrained_model,
+                    seed=ctx.seed,
+                )
+            ),
+            self.train_config_file,
+            create_directory=True,
         )
 
-    @abstractmethod
-    def train(self):
+    def training(self, ctx: TrainContext):
+        pass
+
+    def on_train_end(self, ctx: TrainContext):
+        pass
+
+    def after_train(self, ctx: TrainContext):
+        pass
+
+    def train(
+        self,
+        dataset_path: str,
+        epochs: int,
+        batch_size: int,
+        image_size: int,
+        letter_box: bool = False,
+        pretrained_model: str = None,
+        device: str = "0",
+        workers: int = 2,
+        seed: int = 0,
+        verbose: bool = True,
+    ) -> str:
+        """Start Train
+
+        Args:
+            dataset_path (str): Dataset Path. Recommend to use result of waffle_utils.dataset.Dataset.export.
+            epochs (int): total epochs
+            batch_size (int): batch size
+            image_size (int): image size
+            letter_box (bool): letter box preprocess. Defaults to False.
+            pretrained_model (str, optional): pretrained model file. Defaults to None.
+            device (str, optional): gpu device. Defaults to "0".
+            workers (int, optional): num workers. Defaults to 2.
+            seed (int, optional): random seed. Defaults to 0.
+            verbose (bool, optional): verbose. Defaults to True.
+
+        Raises:
+            FileExistsError: if trained artifact exists.
+            FileNotFoundError: if can not detect appropriate dataset.
+            ValueError: if can not detect appropriate dataset.
+            e: something gone wrong with ultralytics
+
+        Returns:
+            str: hub directory
+        """
+
+        with TrainContext(
+            dataset_path=dataset_path,
+            epochs=epochs,
+            batch_size=batch_size,
+            image_size=image_size,
+            letter_box=letter_box,
+            pretrained_model=pretrained_model,
+            device="cpu" if device == "cpu" else f"cuda:{device}",
+            workers=workers,
+            seed=seed,
+            verbose=verbose,
+        ) as ctx:
+            self.before_train(ctx)
+            self.on_train_start(ctx)
+            self.save_train_config(ctx)
+            self.training(ctx)
+            self.on_train_end(ctx)
+            self.after_train(ctx)
+
+        return str(self.hub_dir)
+
+    # Inference Hook
+    def get_model(self):
         raise NotImplementedError
 
-    @abstractmethod
-    def inference(self):
-        raise NotImplementedError
+    def before_inference(self, ctx: InferenceContext):
+        self.check_train_sanity()
+
+        # overwrite training config
+        train_config = io.load_yaml(self.train_config_file)
+        if ctx.image_size is None:
+            ctx.image_size = train_config.get("image_size")
+        if ctx.letter_box is None:
+            ctx.letter_box = train_config.get("letter_box")
+
+    def on_inference_start(self, ctx: InferenceContext):
+        pass
+
+    def inferencing(self, ctx: InferenceContext):
+        pass
+
+    def on_inference_end(self, ctx: InferenceContext):
+        pass
+
+    def after_inference(self, ctx: InferenceContext):
+        pass
+
+    def inference(
+        self,
+        source: str,
+        recursive: bool = True,
+        image_size: int = None,
+        letter_box: bool = None,
+        batch_size: int = 4,
+        confidence_threshold: float = 0.25,
+        iou_thresold: float = 0.5,
+        half: bool = False,
+        workers: int = 2,
+        device: str = "0",
+        draw: bool = False,
+    ) -> str:
+        """Start Inference
+
+        Args:
+            source (str): dataset source. image file or image directory. TODO: video
+            recursive (bool, optional): get images from directory recursively. Defaults to True.
+            image_size (int, optional): inference image size. None for same with train_config (recommended).
+            letter_box (bool, optional): letter box preprocess. None for same with train_config (recommended).
+            batch_size (int, optional): batch size. Defaults to 4.
+            conf_thres (float, optional): confidence threshold. Defaults to 0.25.
+            iou_thres (float, optional): iou threshold. Defaults to 0.7.
+            half (bool, optional): fp16 inference. Defaults to False.
+            device (str, optional): gpu device. Defaults to "0".
+            draw (bool, optional): save draw or not. Defaults to False.
+
+        Raises:
+            FileNotFoundError: if can not detect appropriate dataset.
+            e: something gone wrong with ultralytics
+
+        Returns:
+            str: inference result directory
+        """
+        self.check_train_sanity()
+
+        with InferenceContext(
+            source=source,
+            batch_size=batch_size,
+            recursive=recursive,
+            image_size=image_size,
+            letter_box=letter_box,
+            confidence_threshold=confidence_threshold,
+            iou_thresold=iou_thresold,
+            half=half,
+            workers=workers,
+            device="cpu" if device == "cpu" else f"cuda:{device}",
+            draw=draw,
+        ) as ctx:
+
+            self.before_inference(ctx)
+            self.on_inference_start(ctx)
+            self.inferencing(ctx)
+            self.on_inference_end(ctx)
+            self.after_inference(ctx)
+
+    # Export Hook
+    def export(
+        self,
+        image_size: int = None,
+        batch_size: int = 1,
+        opset_version: int = 11,
+    ) -> str:
+        """Export Model
+
+        Args:
+            image_size (int, optional): inference image size. None for same with train_config (recommended).
+            batch_size (int, optional): dynamic batch size. Defaults to 16.
+            opset_version (int, optional): onnx opset version. Defaults to 11.
+
+        Returns:
+            str: export onnx file path
+        """
+        self.check_train_sanity()
+
+        train_config = Train(**io.load_yaml(self.train_config_file))
+
+        image_size = image_size if image_size else train_config.image_size
+        image_size = (
+            [image_size, image_size]
+            if isinstance(image_size, int)
+            else image_size
+        )
+
+        model = self.get_model(train_config.image_size)
+
+        input_name = ["inputs"]
+        if self.task == "object_detection":
+            output_names = ["bbox", "conf", "class_id"]
+        elif self.task == "classification":
+            output_names = ["predictions"]
+        else:
+            raise NotImplementedError(
+                f"{self.task} does not support export yet."
+            )
+
+        dummy_input = torch.randn(batch_size, 3, *image_size)
+
+        torch.onnx.export(
+            model,
+            dummy_input,
+            str(self.onnx_file),
+            input_names=input_name,
+            output_names=output_names,
+            opset_version=opset_version,
+            dynamic_axes={
+                name: {0: "batch_size"} for name in input_name + output_names
+            },
+        )
+
+        return str(self.onnx_file)
 
     @abstractmethod
-    def evaluation(self):
-        raise NotImplementedError
-
-    @abstractmethod
-    def export(self):
+    def evaluate(self):
         raise NotImplementedError

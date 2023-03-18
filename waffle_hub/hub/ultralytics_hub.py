@@ -9,26 +9,19 @@ BACKEND_VERSION = get_installed_backend_version(BACKEND_NAME)
 
 from dataclasses import asdict
 from pathlib import Path
+from typing import Union
 
+import cv2
 import torch
 import tqdm
 from torchvision import transforms as T
-from torchvision.ops import batched_nms
 from ultralytics import YOLO
-from ultralytics.yolo.engine.results import Results
-from waffle_utils.dataset.fields import Annotation
 from waffle_utils.file import io
 
-from waffle_hub.schemas.configs import (
-    Classes,
-    ClassificationPrediction,
-    DetectionPrediction,
-    Train,
-)
-from waffle_hub.utils.image import ImageDataset
+from waffle_hub.utils.image import ImageDataset, draw_results
 
-from . import BaseHub
-from .model import ModelWrapper, get_result_parser
+from .base_hub import BaseHub, InferenceContext, TrainContext
+from .model.wrapper import ModelWrapper, ResultParser, get_parser
 
 
 def get_preprocess(task: str, *args, **kwargs):
@@ -52,8 +45,8 @@ def get_postprocess(task: str, *args, **kwargs):
 
     if task == "classification":
 
-        def inner(x):
-            return x
+        def inner(x: torch.Tensor):
+            return [x]
 
     elif task == "object_detection":
         image_size = kwargs.get("image_size")
@@ -63,8 +56,8 @@ def get_postprocess(task: str, *args, **kwargs):
             else [image_size, image_size]
         )
 
-        def inner(x):
-            x = x[0]
+        def inner(x: torch.Tensor):
+            x = x[0]  # x[0]: prediction, x[1]: TODO: what is this...?
             x = x.transpose(1, 2)
 
             cxcywh = x[:, :, :4]
@@ -112,6 +105,7 @@ class UltralyticsHub(BaseHub):
         task: str = None,
         model_type: str = None,
         model_size: str = None,
+        classes: Union[list[dict], list] = None,
         root_dir: str = None,
     ):
         """Create Ultralytics Hub.
@@ -123,6 +117,7 @@ class UltralyticsHub(BaseHub):
             task (str, optional): Task Name. See UltralyticsHub.TASKS. Defaults to None.
             model_type (str, optional): Model Type. See UltralyticsHub.MODEL_TYPES. Defaults to None.
             model_size (str, optional): Model Size. See UltralyticsHub.MODEL_SIZES. Defaults to None.
+            classes (Union[list[dict], list]): class dictionary or list. [{"supercategory": "name"}, ] or ["name",].
             root_dir (str, optional): Root directory of hub repository. Defaults to None.
         """
         super().__init__(
@@ -132,128 +127,68 @@ class UltralyticsHub(BaseHub):
             task=task,
             model_type=model_type,
             model_size=model_size,
+            classes=classes,
             root_dir=root_dir,
         )
 
-        self.backend_task_name = self.TASK_MAP.get(self.task, None)
-        if self.backend_task_name is None:
-            raise ValueError(
-                f"{self.task} is not supported with {self.backend}"
-            )
-
-    def train(
-        self,
-        dataset_dir: str,
-        epochs: int,
-        batch_size: int,
-        image_size: int,
-        pretrained_model: str = None,
-        device: str = "0",
-        workers: int = 2,
-        seed: int = 0,
-        verbose: bool = True,
-    ) -> str:
-        """Start Train
-
-        Args:
-            dataset_dir (str): Dataset Directory. Recommend to use result of waffle_utils.dataset.Dataset.export.
-            epochs (int): total epochs
-            batch_size (int): batch size
-            image_size (int): image size
-            pretrained_model (str, optional): pretrained model file. Defaults to None.
-            device (str, optional): gpu device. Defaults to "0".
-            workers (int, optional): num workers. Defaults to 2.
-            seed (int, optional): random seed. Defaults to 0.
-            verbose (bool, optional): verbose. Defaults to True.
-
-        Raises:
-            FileExistsError: if trained artifact exists.
-            FileNotFoundError: if can not detect appropriate dataset.
-            ValueError: if can not detect appropriate dataset.
-            e: something gone wrong with ultralytics
-
-        Returns:
-            str: hub directory
-        """
-        if self.artifact_dir.exists():
-            raise FileExistsError(
-                "Train artifacts already exist. Remove artifact to re-train (hub.delete_artifact())."
-            )
-
+    # Train Hook
+    def on_train_start(self, ctx: TrainContext):
         # set data
-        dataset_dir: Path = Path(dataset_dir)
+        ctx.dataset_path: Path = Path(ctx.dataset_path)
         if self.backend_task_name in ["detect", "segment"]:
-            if dataset_dir.suffix not in [".yml", ".yaml"]:
-                yaml_files = list(dataset_dir.glob("*.yaml")) + list(
-                    dataset_dir.glob("*.yml")
+            if ctx.dataset_path.suffix not in [".yml", ".yaml"]:
+                yaml_files = list(ctx.dataset_path.glob("*.yaml")) + list(
+                    ctx.dataset_path.glob("*.yml")
                 )
                 if len(yaml_files) != 1:
                     raise FileNotFoundError(
                         f"Ambiguous data file. Detected files: {yaml_files}"
                     )
-                data = Path(yaml_files[0]).absolute()
+                ctx.dataset_path = Path(yaml_files[0]).absolute()
             else:
-                data = dataset_dir.absolute()
+                ctx.dataset_path = ctx.dataset_path.absolute()
         elif self.backend_task_name == "classify":
-            if not dataset_dir.is_dir():
+            if not ctx.dataset_path.is_dir():
                 raise ValueError(
-                    f"Classification dataset should be directory. Not {dataset_dir}"
+                    f"Classification dataset should be directory. Not {ctx.dataset_path}"
                 )
-            data = dataset_dir.absolute()
-        data = str(data)
+            ctx.dataset_path = ctx.dataset_path.absolute()
+        ctx.dataset_path = str(ctx.dataset_path)
 
         # pretrained model
-        pretrained_model = (
-            pretrained_model
-            if pretrained_model
+        ctx.pretrained_model = (
+            ctx.pretrained_model
+            if ctx.pretrained_model
             else self.model_type
             + self.model_size
             + self.TASK_SUFFIX[self.backend_task_name]
             + ".pt"
         )
 
-        # save train config.
-        io.save_yaml(
-            asdict(
-                Train(
-                    image_size=image_size,
-                    batch_size=batch_size,
-                    pretrained_model=pretrained_model,
-                    seed=seed,
-                )
-            ),
-            self.train_config_file,
-            create_directory=True,
-        )
-
+    def training(self, ctx: TrainContext):
         try:
-            model = YOLO(pretrained_model, task=self.backend_task_name)
+            model = YOLO(ctx.pretrained_model, task=self.backend_task_name)
             model.train(
-                data=data,
-                epochs=epochs,
-                batch=batch_size,
-                imgsz=image_size,
-                device=device,
-                workers=workers,
-                seed=seed,
-                verbose=verbose,
+                data=ctx.dataset_path,
+                epochs=ctx.epochs,
+                batch=ctx.batch_size,
+                imgsz=ctx.image_size,
+                rect=ctx.letter_box,
+                device=ctx.device,
+                workers=ctx.workers,
+                seed=ctx.seed,
+                verbose=ctx.verbose,
                 project=self.hub_dir,
                 name=self.RAW_TRAIN_DIR,
             )
-
-            # save classes config.
-            io.save_yaml(
-                asdict(Classes(names=model.names)),
-                self.classes_config_file,
-                create_directory=True,
-            )
+            return model
 
         except Exception as e:
             if self.artifact_dir.exists():
                 io.remove_directory(self.artifact_dir)
             raise e
 
-        # Parse Training Results
+    def on_train_end(self, ctx: TrainContext):
         io.copy_file(
             self.artifact_dir / "weights" / "best.pt",
             self.best_ckpt_file,
@@ -270,103 +205,80 @@ class UltralyticsHub(BaseHub):
             create_directory=True,
         )
 
-        return str(self.hub_dir)
-
-    def inference(
-        self,
-        source: str,
-        batch_size: int,
-        recursive: bool = True,
-        image_size: int = None,
-        confidence_threshold: float = 0.25,
-        iou_thresold: float = 0.5,
-        half: bool = False,
-        workers: int = 2,
-        device: str = "0",
-    ) -> str:
-        """Start Inference
-
-        Args:
-            source (str): dataset source. image file or image directory. TODO: video
-            recursive (bool, optional): get images from directory recursively. Defaults to True.
-            image_size (int, optional): inference image size. None to load image_size from train_config (recommended).
-            conf_thres (float, optional): confidence threshold. Defaults to 0.25.
-            iou_thres (float, optional): iou threshold. Defaults to 0.7.
-            half (bool, optional): fp16 inference. Defaults to False.
-            device (str, optional): gpu device. Defaults to "0".
-
-        Raises:
-            FileNotFoundError: if can not detect appropriate dataset.
-            e: something gone wrong with ultralytics
-
-        Returns:
-            str: inference result directory
-        """
+    # Inference Hook
+    def get_model(
+        self, image_size: Union[int, list] = None, parser: ResultParser = None
+    ):
         self.check_train_sanity()
 
-        # overwrite training config
-        train_config = io.load_yaml(self.train_config_file)
-        image_size = (
-            image_size if image_size else train_config.get("image_size")
-        )
+        if image_size is None:
+            train_config = io.load_yaml(self.train_config_file)
+            image_size = train_config.get("image_size")
 
         # get adapt functions
         preprocess = get_preprocess(self.task)
         postprocess = get_postprocess(self.task, image_size=image_size)
-        parser = get_result_parser(
-            self.task, confidence_threshold, iou_thresold
-        )
 
-        # get images
-        image_dataset = ImageDataset(
-            source, image_size, letter_box=False
-        )  # TODO: add letter box option in train
-
-        # inference
-        device = "cpu" if device == "cpu" else f"cuda:{device}"
-
-        model = YOLO(self.best_ckpt_file).model.eval()
+        # get model
         model = ModelWrapper(
-            model, preprocess=preprocess, postprocess=postprocess
+            model=YOLO(self.best_ckpt_file).model.eval(),
+            preprocess=preprocess,
+            postprocess=postprocess,
+            parser=parser if parser else None,
         )
-        model.to(device)
 
-        dl = image_dataset.get_dataloader(batch_size, workers)
-        for images, image_infos in tqdm.tqdm(dl, total=len(dl)):
-            results = model(images.to(device))
-            results = parser(results, image_infos)
-            results
+        return model
 
-    def evaluation(self):
+    def on_inference_start(self, ctx: InferenceContext):
+        ctx.model = self.get_model(
+            ctx.image_size, get_parser(self.task)(**asdict(ctx))
+        )
+        ctx.dataloader = ImageDataset(
+            ctx.source, ctx.image_size, letter_box=ctx.letter_box
+        ).get_dataloader(ctx.batch_size, ctx.workers)
+
+    def inferencing(self, ctx: InferenceContext) -> str:
+        model = ctx.model.to(ctx.device)
+        dataloader = ctx.dataloader
+        device = ctx.device
+
+        for images, image_infos in tqdm.tqdm(dataloader):
+            result_batch = model(images.to(device), image_infos)
+            for results, image_info in zip(result_batch, image_infos):
+                image_path = image_info.get("image_path")
+
+                relpath = Path(image_path).relative_to(ctx.source)
+                if relpath == Path("."):
+                    relpath = Path(
+                        "test.png"
+                    )  # TODO: path correction for none directory source.
+                io.save_json(
+                    results,
+                    self.inference_dir
+                    / "results"
+                    / relpath.with_suffix(".json"),
+                    create_directory=True,
+                )
+                if ctx.draw:
+                    draw = draw_results(
+                        image_path,
+                        results,
+                        task=self.task,
+                        names=[x["name"] for x in self.classes],
+                    )
+                    draw_path = (
+                        self.inference_dir
+                        / "draw"
+                        / relpath.with_suffix(".png")
+                    )
+                    io.make_directory(draw_path.parent)
+                    cv2.imwrite(str(draw_path), draw)
+
+        return results
+
+    def on_inference_end(self, ctx: InferenceContext):
+        pass
+
+    # Evaluate Hook
+    def evaluating(self):
         raise NotImplementedError
-
-    def export(self):
-        self.check_train_sanity()
-
-        train_config = Train(**io.load_yaml(self.train_config_file))
-        dynamic_batch = 16
-        image_size = [train_config.image_size, train_config.image_size]
-
-        model = YOLO(self.best_ckpt_file).model
-        model = ModelWrapper(
-            model, preprocess=preprocess(), postprocess=postprocess(image_size)
-        )
-
-        input_name = ["inputs"]
-        output_names = ["bbox", "conf", "class_id"]
-
-        dummy_input = torch.randn(dynamic_batch, 3, *image_size)
-
-        torch.onnx.export(
-            model,
-            dummy_input,
-            str(self.onnx_file),
-            input_names=input_name,
-            output_names=output_names,
-            opset_version=11,
-            dynamic_axes={
-                name: {0: "batch_size"} for name in input_name + output_names
-            },
-        )
-
-        return str(self.onnx_file)

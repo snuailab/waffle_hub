@@ -48,7 +48,7 @@ def test_ultralytics_detect_train_inference(
         root_dir=tmpdir,
     )
     hub.train(
-        dataset_dir=export_dir,
+        dataset_path=export_dir,
         epochs=1,
         batch_size=4,
         image_size=64,
@@ -74,7 +74,7 @@ def test_ultralytics_classify_train(tmpdir: Path, dummy_dataset: Dataset):
         root_dir=tmpdir,
     )
     hub.train(
-        dataset_dir=export_dir,
+        dataset_path=export_dir,
         epochs=1,
         batch_size=4,
         image_size=28,
