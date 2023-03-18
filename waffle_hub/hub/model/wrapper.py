@@ -154,7 +154,7 @@ class ModelWrapper(torch.nn.Module):
                         [batch, bbox_num],  # class id
                     ]
                 Segmentation:
-                    # TODO
+                    # TODO: segmentation support
         """
         super().__init__()
         self.model = model

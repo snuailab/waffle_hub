@@ -516,7 +516,7 @@ class BaseHub:
                     io.make_directory(draw_path.parent)
                     cv2.imwrite(str(draw_path), draw)
 
-        return results
+        return results  # TODO: return what?
 
     def on_inference_end(self, ctx: InferenceContext):
         pass
