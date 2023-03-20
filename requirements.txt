@@ -6,5 +6,10 @@ typer[all]
 rich
 onnxruntime
 
+# pytorch
+torch==1.13.1
+torchaudio==0.13.1
+torchvision==0.14.1
+
 # waffle dependencies
 waffle-utils==0.1.2
