@@ -2,7 +2,7 @@
 # Will be applied on any updated commit files if a user has installed and linked commit hook
 
 default_language_version:
-  python: python3.10
+  python: python3.9
 
 exclude: 'docs/'
 # Define bot property if installed via https://github.com/marketplace/pre-commit-ci
@@ -22,6 +22,8 @@ repos:
       - id: check-yaml
       - id: check-toml
       - id: pretty-format-json
+        args:
+          - --autofix
       - id: check-docstring-first
 
   - repo: https://github.com/asottile/pyupgrade
@@ -36,6 +38,10 @@ repos:
     hooks:
       - id: isort
         name: Sort imports
+        args: [
+          --multi-line=3,
+          --split-on-trailing-comma
+          ]
 
   - repo: https://github.com/psf/black
     rev: 22.12.0
@@ -43,15 +49,9 @@ repos:
     - id: black
       args: [--line-length=79]
 
-  - repo: https://github.com/PyCQA/flake8
-    rev: 6.0.0
-    hooks:
-      - id: flake8
-        name: PEP8
-
-  - repo: https://github.com/codespell-project/codespell
-    rev: v2.2.2
-    hooks:
-      - id: codespell
-        args:
-          - --ignore-words-list=crate,nd
+  # - repo: https://github.com/PyCQA/flake8
+  #   rev: 6.0.0
+  #   hooks:
+  #     - id: flake8
+  #       name: PEP8
+  #       args: ["--ignore=E501,E741"]

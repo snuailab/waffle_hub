@@ -1,0 +1,6 @@
+name: test_det
+backend: ultralytics
+version: 8.0.49
+task: detect
+model_type: yolov8
+model_size: n
