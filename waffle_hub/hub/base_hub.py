@@ -581,6 +581,8 @@ class BaseHub:
             self.on_inference_end(ctx)
             self.after_inference(ctx)
 
+        return str(self.inference_dir)
+
     # Export Hook
     def export(
         self,

@@ -39,6 +39,7 @@ def test_ultralytics_detect_train_inference(
         task="object_detection",
         model_type="yolov8",
         model_size="n",
+        classes=["1", "2"],
         root_dir=tmpdir,
     )
     hub = UltralyticsHub.load(name=name, root_dir=tmpdir)
@@ -51,13 +52,16 @@ def test_ultralytics_detect_train_inference(
         dataset_path=export_dir,
         epochs=1,
         batch_size=4,
-        image_size=64,
+        image_size=32,
         pretrained_model=None,
-        device="0",
+        device="cpu",
     )
     assert hub.check_train_sanity()
 
-    # hub.inference(source=export_dir)
+    inference_dir = hub.inference(
+        source=export_dir,
+        device="cpu",
+    )
 
 
 def test_ultralytics_classify_train(tmpdir: Path, dummy_dataset: Dataset):
@@ -71,6 +75,7 @@ def test_ultralytics_classify_train(tmpdir: Path, dummy_dataset: Dataset):
         task="classification",
         model_type="yolov8",
         model_size="n",
+        classes=["1", "2"],
         root_dir=tmpdir,
     )
     hub.train(
@@ -79,8 +84,11 @@ def test_ultralytics_classify_train(tmpdir: Path, dummy_dataset: Dataset):
         batch_size=4,
         image_size=28,
         pretrained_model=None,
-        device="0",
+        device="cpu",
     )
     assert hub.check_train_sanity()
 
-    # hub.inference(source=export_dir)
+    inference_dir = hub.inference(
+        source=export_dir,
+        device="cpu",
+    )
