@@ -32,7 +32,7 @@ except ModuleNotFoundError as e:
 # backend supports
 _backends = OrderedDict(
     {
-        "ultralytics": ["8.0.49", "8.0.50"],
+        "ultralytics": ["8.0.54"],
     }
 )
 
