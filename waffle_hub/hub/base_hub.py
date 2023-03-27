@@ -74,12 +74,12 @@ class ExportContext(ConfigContext):
 
 class BaseHub:
 
-    MODEL_TYPES = []
+    MODEL_TYPES = {}
 
     # directory settings
     DEFAULT_ROOT_DIR = Path("./hubs")
 
-    RAW_TRAIN_DIR = Path("artifacts")
+    ARTIFACT_DIR = Path("artifacts")
 
     INFERENCE_DIR = Path("inferences")
     EVALUATION_DIR = Path("evaluations")
@@ -120,8 +120,7 @@ class BaseHub:
         self.version: str = version
 
         # check task supports
-        self.backend_task_name = self.TASK_MAP.get(self.task, None)
-        if self.backend_task_name is None:
+        if self.task not in self.MODEL_TYPES:
             io.remove_directory()
             raise ValueError(
                 f"{self.task} is not supported with {self.backend}"
@@ -297,7 +296,7 @@ class BaseHub:
     @cached_property
     def artifact_dir(self) -> Path:
         """Artifact Directory. This is raw output of each backend."""
-        return self.hub_dir / BaseHub.RAW_TRAIN_DIR
+        return self.hub_dir / BaseHub.ARTIFACT_DIR
 
     @cached_property
     def inference_dir(self) -> Path:
@@ -369,6 +368,7 @@ class BaseHub:
             raise FileExistsError(
                 "Train artifacts already exist. Remove artifact to re-train (hub.delete_artifact())."
             )
+        io.make_directory(self.artifact_dir)
 
     def on_train_start(self, ctx: TrainContext):
         pass
@@ -441,7 +441,7 @@ class BaseHub:
             image_size=image_size,
             letter_box=letter_box,
             pretrained_model=pretrained_model,
-            device="cpu" if device == "cpu" else f"cuda:{device}",
+            device=device,
             workers=workers,
             seed=seed,
             verbose=verbose,

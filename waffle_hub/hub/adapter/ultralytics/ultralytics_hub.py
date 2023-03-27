@@ -141,6 +141,8 @@ class UltralyticsHub(BaseHub):
             root_dir=root_dir,
         )
 
+        self.backend_task_name = self.TASK_MAP[self.task]
+
     # Train Hook
     def on_train_start(self, ctx: TrainContext):
         # set data

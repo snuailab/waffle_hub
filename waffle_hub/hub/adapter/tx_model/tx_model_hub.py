@@ -1,100 +1,31 @@
 """
+!!! DEPRECATED !!!
 Tx Model Hub
 """
 
 from waffle_hub import get_installed_backend_version
 
-BACKEND_NAME = "tx_model"
+BACKEND_NAME = "autocare_tx_model"
 BACKEND_VERSION = get_installed_backend_version(BACKEND_NAME)
 
 from dataclasses import asdict
 from pathlib import Path
 from typing import Union
+import tempfile
 
 import torch
 from torchvision import transforms as T
-from ultralytics import YOLO
+
+from autocare_tx_model.tools import train
+
 from waffle_utils.file import io
 
 from waffle_hub.utils.image import ImageDataset
 
-from ..base_hub import BaseHub, InferenceContext, TrainContext
-from ..model.wrapper import ModelWrapper, ResultParser, get_parser
+from waffle_hub.hub.base_hub import BaseHub, InferenceContext, TrainContext
+from waffle_hub.hub.model.wrapper import ModelWrapper, ResultParser, get_parser
 
-def get_dataset_config(
-    task: str, 
-    image_size: list[int], 
-    batch_size: int, 
-    workers: int,
-    train_coco: str,
-    train_root: str,
-    val_coco: str,
-    val_root: str,
-    test_coco: str,
-    test_root: str,
-):
-    return {
-        "data": {
-            "workers_per_gpu": 4,
-            "batch_size_per_gpu": 256,
-            "img_size": [240, 80],
-            "mode": "lpr",     
-            "train": {
-                "type": "COCOTextRecognitionDataset",
-                "data_root": "data/DYIOT-licenseNum_v2/images",
-                "ann": "LPRNet_v1.1.0/LPRNet_v1.1.0_ann_train.json",
-                "augmentation": {
-                    "ColorJitter":{
-                        "brightness": 0.125,
-                        "contrast": 0.5,
-                        "saturation": 0.5,
-                        "hue": 0.1
-                    },
-                    "Affine": {
-                        "scale": [0.5, 1.1],
-                        "translate_percent": [-0.1, 0.1], 
-                        "always_apply": True
-                    },
-                    "Cutout": {
-                        "p": 0.5,
-                        "num_holes": 4,
-                        "max_h_size": 8,
-                        "max_w_size": 8,
-                        "fill_value": 0
-                    },
-                    "ImageNormalization": {
-                        "type": "base"
-                    },
-                    "SafeRotate": {
-                        "limit": 30,
-                        "p":0.5
-                    }
-                }
-            },
-            "val": {
-                "type": "COCOTextRecognitionDataset",
-                "data_root": "data/DYIOT-licenseNum_v2/images",
-                "ann": "LPRNet_v1.1.0/LPRNet_v1.1.0_ann_val.json",
-                "augmentation": {
-                    "ImageNormalization": {
-                        "type": "base"
-                    }
-                }
-            },
-            "test": {
-                "type": "COCOTextRecognitionDataset",
-                "data_root": "data/DYIOT-licenseNum_v2/images",
-                "ann": "LPRNet_v1.1.0/LPRNet_v1.1.0_ann_val.json",
-                "augmentation": {
-                    "ImageNormalization": {
-                        "type": "base"
-                    }
-                }
-            },
-            "cache": False,
-            "single_cls": False
-        }
-    } 
+from waffle_hub.hub.adapter.tx_model.configs import get_data_config, get_model_config
 
 
 class TxModelHub(BaseHub):
@@ -102,18 +33,96 @@ class TxModelHub(BaseHub):
     # Common
     MODEL_TYPES = {
         "object_detection": {
-            "yolov5": list("sml")
+            "YOLOv5": list("sml")
         },
-        "classification": {
-            "resnet": list("sml"),
-            "swin": list("sml")
-        },
+        # "classification": {
+        #     "resnet": list("sml"),
+        #     "swin": list("sml")
+        # },
     }
 
     # Backend Specifics
-    TASK_MAP = {
-        "object_detection": "detect",
-        "classification": "classify",
-        # "segmentation": "segment"
-        # "keypoint_detection": "pose"
+    DATA_TYPE_MAP = {
+        "object_detection": "COCODetectionDataset",
     }
+
+    WEIGHTS_PATH = 
+
+    def __init__(
+        self,
+        name: str,
+        backend: str = None,
+        version: str = None,
+        task: str = None,
+        model_type: str = None,
+        model_size: str = None,
+        classes: Union[list[dict], list] = None,
+        root_dir: str = None,
+    ):
+        """Create Tx Model Hub.
+
+        Args:
+            name (str): Hub name
+            backend (str, optional): Backend name. See waffle_hub.get_backends(). Defaults to None.
+            version (str, optional): Version. See waffle_hub.get_installed_backend_version(backend). Defaults to None.
+            task (str, optional): Task Name. See UltralyticsHub.TASKS. Defaults to None.
+            model_type (str, optional): Model Type. See UltralyticsHub.MODEL_TYPES. Defaults to None.
+            model_size (str, optional): Model Size. See UltralyticsHub.MODEL_SIZES. Defaults to None.
+            classes (Union[list[dict], list]): class dictionary or list. [{"supercategory": "name"}, ] or ["name",].
+            root_dir (str, optional): Root directory of hub repository. Defaults to None.
+        """
+        super().__init__(
+            name=name,
+            backend=backend if backend else BACKEND_NAME,
+            version=version if version else BACKEND_VERSION,
+            task=task,
+            model_type=model_type,
+            model_size=model_size,
+            classes=classes,
+            root_dir=root_dir,
+        )
+
+    # Train Hook
+    def on_train_start(self, ctx: TrainContext):
+        # set data
+        ctx.dataset_path: Path = Path(ctx.dataset_path)
+
+        data_config = get_data_config(
+            self.DATA_TYPE_MAP[self.task],
+            [ctx.image_size, ctx.image_size],
+            ctx.batch_size,
+            ctx.workers,
+            str(ctx.dataset_path / "train.json"),
+            str(ctx.dataset_path / "images"),
+            str(ctx.dataset_path / "val.json"),
+            str(ctx.dataset_path / "images"),
+            str(ctx.dataset_path / "test.json"),
+            str(ctx.dataset_path / "images")
+        )
+        ctx.data_config = self.artifact_dir / "data.json"
+        io.save_json(data_config, ctx.data_config)
+
+        model_config = get_model_config(
+            self.model_type,
+            self.model_size,
+            [x["name"] for x in self.classes],
+            ctx.seed,
+            ctx.letter_box,
+            ctx.epochs
+        )
+        ctx.model_config = self.artifact_dir / "model.json"
+        io.save_json(model_config, ctx.model_config)
+
+        # pretrained model
+        # TODO: get pretrained model
+
+    def training(self, ctx: TrainContext):
+
+        train.run(
+            exp_name="train",
+            model_cfg=str(ctx.model_config),
+            data_cfg=str(ctx.data_config),
+            gpus=ctx.device,
+            output_dir=str(self.artifact_dir),
+        )
+    
