@@ -17,8 +17,9 @@ import tqdm
 from waffle_utils.file import io
 from waffle_utils.utils import type_validator
 
+from waffle_hub.hub.model.wrapper import ModelWrapper, ResultParser, get_parser
 from waffle_hub.schemas.configs import Model, Train
-from waffle_hub.utils.image import draw_results
+from waffle_hub.utils.image import ImageDataset, draw_results
 
 logger = logging.getLogger(__name__)
 
@@ -368,7 +369,6 @@ class BaseHub:
             raise FileExistsError(
                 "Train artifacts already exist. Remove artifact to re-train (hub.delete_artifact())."
             )
-        io.make_directory(self.artifact_dir)
 
     def on_train_start(self, ctx: TrainContext):
         pass
@@ -470,7 +470,12 @@ class BaseHub:
             ctx.letter_box = train_config.get("letter_box")
 
     def on_inference_start(self, ctx: InferenceContext):
-        pass
+        ctx.model = self.get_model(
+            ctx.image_size, get_parser(self.task)(**asdict(ctx))
+        )
+        ctx.dataloader = ImageDataset(
+            ctx.source, ctx.image_size, letter_box=ctx.letter_box
+        ).get_dataloader(ctx.batch_size, ctx.workers)
 
     def inferencing(self, ctx: InferenceContext) -> str:
         model = ctx.model.to(ctx.device)

@@ -8,33 +8,51 @@ from waffle_hub import get_installed_backend_version
 BACKEND_NAME = "autocare_tx_model"
 BACKEND_VERSION = get_installed_backend_version(BACKEND_NAME)
 
-from dataclasses import asdict
+import warnings
 from pathlib import Path
 from typing import Union
-import tempfile
 
 import torch
-from torchvision import transforms as T
-
+from attrdict import AttrDict
+from autocare_tx_model.core.model import build_model
 from autocare_tx_model.tools import train
-
+from torchvision import transforms as T
 from waffle_utils.file import io
 
-from waffle_hub.utils.image import ImageDataset
+from waffle_hub.hub.adapter.tx_model.configs import (
+    get_data_config,
+    get_model_config,
+)
+from waffle_hub.hub.base_hub import BaseHub, TrainContext
+from waffle_hub.hub.model.wrapper import ModelWrapper, ResultParser
 
-from waffle_hub.hub.base_hub import BaseHub, InferenceContext, TrainContext
-from waffle_hub.hub.model.wrapper import ModelWrapper, ResultParser, get_parser
 
-from waffle_hub.hub.adapter.tx_model.configs import get_data_config, get_model_config
+def get_preprocess(task: str, *args, **kwargs):
+
+    if task == "object_detection":
+        normalize = T.Normalize([0, 0, 0], [1, 1, 1], inplace=True)
+
+        def preprocess(x):
+            return normalize(x)
+
+    return preprocess
+
+
+def get_postprocess(task: str, *args, **kwargs):
+
+    if task == "object_detection":
+
+        def inner(x: torch.Tensor):
+            return x
+
+    return inner
 
 
 class TxModelHub(BaseHub):
 
     # Common
     MODEL_TYPES = {
-        "object_detection": {
-            "YOLOv5": list("sml")
-        },
+        "object_detection": {"YOLOv5": list("sml")},
         # "classification": {
         #     "resnet": list("sml"),
         #     "swin": list("sml")
@@ -46,7 +64,15 @@ class TxModelHub(BaseHub):
         "object_detection": "COCODetectionDataset",
     }
 
-    WEIGHTS_PATH = 
+    WEIGHT_PATH = {
+        "object_detection": {
+            "YOLOv5": {
+                "s": "temp/autocare_tx_model/detectors/small/model.pth",
+                "m": "temp/autocare_tx_model/detectors/medium/model.pth",
+                "l": "temp/autocare_tx_model/detectors/large/model.pth",
+            }
+        },
+    }
 
     def __init__(
         self,
@@ -97,7 +123,7 @@ class TxModelHub(BaseHub):
             str(ctx.dataset_path / "val.json"),
             str(ctx.dataset_path / "images"),
             str(ctx.dataset_path / "test.json"),
-            str(ctx.dataset_path / "images")
+            str(ctx.dataset_path / "images"),
         )
         ctx.data_config = self.artifact_dir / "data.json"
         io.save_json(data_config, ctx.data_config)
@@ -108,21 +134,71 @@ class TxModelHub(BaseHub):
             [x["name"] for x in self.classes],
             ctx.seed,
             ctx.letter_box,
-            ctx.epochs
+            ctx.epochs,
         )
         ctx.model_config = self.artifact_dir / "model.json"
         io.save_json(model_config, ctx.model_config)
 
         # pretrained model
-        # TODO: get pretrained model
+        ctx.pretrained_model = (
+            ctx.pretrained_model
+            if ctx.pretrained_model is not None
+            else self.WEIGHT_PATH[self.task][self.model_type][self.model_size]
+        )
+        if not Path(ctx.pretrained_model).exists():
+            ctx.pretrained_model = None
+            warnings.warn(
+                f"{ctx.pretrained_model} does not exists. Train from scratch."
+            )
 
     def training(self, ctx: TrainContext):
 
-        train.run(
+        results = train.run(
             exp_name="train",
             model_cfg=str(ctx.model_config),
             data_cfg=str(ctx.data_config),
             gpus=ctx.device,
             output_dir=str(self.artifact_dir),
+            ckpt=ctx.pretrained_model,
         )
-    
+        del results
+
+    def on_train_end(self, ctx: TrainContext):
+        io.copy_file(
+            self.artifact_dir / "train" / "best_ckpt.pth",
+            self.best_ckpt_file,
+            create_directory=True,
+        )
+        io.copy_file(
+            self.artifact_dir / "train" / "last_epoch_ckpt.pth",
+            self.last_ckpt_file,
+            create_directory=True,
+        )
+
+    # Inference Hook
+    def get_model(
+        self, image_size: Union[int, list] = None, parser: ResultParser = None
+    ):
+        self.check_train_sanity()
+
+        # get adapt functions
+        preprocess = get_preprocess(self.task)
+        postprocess = get_postprocess(self.task)
+
+        # get model
+        classes = [x["name"] for x in self.classes]
+        cfg = io.load_json(self.artifact_dir / "model.json")
+        cfg["model"]["head"]["num_classes"] = len(classes)
+        cfg["ckpt"] = str(self.best_ckpt_file)
+        cfg["classes"] = classes
+        cfg["num_classes"] = (len(classes),)
+        model, classes = build_model(AttrDict(cfg), strict=True)
+
+        model = ModelWrapper(
+            model=model.eval(),
+            preprocess=preprocess,
+            postprocess=postprocess,
+            parser=parser if parser else None,
+        )
+
+        return model
