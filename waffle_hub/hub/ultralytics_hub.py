@@ -79,8 +79,20 @@ def get_postprocess(task: str, *args, **kwargs):
 class UltralyticsHub(BaseHub):
 
     # Common
-    MODEL_TYPES = ["yolov8"]
-    MODEL_SIZES = list("nsmlx")  # TODO: generalize
+    MODEL_TYPES = {
+        "object_detection": {
+            "yolov8": list("nsmlx")
+        },
+        "classification": {
+            "yolov8": list("nsmlx")
+        },
+        "segmentation": {
+            "yolov8": list("nsmlx")
+        },
+        "keypoint_detection": {
+            "yolov8": list("nsmlx")
+        }
+    }
 
     # Backend Specifics
     TASK_MAP = {

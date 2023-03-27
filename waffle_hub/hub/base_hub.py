@@ -74,14 +74,7 @@ class ExportContext(ConfigContext):
 
 class BaseHub:
 
-    TASKS = [
-        "object_detection",
-        "classification",
-        "segmentation",
-        "keypoint_detection",
-    ]
     MODEL_TYPES = []
-    MODEL_SIZES = []
 
     # directory settings
     DEFAULT_ROOT_DIR = Path("./hubs")
@@ -231,9 +224,9 @@ class BaseHub:
     @task.setter
     @type_validator(str)
     def task(self, v):
-        if v not in self.TASKS:
+        if v not in self.MODEL_TYPES:
             raise ValueError(
-                f"Task {v} is not supported. Choose one of {self.TASKS}"
+                f"Task {v} is not supported. Choose one of {self.MODEL_TYPES}"
             )
         self.__task = v
 
@@ -245,9 +238,9 @@ class BaseHub:
     @model_type.setter
     @type_validator(str)
     def model_type(self, v):
-        if v not in self.MODEL_TYPES:
+        if v not in self.MODEL_TYPES[self.task]:
             raise ValueError(
-                f"Model Type {v} is not supported. Choose one of {self.MODEL_TYPES}"
+                f"Model Type {v} is not supported. Choose one of {self.MODEL_TYPES[self.task]}"
             )
         self.__model_type = v
 
@@ -259,9 +252,9 @@ class BaseHub:
     @model_size.setter
     @type_validator(str)
     def model_size(self, v):
-        if v not in self.MODEL_SIZES:
+        if v not in self.MODEL_TYPES[self.task][self.model_type]:
             raise ValueError(
-                f"Model Size {v} is not supported. Choose one of {self.MODEL_SIZES}"
+                f"Model Size {v} is not supported. Choose one of {self.MODEL_TYPES[self.task][self.model_type]}"
             )
         self.__model_size = v
 
