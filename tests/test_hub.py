@@ -4,7 +4,7 @@ import pytest
 from waffle_utils.dataset import Dataset
 from waffle_utils.file import io, network
 
-from waffle_hub.hub.ultralytics_hub import UltralyticsHub
+from waffle_hub.hub.adapter.ultralytics import UltralyticsHub
 
 
 @pytest.fixture

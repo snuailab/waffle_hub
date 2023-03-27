@@ -18,8 +18,8 @@ from waffle_utils.file import io
 
 from waffle_hub.utils.image import ImageDataset
 
-from .base_hub import BaseHub, InferenceContext, TrainContext
-from .model.wrapper import ModelWrapper, ResultParser, get_parser
+from waffle_hub.hub.base_hub import BaseHub, InferenceContext, TrainContext
+from waffle_hub.hub.model.wrapper import ModelWrapper, ResultParser, get_parser
 
 
 def get_preprocess(task: str, *args, **kwargs):
