@@ -167,27 +167,22 @@ class UltralyticsHub(BaseHub):
         )
 
     def training(self, ctx: TrainContext):
-        try:
-            model = YOLO(ctx.pretrained_model, task=self.backend_task_name)
-            model.train(
-                data=ctx.dataset_path,
-                epochs=ctx.epochs,
-                batch=ctx.batch_size,
-                imgsz=ctx.image_size,
-                rect=ctx.letter_box,
-                device=ctx.device,
-                workers=ctx.workers,
-                seed=ctx.seed,
-                verbose=ctx.verbose,
-                project=self.hub_dir,
-                name=self.ARTIFACT_DIR,
-            )
-            return model
 
-        except Exception as e:
-            if self.artifact_dir.exists():
-                io.remove_directory(self.artifact_dir)
-            raise e
+        model = YOLO(ctx.pretrained_model, task=self.backend_task_name)
+        model.train(
+            data=ctx.dataset_path,
+            epochs=ctx.epochs,
+            batch=ctx.batch_size,
+            imgsz=ctx.image_size,
+            rect=ctx.letter_box,
+            device=ctx.device,
+            workers=ctx.workers,
+            seed=ctx.seed,
+            verbose=ctx.verbose,
+            project=self.hub_dir,
+            name=self.ARTIFACT_DIR,
+        )
+        del model
 
     def on_train_end(self, ctx: TrainContext):
         io.copy_file(

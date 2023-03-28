@@ -126,7 +126,7 @@ class TxModelHub(BaseHub):
             str(ctx.dataset_path / "images"),
         )
         ctx.data_config = self.artifact_dir / "data.json"
-        io.save_json(data_config, ctx.data_config)
+        io.save_json(data_config, ctx.data_config, create_directory=True)
 
         model_config = get_model_config(
             self.model_type,
@@ -137,7 +137,7 @@ class TxModelHub(BaseHub):
             ctx.epochs,
         )
         ctx.model_config = self.artifact_dir / "model.json"
-        io.save_json(model_config, ctx.model_config)
+        io.save_json(model_config, ctx.model_config, create_directory=True)
 
         # pretrained model
         ctx.pretrained_model = (
@@ -157,9 +157,10 @@ class TxModelHub(BaseHub):
             exp_name="train",
             model_cfg=str(ctx.model_config),
             data_cfg=str(ctx.data_config),
-            gpus=ctx.device,
+            gpus="-1" if ctx.device == "cpu" else str(ctx.device),
             output_dir=str(self.artifact_dir),
             ckpt=ctx.pretrained_model,
+            overwrite=True,
         )
         del results
 
@@ -179,6 +180,13 @@ class TxModelHub(BaseHub):
     def get_model(
         self, image_size: Union[int, list] = None, parser: ResultParser = None
     ):
+        """Get model.
+        Args:
+            image_size (Union[int, list], optional): Image size. Defaults to None.
+            parser (ResultParser, optional): Result parser. Defaults to None.
+        Returns:
+            ModelWrapper: Model wrapper
+        """
         self.check_train_sanity()
 
         # get adapt functions

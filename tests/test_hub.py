@@ -62,6 +62,10 @@ def test_ultralytics_detect_train_inference(
         source=export_dir,
         device="cpu",
     )
+    assert (Path(inference_dir) / "results").exists()
+
+    onnx_file = hub.export()
+    assert Path(onnx_file).exists()
 
 
 def test_ultralytics_classify_train(tmpdir: Path, dummy_dataset: Dataset):
@@ -91,3 +95,7 @@ def test_ultralytics_classify_train(tmpdir: Path, dummy_dataset: Dataset):
         source=export_dir,
         device="cpu",
     )
+    assert (Path(inference_dir) / "results").exists()
+
+    onnx_file = hub.export()
+    assert Path(onnx_file).exists()

@@ -367,6 +367,7 @@ class BaseHub:
     def before_train(self, ctx: TrainContext):
         if self.artifact_dir.exists():
             raise FileExistsError(
+                f"{self.artifact_dir}\n"
                 "Train artifacts already exist. Remove artifact to re-train (hub.delete_artifact())."
             )
 
@@ -449,7 +450,12 @@ class BaseHub:
             self.before_train(ctx)
             self.on_train_start(ctx)
             self.save_train_config(ctx)
-            self.training(ctx)
+            try:
+                self.training(ctx)
+            except Exception as e:
+                if self.artifact_dir.exists():
+                    io.remove_directory(self.artifact_dir)
+                raise e
             self.on_train_end(ctx)
             self.after_train(ctx)
 
@@ -575,7 +581,12 @@ class BaseHub:
 
             self.before_inference(ctx)
             self.on_inference_start(ctx)
-            self.inferencing(ctx)
+            try:
+                self.inferencing(ctx)
+            except Exception as e:
+                if self.inference_dir.exists():
+                    io.remove_directory(self.inference_dir)
+                raise e
             self.on_inference_end(ctx)
             self.after_inference(ctx)
 
