@@ -7,7 +7,6 @@ from waffle_hub import get_installed_backend_version
 BACKEND_NAME = "ultralytics"
 BACKEND_VERSION = get_installed_backend_version(BACKEND_NAME)
 
-from dataclasses import asdict
 from pathlib import Path
 from typing import Union
 
@@ -16,10 +15,8 @@ from torchvision import transforms as T
 from ultralytics import YOLO
 from waffle_utils.file import io
 
-from waffle_hub.utils.image import ImageDataset
-
-from .base_hub import BaseHub, InferenceContext, TrainContext
-from .model.wrapper import ModelWrapper, ResultParser, get_parser
+from waffle_hub.hub.base_hub import BaseHub, InferenceContext, TrainContext
+from waffle_hub.hub.model.wrapper import ModelWrapper, ResultParser
 
 
 def get_preprocess(task: str, *args, **kwargs):
@@ -79,8 +76,12 @@ def get_postprocess(task: str, *args, **kwargs):
 class UltralyticsHub(BaseHub):
 
     # Common
-    MODEL_TYPES = ["yolov8"]
-    MODEL_SIZES = list("nsmlx")  # TODO: generalize
+    MODEL_TYPES = {
+        "object_detection": {"yolov8": list("nsmlx")},
+        "classification": {"yolov8": list("nsmlx")},
+        "segmentation": {"yolov8": list("nsmlx")},
+        "keypoint_detection": {"yolov8": list("nsmlx")},
+    }
 
     # Backend Specifics
     TASK_MAP = {
@@ -129,6 +130,8 @@ class UltralyticsHub(BaseHub):
             root_dir=root_dir,
         )
 
+        self.backend_task_name = self.TASK_MAP[self.task]
+
     # Train Hook
     def on_train_start(self, ctx: TrainContext):
         # set data
@@ -164,27 +167,22 @@ class UltralyticsHub(BaseHub):
         )
 
     def training(self, ctx: TrainContext):
-        try:
-            model = YOLO(ctx.pretrained_model, task=self.backend_task_name)
-            model.train(
-                data=ctx.dataset_path,
-                epochs=ctx.epochs,
-                batch=ctx.batch_size,
-                imgsz=ctx.image_size,
-                rect=ctx.letter_box,
-                device=ctx.device,
-                workers=ctx.workers,
-                seed=ctx.seed,
-                verbose=ctx.verbose,
-                project=self.hub_dir,
-                name=self.RAW_TRAIN_DIR,
-            )
-            return model
 
-        except Exception as e:
-            if self.artifact_dir.exists():
-                io.remove_directory(self.artifact_dir)
-            raise e
+        model = YOLO(ctx.pretrained_model, task=self.backend_task_name)
+        model.train(
+            data=ctx.dataset_path,
+            epochs=ctx.epochs,
+            batch=ctx.batch_size,
+            imgsz=ctx.image_size,
+            rect=ctx.letter_box,
+            device=ctx.device,
+            workers=ctx.workers,
+            seed=ctx.seed,
+            verbose=ctx.verbose,
+            project=self.hub_dir,
+            name=self.ARTIFACT_DIR,
+        )
+        del model
 
     def on_train_end(self, ctx: TrainContext):
         io.copy_file(
@@ -226,14 +224,6 @@ class UltralyticsHub(BaseHub):
         )
 
         return model
-
-    def on_inference_start(self, ctx: InferenceContext):
-        ctx.model = self.get_model(
-            ctx.image_size, get_parser(self.task)(**asdict(ctx))
-        )
-        ctx.dataloader = ImageDataset(
-            ctx.source, ctx.image_size, letter_box=ctx.letter_box
-        ).get_dataloader(ctx.batch_size, ctx.workers)
 
     def on_inference_end(self, ctx: InferenceContext):
         pass

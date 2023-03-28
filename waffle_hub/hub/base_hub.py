@@ -17,8 +17,9 @@ import tqdm
 from waffle_utils.file import io
 from waffle_utils.utils import type_validator
 
+from waffle_hub.hub.model.wrapper import ModelWrapper, ResultParser, get_parser
 from waffle_hub.schemas.configs import Model, Train
-from waffle_hub.utils.image import draw_results
+from waffle_hub.utils.image import ImageDataset, draw_results
 
 logger = logging.getLogger(__name__)
 
@@ -74,19 +75,12 @@ class ExportContext(ConfigContext):
 
 class BaseHub:
 
-    TASKS = [
-        "object_detection",
-        "classification",
-        "segmentation",
-        "keypoint_detection",
-    ]
-    MODEL_TYPES = []
-    MODEL_SIZES = []
+    MODEL_TYPES = {}
 
     # directory settings
     DEFAULT_ROOT_DIR = Path("./hubs")
 
-    RAW_TRAIN_DIR = Path("artifacts")
+    ARTIFACT_DIR = Path("artifacts")
 
     INFERENCE_DIR = Path("inferences")
     EVALUATION_DIR = Path("evaluations")
@@ -127,8 +121,7 @@ class BaseHub:
         self.version: str = version
 
         # check task supports
-        self.backend_task_name = self.TASK_MAP.get(self.task, None)
-        if self.backend_task_name is None:
+        if self.task not in self.MODEL_TYPES:
             io.remove_directory()
             raise ValueError(
                 f"{self.task} is not supported with {self.backend}"
@@ -231,9 +224,9 @@ class BaseHub:
     @task.setter
     @type_validator(str)
     def task(self, v):
-        if v not in self.TASKS:
+        if v not in self.MODEL_TYPES:
             raise ValueError(
-                f"Task {v} is not supported. Choose one of {self.TASKS}"
+                f"Task {v} is not supported. Choose one of {self.MODEL_TYPES}"
             )
         self.__task = v
 
@@ -245,9 +238,9 @@ class BaseHub:
     @model_type.setter
     @type_validator(str)
     def model_type(self, v):
-        if v not in self.MODEL_TYPES:
+        if v not in self.MODEL_TYPES[self.task]:
             raise ValueError(
-                f"Model Type {v} is not supported. Choose one of {self.MODEL_TYPES}"
+                f"Model Type {v} is not supported. Choose one of {self.MODEL_TYPES[self.task]}"
             )
         self.__model_type = v
 
@@ -259,9 +252,9 @@ class BaseHub:
     @model_size.setter
     @type_validator(str)
     def model_size(self, v):
-        if v not in self.MODEL_SIZES:
+        if v not in self.MODEL_TYPES[self.task][self.model_type]:
             raise ValueError(
-                f"Model Size {v} is not supported. Choose one of {self.MODEL_SIZES}"
+                f"Model Size {v} is not supported. Choose one of {self.MODEL_TYPES[self.task][self.model_type]}"
             )
         self.__model_size = v
 
@@ -304,7 +297,7 @@ class BaseHub:
     @cached_property
     def artifact_dir(self) -> Path:
         """Artifact Directory. This is raw output of each backend."""
-        return self.hub_dir / BaseHub.RAW_TRAIN_DIR
+        return self.hub_dir / BaseHub.ARTIFACT_DIR
 
     @cached_property
     def inference_dir(self) -> Path:
@@ -374,6 +367,7 @@ class BaseHub:
     def before_train(self, ctx: TrainContext):
         if self.artifact_dir.exists():
             raise FileExistsError(
+                f"{self.artifact_dir}\n"
                 "Train artifacts already exist. Remove artifact to re-train (hub.delete_artifact())."
             )
 
@@ -448,7 +442,7 @@ class BaseHub:
             image_size=image_size,
             letter_box=letter_box,
             pretrained_model=pretrained_model,
-            device="cpu" if device == "cpu" else f"cuda:{device}",
+            device=device,
             workers=workers,
             seed=seed,
             verbose=verbose,
@@ -456,7 +450,12 @@ class BaseHub:
             self.before_train(ctx)
             self.on_train_start(ctx)
             self.save_train_config(ctx)
-            self.training(ctx)
+            try:
+                self.training(ctx)
+            except Exception as e:
+                if self.artifact_dir.exists():
+                    io.remove_directory(self.artifact_dir)
+                raise e
             self.on_train_end(ctx)
             self.after_train(ctx)
 
@@ -477,7 +476,12 @@ class BaseHub:
             ctx.letter_box = train_config.get("letter_box")
 
     def on_inference_start(self, ctx: InferenceContext):
-        pass
+        ctx.model = self.get_model(
+            ctx.image_size, get_parser(self.task)(**asdict(ctx))
+        )
+        ctx.dataloader = ImageDataset(
+            ctx.source, ctx.image_size, letter_box=ctx.letter_box
+        ).get_dataloader(ctx.batch_size, ctx.workers)
 
     def inferencing(self, ctx: InferenceContext) -> str:
         model = ctx.model.to(ctx.device)
@@ -577,7 +581,12 @@ class BaseHub:
 
             self.before_inference(ctx)
             self.on_inference_start(ctx)
-            self.inferencing(ctx)
+            try:
+                self.inferencing(ctx)
+            except Exception as e:
+                if self.inference_dir.exists():
+                    io.remove_directory(self.inference_dir)
+                raise e
             self.on_inference_end(ctx)
             self.after_inference(ctx)
 
