@@ -4,7 +4,7 @@ import pytest
 from waffle_utils.dataset import Dataset
 from waffle_utils.file import io, network
 
-from waffle_hub.hub import UltralyticsHub
+from waffle_hub.hub.adapter.ultralytics import UltralyticsHub
 
 
 @pytest.fixture
@@ -22,7 +22,7 @@ def dummy_dataset(tmpdir: Path):
     ds = Dataset.from_coco(
         "mnist", dummy_coco_file, Path(dummy_coco_root_dir), root_dir=tmpdir
     )
-    ds.split_train_val(0.8)
+    ds.split(0.8)
     return ds
 
 
@@ -62,6 +62,10 @@ def test_ultralytics_detect_train_inference(
         source=export_dir,
         device="cpu",
     )
+    assert (Path(inference_dir) / "results").exists()
+
+    onnx_file = hub.export()
+    assert Path(onnx_file).exists()
 
 
 def test_ultralytics_classify_train(tmpdir: Path, dummy_dataset: Dataset):
@@ -71,7 +75,6 @@ def test_ultralytics_classify_train(tmpdir: Path, dummy_dataset: Dataset):
     export_dir = dummy_dataset.export("yolo_classification")
     hub = UltralyticsHub(
         name=name,
-        backend="ultralytics",
         task="classification",
         model_type="yolov8",
         model_size="n",
@@ -92,3 +95,7 @@ def test_ultralytics_classify_train(tmpdir: Path, dummy_dataset: Dataset):
         source=export_dir,
         device="cpu",
     )
+    assert (Path(inference_dir) / "results").exists()
+
+    onnx_file = hub.export()
+    assert Path(onnx_file).exists()
