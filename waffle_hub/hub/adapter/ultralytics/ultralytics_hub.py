@@ -17,6 +17,7 @@ from waffle_utils.file import io
 
 from waffle_hub.hub.base_hub import BaseHub, InferenceContext, TrainContext
 from waffle_hub.hub.model.wrapper import ModelWrapper, ResultParser
+from waffle_hub.utils.callback import TrainCallback
 
 
 def get_preprocess(task: str, *args, **kwargs):
@@ -166,7 +167,7 @@ class UltralyticsHub(BaseHub):
             + ".pt"
         )
 
-    def training(self, ctx: TrainContext):
+    def training(self, ctx: TrainContext, callback: TrainCallback):
 
         model = YOLO(ctx.pretrained_model, task=self.backend_task_name)
         model.train(

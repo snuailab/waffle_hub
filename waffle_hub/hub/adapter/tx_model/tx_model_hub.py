@@ -25,6 +25,7 @@ from waffle_hub.hub.adapter.tx_model.configs import (
 )
 from waffle_hub.hub.base_hub import BaseHub, TrainContext
 from waffle_hub.hub.model.wrapper import ModelWrapper, ResultParser
+from waffle_hub.utils.callback import TrainCallback
 
 
 def get_preprocess(task: str, *args, **kwargs):
@@ -151,7 +152,7 @@ class TxModelHub(BaseHub):
                 f"{ctx.pretrained_model} does not exists. Train from scratch."
             )
 
-    def training(self, ctx: TrainContext):
+    def training(self, ctx: TrainContext, callback: TrainCallback):
 
         results = train.run(
             exp_name="train",

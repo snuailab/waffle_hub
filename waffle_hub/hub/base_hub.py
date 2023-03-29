@@ -3,11 +3,15 @@ Base Hub Class
 Do not use this Class directly.
 Use {Backend}Hub instead.
 """
-
+import contextlib
 import logging
+import os
+import sys
+import threading
 from abc import abstractmethod
 from dataclasses import asdict, dataclass
 from functools import cached_property
+from io import StringIO
 from pathlib import Path
 from typing import Union
 
@@ -17,8 +21,9 @@ import tqdm
 from waffle_utils.file import io
 from waffle_utils.utils import type_validator
 
-from waffle_hub.hub.model.wrapper import ModelWrapper, ResultParser, get_parser
+from waffle_hub.hub.model.wrapper import get_parser
 from waffle_hub.schemas.configs import Model, Train
+from waffle_hub.utils.callback import InferenceCallback, TrainCallback
 from waffle_hub.utils.image import ImageDataset, draw_results
 
 logger = logging.getLogger(__name__)
@@ -410,6 +415,7 @@ class BaseHub:
         workers: int = 2,
         seed: int = 0,
         verbose: bool = True,
+        hold: bool = True,
     ) -> str:
         """Start Train
 
@@ -424,6 +430,9 @@ class BaseHub:
             workers (int, optional): num workers. Defaults to 2.
             seed (int, optional): random seed. Defaults to 0.
             verbose (bool, optional): verbose. Defaults to True.
+            hold (bool, optional): hold train or not.
+                If True then it holds until task finished.
+                If False then return Inferece Callback and run in background. Defaults to True.
 
         Raises:
             FileExistsError: if trained artifact exists.
@@ -435,7 +444,7 @@ class BaseHub:
             str: hub directory
         """
 
-        with TrainContext(
+        ctx = TrainContext(
             dataset_path=dataset_path,
             epochs=epochs,
             batch_size=batch_size,
@@ -446,12 +455,14 @@ class BaseHub:
             workers=workers,
             seed=seed,
             verbose=verbose,
-        ) as ctx:
-            self.before_train(ctx)
-            self.on_train_start(ctx)
-            self.save_train_config(ctx)
+        )
+        self.before_train(ctx)
+        self.on_train_start(ctx)
+        self.save_train_config(ctx)
+
+        def inner(callback: TrainCallback):
             try:
-                self.training(ctx)
+                self.training(ctx, callback)
             except Exception as e:
                 if self.artifact_dir.exists():
                     io.remove_directory(self.artifact_dir)
@@ -459,7 +470,17 @@ class BaseHub:
             self.on_train_end(ctx)
             self.after_train(ctx)
 
-        return str(self.hub_dir)
+        callback = TrainCallback(ctx.epochs, self.hub_dir)
+        if hold:
+            inner(callback)
+        else:
+            thread = threading.Thread(
+                target=inner, args=(callback,), daemon=True
+            )
+            callback.register_thread(thread)
+            callback.start()
+
+        return callback
 
     # Inference Hook
     def get_model(self):
@@ -483,32 +504,36 @@ class BaseHub:
             ctx.source, ctx.image_size, letter_box=ctx.letter_box
         ).get_dataloader(ctx.batch_size, ctx.workers)
 
-    def inferencing(self, ctx: InferenceContext) -> str:
+    def inferencing(
+        self, ctx: InferenceContext, callback: InferenceCallback
+    ) -> str:
         model = ctx.model.to(ctx.device)
         dataloader = ctx.dataloader
         device = ctx.device
 
-        for images, image_infos in tqdm.tqdm(dataloader):
+        for i, (images, image_infos) in tqdm.tqdm(
+            enumerate(dataloader, start=1), total=len(dataloader)
+        ):
             result_batch = model(images.to(device), image_infos)
-            for results, image_info in zip(result_batch, image_infos):
+            results = []
+            for result, image_info in zip(result_batch, image_infos):
                 image_path = image_info.get("image_path")
 
                 relpath = Path(image_path).relative_to(ctx.source)
-                if relpath == Path("."):
-                    relpath = Path(
-                        "test.png"
-                    )  # TODO: path correction for none directory source.
                 io.save_json(
-                    results,
+                    result,
                     self.inference_dir
                     / "results"
                     / relpath.with_suffix(".json"),
                     create_directory=True,
                 )
+
+                results.append(result)
+
                 if ctx.draw:
                     draw = draw_results(
                         image_path,
-                        results,
+                        result,
                         task=self.task,
                         names=[x["name"] for x in self.classes],
                     )
@@ -520,7 +545,7 @@ class BaseHub:
                     io.make_directory(draw_path.parent)
                     cv2.imwrite(str(draw_path), draw)
 
-        return results  # TODO: return what?
+            callback.update(i, results)
 
     def on_inference_end(self, ctx: InferenceContext):
         pass
@@ -541,6 +566,7 @@ class BaseHub:
         workers: int = 2,
         device: str = "0",
         draw: bool = False,
+        hold: bool = True,
     ) -> str:
         """Start Inference
 
@@ -555,6 +581,9 @@ class BaseHub:
             half (bool, optional): fp16 inference. Defaults to False.
             device (str, optional): gpu device. Defaults to "0".
             draw (bool, optional): save draw or not. Defaults to False.
+            hold (bool, optional): hold inference or not.
+                If True then it holds until task finished.
+                If False then return Inferece Callback and run in background. Defaults to True.
 
         Raises:
             FileNotFoundError: if can not detect appropriate dataset.
@@ -565,7 +594,7 @@ class BaseHub:
         """
         self.check_train_sanity()
 
-        with InferenceContext(
+        ctx = InferenceContext(
             source=source,
             batch_size=batch_size,
             recursive=recursive,
@@ -577,20 +606,34 @@ class BaseHub:
             workers=workers,
             device="cpu" if device == "cpu" else f"cuda:{device}",
             draw=draw,
-        ) as ctx:
+        )
 
-            self.before_inference(ctx)
-            self.on_inference_start(ctx)
+        self.before_inference(ctx)
+        self.on_inference_start(ctx)
+
+        def inner(callback):
             try:
-                self.inferencing(ctx)
+                self.inferencing(ctx, callback)
             except Exception as e:
                 if self.inference_dir.exists():
                     io.remove_directory(self.inference_dir)
+                callback.force_finish()
                 raise e
             self.on_inference_end(ctx)
             self.after_inference(ctx)
 
-        return str(self.inference_dir)
+        callback = InferenceCallback(len(ctx.dataloader), self.inference_dir)
+
+        if hold:
+            inner(callback)
+        else:
+            thread = threading.Thread(
+                target=inner, args=(callback,), daemon=True
+            )
+            callback.register_thread(thread)
+            callback.start()
+
+        return callback
 
     # Export Hook
     def export(
