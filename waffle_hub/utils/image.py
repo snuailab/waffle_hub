@@ -20,7 +20,7 @@ def draw_results(
         def draw(image, results):
             image = cv2.putText(
                 image,
-                f"{names[results[0].get('class_id')]}",
+                f"{names[results[0].get('category_id')]}",
                 (10, 30),
                 2,
                 1.0,
@@ -37,7 +37,7 @@ def draw_results(
                 y2 = y1 + h
                 image = cv2.putText(
                     image,
-                    f"{names[result.get('class_id')]}",
+                    f"{names[result.get('category_id')]}",
                     (int(x1), int(y1) - 2),
                     2,
                     1.0,

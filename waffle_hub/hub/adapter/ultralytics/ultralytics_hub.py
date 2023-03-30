@@ -17,60 +17,7 @@ from waffle_utils.file import io
 
 from waffle_hub.hub.base_hub import BaseHub, InferenceContext, TrainContext
 from waffle_hub.hub.model.wrapper import ModelWrapper, ResultParser
-
-
-def get_preprocess(task: str, *args, **kwargs):
-
-    if task == "classification":
-        normalize = T.Normalize([0, 0, 0], [1, 1, 1], inplace=True)
-
-        def preprocess(x):
-            return normalize(x)
-
-    elif task == "object_detection":
-        normalize = T.Normalize([0, 0, 0], [1, 1, 1], inplace=True)
-
-        def preprocess(x):
-            return normalize(x)
-
-    return preprocess
-
-
-def get_postprocess(task: str, *args, **kwargs):
-
-    if task == "classification":
-
-        def inner(x: torch.Tensor):
-            return [x]
-
-    elif task == "object_detection":
-        image_size = kwargs.get("image_size")
-        image_size = (
-            image_size
-            if isinstance(image_size, list)
-            else [image_size, image_size]
-        )
-
-        def inner(x: torch.Tensor):
-            x = x[0]  # x[0]: prediction, x[1]: TODO: what is this...?
-            x = x.transpose(1, 2)
-
-            cxcywh = x[:, :, :4]
-            cx, cy, w, h = torch.unbind(cxcywh, dim=-1)
-            x1 = cx - w / 2
-            y1 = cy - h / 2
-            x2 = cx + w / 2
-            y2 = cy + h / 2
-            xyxy = torch.stack([x1, y1, x2, y2], dim=-1)
-
-            xyxy[:, :, ::2] /= image_size[0]
-            xyxy[:, :, 1::2] /= image_size[1]
-            probs = x[:, :, 4:]
-            confidences, class_ids = torch.max(probs, dim=-1)
-
-            return xyxy, confidences, class_ids
-
-    return inner
+from waffle_hub.utils.callback import TrainCallback
 
 
 class UltralyticsHub(BaseHub):
@@ -132,6 +79,98 @@ class UltralyticsHub(BaseHub):
 
         self.backend_task_name = self.TASK_MAP[self.task]
 
+    # Hub Utils
+    def get_preprocess(self, task: str, *args, **kwargs):
+
+        if task == "classification":
+            normalize = T.Normalize([0, 0, 0], [1, 1, 1], inplace=True)
+
+            def preprocess(x):
+                return normalize(x)
+
+        elif task == "object_detection":
+            normalize = T.Normalize([0, 0, 0], [1, 1, 1], inplace=True)
+
+            def preprocess(x):
+                return normalize(x)
+
+        else:
+            raise NotImplementedError(f"Task {task} is not implemented.")
+
+        return preprocess
+
+    def get_postprocess(self, task: str, *args, **kwargs):
+
+        if task == "classification":
+
+            def inner(x: torch.Tensor):
+                return [x]
+
+        elif task == "object_detection":
+            image_size = kwargs.get("image_size")
+            image_size = (
+                image_size
+                if isinstance(image_size, list)
+                else [image_size, image_size]
+            )
+
+            def inner(x: torch.Tensor):
+                x = x[0]  # x[0]: prediction, x[1]: TODO: what is this...?
+                x = x.transpose(1, 2)
+
+                cxcywh = x[:, :, :4]
+                cx, cy, w, h = torch.unbind(cxcywh, dim=-1)
+                x1 = cx - w / 2
+                y1 = cy - h / 2
+                x2 = cx + w / 2
+                y2 = cy + h / 2
+                xyxy = torch.stack([x1, y1, x2, y2], dim=-1)
+
+                xyxy[:, :, ::2] /= image_size[0]
+                xyxy[:, :, 1::2] /= image_size[1]
+                probs = x[:, :, 4:]
+                confidences, class_ids = torch.max(probs, dim=-1)
+
+                return xyxy, confidences, class_ids
+
+        else:
+            raise NotImplementedError(f"Task {task} is not implemented.")
+
+        return inner
+
+    def get_metrics(self) -> list[list[dict]]:
+        # read csv file
+        # epoch,         train/box_loss,         train/cls_loss,         train/dfl_loss,   metrics/precision(B),      metrics/recall(B),       metrics/mAP50(B),    metrics/mAP50-95(B),           val/box_loss,           val/cls_loss,           val/dfl_loss,                 lr/pg0,                 lr/pg1,                 lr/pg2
+        #              0,                 2.0349,                 4.4739,                  1.214,                0.75962,                0.34442,                0.22858,                0.18438,                0.61141,                 2.8409,                0.78766,                 0.0919,                 0.0009,                 0.0009
+        #              1,                 1.7328,                 4.0078,                 1.1147,                0.12267,                0.40909,                0.20891,                0.15007,                0.75082,                 2.7157,                0.79723,               0.082862,              0.0018624,              0.0018624
+        # and parse it to list[dict]
+        # [[{"tag": train/box_loss, "value": 0.0}, {"tag": train/box_loss, "value": 1.7328}, ...], ...]
+        # and return it
+
+        csv_path = self.artifact_dir / "results.csv"
+
+        if not csv_path.exists():
+            return []
+
+        with open(csv_path) as f:
+            lines = f.readlines()
+
+        header = lines[0].strip().split(",")
+        metrics = []
+        for line in lines[1:]:
+            values = line.strip().split(",")[1:]
+            metric = []
+            for i, value in enumerate(values):
+                metric.append(
+                    {
+                        "tag": header[i].strip(),
+                        "value": float(value),
+                    }
+                )
+            metrics.append(metric)
+
+        return metrics
+
     # Train Hook
     def on_train_start(self, ctx: TrainContext):
         # set data
@@ -166,7 +205,7 @@ class UltralyticsHub(BaseHub):
             + ".pt"
         )
 
-    def training(self, ctx: TrainContext):
+    def training(self, ctx: TrainContext, callback: TrainCallback):
 
         model = YOLO(ctx.pretrained_model, task=self.backend_task_name)
         model.train(
@@ -195,11 +234,7 @@ class UltralyticsHub(BaseHub):
             self.last_ckpt_file,
             create_directory=True,
         )
-        io.copy_file(
-            self.artifact_dir / "results.csv",
-            self.metric_file,
-            create_directory=True,
-        )
+        io.save_json(self.get_metrics(), self.metric_file)
 
     # Inference Hook
     def get_model(
@@ -212,8 +247,8 @@ class UltralyticsHub(BaseHub):
             image_size = train_config.get("image_size")
 
         # get adapt functions
-        preprocess = get_preprocess(self.task)
-        postprocess = get_postprocess(self.task, image_size=image_size)
+        preprocess = self.get_preprocess(self.task)
+        postprocess = self.get_postprocess(self.task, image_size=image_size)
 
         # get model
         model = ModelWrapper(

@@ -5,6 +5,7 @@ pydantic
 typer[all]
 rich
 onnxruntime
+tbparse==0.0.7
 
 # pytorch
 torch==1.13.1

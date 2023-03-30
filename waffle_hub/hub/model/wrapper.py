@@ -40,7 +40,7 @@ class ClassificationResultParser(ResultParser):
             parsed = []
             for class_id, score in result:
                 parsed.append(
-                    {"class_id": int(class_id), "score": float(score)}
+                    {"category_id": int(class_id), "score": float(score)}
                 )
             parseds.append(parsed)
         return parseds
@@ -102,8 +102,9 @@ class ObjectDetectionResultParser(ResultParser):
                 parsed.append(
                     {
                         "bbox": [x1, y1, x2 - x1, y2 - y1],
+                        "area": float((x2 - x1) * (y2 - y1)),
+                        "category_id": int(class_id),
                         "score": float(conf),
-                        "class_id": int(class_id),
                     }
                 )
             parseds.append(parsed)
