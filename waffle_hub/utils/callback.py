@@ -50,14 +50,12 @@ class ThreadProgressCallback:
         self._progress = 0
         self._start_time = time.time()
 
-    @property
-    def progress(self) -> float:
-        """The progress of the task. (0.0 ~ 1.0)"""
+    def get_progress(self) -> float:
+        """Get the progress of the task. (0 ~ 1)"""
         return self._progress
 
-    @property
-    def finished(self) -> bool:
-        """Whether the task has ended."""
+    def is_finished(self) -> bool:
+        """Check if the task has finished."""
         return self._finished
 
     def get_remaining_time(self) -> float:
@@ -95,33 +93,97 @@ class ThreadProgressCallback:
             self._thread.join()
 
 
-class ResultCallback(ThreadProgressCallback):
-    def __init__(self, total_steps: int, result_dir: str):
+class TrainCallback(ThreadProgressCallback):
+    def __init__(self, total_steps: int, get_metric_func):
         super().__init__(total_steps)
 
-        self._results: list[dict] = []
-        self._result_dir: str = result_dir
+        self._best_model_path: str = None
+        self._last_model_path: str = None
+        self._result_dir: str = None
 
-    def update(self, step: int, results: dict):
-        super().update(step)
-        self._results.append(results)
+        self._get_metric_func = get_metric_func
 
     @property
-    def results(self) -> list[dict]:
-        return self._results
+    def best_model_path(self) -> str:
+        """Get the path of the best model."""
+        return self._best_model_path
+
+    @best_model_path.setter
+    def best_model_path(self, path: str):
+        self._best_model_path = path
+
+    @property
+    def last_model_path(self) -> str:
+        """Get the path of the last model."""
+        return self._last_model_path
+
+    @last_model_path.setter
+    def last_model_path(self, path: str):
+        self._last_model_path = path
 
     @property
     def result_dir(self) -> str:
+        """Get the path of the result directory."""
         return self._result_dir
 
+    @result_dir.setter
+    def result_dir(self, path: str):
+        self._result_dir = path
 
-class TrainCallback(ResultCallback):
-    pass
+    def get_result(self) -> list[dict]:
+        """Get the metrics of the task. (list of dict)"""
+        return self._get_metric_func()
+
+    def get_progress(self) -> float:
+        """Get the progress of the task. (0 ~ 1)"""
+        metrics = self._get_metric_func()
+        if len(metrics) == 0:
+            return 0
+        self.update(len(metrics))
+        return len(metrics) / self._total_steps
 
 
-class InferenceCallback(ResultCallback):
-    pass
+class InferenceCallback(ThreadProgressCallback):
+    def __init__(self, total_steps: int):
+        super().__init__(total_steps)
+
+        self._result: list[dict] = []
+
+        self._result_dir: str = None
+
+    @property
+    def result_dir(self) -> str:
+        """Get the path of the result directory."""
+        return self._result_dir
+
+    @result_dir.setter
+    def result_dir(self, path: str):
+        self._result_dir = path
+
+    def update(self, step: int, result: dict):
+        super().update(step)
+        self._result.append(result)
+
+    def get_result(self) -> list[dict]:
+        """Get the results of the task. (list of dict)"""
+        return self._result
 
 
-class ExportCallback(ResultCallback):
-    pass
+class ExportCallback(ThreadProgressCallback):
+    def __init__(self, total_steps: int):
+        super().__init__(total_steps)
+
+        self._result_file: str = None
+
+    @property
+    def result_file(self) -> str:
+        """Get the path of the result file."""
+        return self._result_file
+
+    @result_file.setter
+    def result_file(self, path: str):
+        self._result_file = path
+
+    def get_result(self) -> str:
+        """Get the path of the result file."""
+        return self._result_file

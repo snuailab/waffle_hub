@@ -12,6 +12,7 @@ import warnings
 from pathlib import Path
 from typing import Union
 
+import tbparse
 import torch
 from attrdict import AttrDict
 from autocare_tx_model.core.model import build_model
@@ -26,27 +27,6 @@ from waffle_hub.hub.adapter.tx_model.configs import (
 from waffle_hub.hub.base_hub import BaseHub, TrainContext
 from waffle_hub.hub.model.wrapper import ModelWrapper, ResultParser
 from waffle_hub.utils.callback import TrainCallback
-
-
-def get_preprocess(task: str, *args, **kwargs):
-
-    if task == "object_detection":
-        normalize = T.Normalize([0, 0, 0], [1, 1, 1], inplace=True)
-
-        def preprocess(x):
-            return normalize(x)
-
-    return preprocess
-
-
-def get_postprocess(task: str, *args, **kwargs):
-
-    if task == "object_detection":
-
-        def inner(x: torch.Tensor):
-            return x
-
-    return inner
 
 
 class TxModelHub(BaseHub):
@@ -108,6 +88,58 @@ class TxModelHub(BaseHub):
             classes=classes,
             root_dir=root_dir,
         )
+
+    # Hub Utils
+    def get_preprocess(self, task: str, *args, **kwargs):
+
+        if task == "object_detection":
+            normalize = T.Normalize([0, 0, 0], [1, 1, 1], inplace=True)
+
+            def preprocess(x):
+                return normalize(x)
+
+        return preprocess
+
+    def get_postprocess(self, task: str, *args, **kwargs):
+
+        if task == "object_detection":
+
+            def inner(x: torch.Tensor):
+                return x
+
+        return inner
+
+    def get_metrics(self) -> list[dict]:
+        """Get metrics from tensorboard log directory.
+        Args:
+            tbdir (Union[str, Path]): tensorboard log directory
+        Returns:
+            list[dict]: list of metrics
+        """
+        tb_log_dir = self.artifact_dir / "train" / "tensorboard"
+        if not tb_log_dir.exists():
+            return []
+
+        sr = tbparse.SummaryReader(tb_log_dir)
+        df = sr.scalars
+
+        # Sort the data frame by step.
+        # Make a list of dictionaries of tag and value.
+        if df.empty:
+            return []
+
+        metrics = (
+            df.sort_values("step")
+            .groupby("step")
+            .apply(
+                lambda x: [
+                    {"tag": s, "value": v} for s, v in zip(x.tag, x.value)
+                ]
+            )
+            .to_list()
+        )
+
+        return metrics
 
     # Train Hook
     def on_train_start(self, ctx: TrainContext):
@@ -191,8 +223,8 @@ class TxModelHub(BaseHub):
         self.check_train_sanity()
 
         # get adapt functions
-        preprocess = get_preprocess(self.task)
-        postprocess = get_postprocess(self.task)
+        preprocess = self.get_preprocess(self.task)
+        postprocess = self.get_postprocess(self.task)
 
         # get model
         classes = [x["name"] for x in self.classes]

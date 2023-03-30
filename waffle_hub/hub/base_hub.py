@@ -23,7 +23,11 @@ from waffle_utils.utils import type_validator
 
 from waffle_hub.hub.model.wrapper import get_parser
 from waffle_hub.schemas.configs import Model, Train
-from waffle_hub.utils.callback import InferenceCallback, TrainCallback
+from waffle_hub.utils.callback import (
+    ExportCallback,
+    InferenceCallback,
+    TrainCallback,
+)
 from waffle_hub.utils.image import ImageDataset, draw_results
 
 logger = logging.getLogger(__name__)
@@ -430,7 +434,7 @@ class BaseHub:
             workers (int, optional): num workers. Defaults to 2.
             seed (int, optional): random seed. Defaults to 0.
             verbose (bool, optional): verbose. Defaults to True.
-            hold (bool, optional): hold train or not.
+            hold (bool, optional): hold or not.
                 If True then it holds until task finished.
                 If False then return Inferece Callback and run in background. Defaults to True.
 
@@ -466,11 +470,16 @@ class BaseHub:
             except Exception as e:
                 if self.artifact_dir.exists():
                     io.remove_directory(self.artifact_dir)
+                    callback.force_finish()
                 raise e
+            callback.best_model_path = self.best_ckpt_file
+            callback.last_model_path = self.last_ckpt_file
+            callback.result_dir = self.hub_dir
+            callback.force_finish()
             self.on_train_end(ctx)
             self.after_train(ctx)
 
-        callback = TrainCallback(ctx.epochs, self.hub_dir)
+        callback = TrainCallback(ctx.epochs, self.get_metrics)
         if hold:
             inner(callback)
         else:
@@ -581,7 +590,7 @@ class BaseHub:
             half (bool, optional): fp16 inference. Defaults to False.
             device (str, optional): gpu device. Defaults to "0".
             draw (bool, optional): save draw or not. Defaults to False.
-            hold (bool, optional): hold inference or not.
+            hold (bool, optional): hold or not.
                 If True then it holds until task finished.
                 If False then return Inferece Callback and run in background. Defaults to True.
 
@@ -619,10 +628,12 @@ class BaseHub:
                     io.remove_directory(self.inference_dir)
                 callback.force_finish()
                 raise e
+            callback.result = self.inference_dir
+            callback.force_finish()
             self.on_inference_end(ctx)
             self.after_inference(ctx)
 
-        callback = InferenceCallback(len(ctx.dataloader), self.inference_dir)
+        callback = InferenceCallback(len(ctx.dataloader))
 
         if hold:
             inner(callback)
@@ -641,6 +652,7 @@ class BaseHub:
         image_size: int = None,
         batch_size: int = 1,
         opset_version: int = 11,
+        hold: bool = True,
     ) -> str:
         """Export Model
 
@@ -648,6 +660,9 @@ class BaseHub:
             image_size (int, optional): inference image size. None for same with train_config (recommended).
             batch_size (int, optional): dynamic batch size. Defaults to 16.
             opset_version (int, optional): onnx opset version. Defaults to 11.
+            hold (bool, optional): hold or not.
+                If True then it holds until task finished.
+                If False then return Inferece Callback and run in background. Defaults to True.
 
         Returns:
             str: export onnx file path
@@ -677,19 +692,40 @@ class BaseHub:
 
         dummy_input = torch.randn(batch_size, 3, *image_size)
 
-        torch.onnx.export(
-            model,
-            dummy_input,
-            str(self.onnx_file),
-            input_names=input_name,
-            output_names=output_names,
-            opset_version=opset_version,
-            dynamic_axes={
-                name: {0: "batch_size"} for name in input_name + output_names
-            },
-        )
+        def inner(callback):
+            try:
+                torch.onnx.export(
+                    model,
+                    dummy_input,
+                    str(self.onnx_file),
+                    input_names=input_name,
+                    output_names=output_names,
+                    opset_version=opset_version,
+                    dynamic_axes={
+                        name: {0: "batch_size"}
+                        for name in input_name + output_names
+                    },
+                )
+            except Exception as e:
+                if self.onnx_file.exists():
+                    io.remove_file(self.onnx_file)
+                callback.force_finish()
+                raise e
+            callback.result_file = self.onnx_file
+            callback.force_finish()
 
-        return str(self.onnx_file)
+        callback = ExportCallback(1)
+
+        if hold:
+            inner(callback)
+        else:
+            thread = threading.Thread(
+                target=inner, args=(callback,), daemon=True
+            )
+            callback.register_thread(thread)
+            callback.start()
+
+        return callback
 
     @abstractmethod
     def evaluate(self):
