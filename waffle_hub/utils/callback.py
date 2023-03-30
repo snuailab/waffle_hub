@@ -71,6 +71,7 @@ class ThreadProgressCallback:
             warnings.warn("Callback has already ended")
         elif step >= self._total_steps:
             self._finished = True
+            self._progress = step / self._total_steps
         else:
             self._progress = step / self._total_steps
 
@@ -97,41 +98,51 @@ class TrainCallback(ThreadProgressCallback):
     def __init__(self, total_steps: int, get_metric_func):
         super().__init__(total_steps)
 
-        self._best_model_path: str = None
-        self._last_model_path: str = None
+        self._best_ckpt_file: str = None
+        self._last_ckpt_file: str = None
         self._result_dir: str = None
+        self._metric_file: str = None
 
         self._get_metric_func = get_metric_func
 
     @property
-    def best_model_path(self) -> str:
+    def best_ckpt_file(self) -> str:
         """Get the path of the best model."""
-        return self._best_model_path
+        return self._best_ckpt_file
 
-    @best_model_path.setter
-    def best_model_path(self, path: str):
-        self._best_model_path = path
+    @best_ckpt_file.setter
+    def best_ckpt_file(self, path: str):
+        self._best_ckpt_file = path
 
     @property
-    def last_model_path(self) -> str:
+    def last_ckpt_file(self) -> str:
         """Get the path of the last model."""
-        return self._last_model_path
+        return self._last_ckpt_file
 
-    @last_model_path.setter
-    def last_model_path(self, path: str):
-        self._last_model_path = path
+    @last_ckpt_file.setter
+    def last_ckpt_file(self, path: str):
+        self._last_ckpt_file = path
 
     @property
     def result_dir(self) -> str:
         """Get the path of the result directory."""
         return self._result_dir
 
+    @property
+    def metric_file(self) -> str:
+        """Get the path of the metric file."""
+        return self._metric_file
+
+    @metric_file.setter
+    def metric_file(self, path: str):
+        self._metric_file = path
+
     @result_dir.setter
     def result_dir(self, path: str):
         self._result_dir = path
 
-    def get_result(self) -> list[dict]:
-        """Get the metrics of the task. (list of dict)"""
+    def get_result(self) -> list[list[dict]]:
+        """Get the metrics of the task. (list of list of dict)"""
         return self._get_metric_func()
 
     def get_progress(self) -> float:
@@ -140,50 +151,47 @@ class TrainCallback(ThreadProgressCallback):
         if len(metrics) == 0:
             return 0
         self.update(len(metrics))
-        return len(metrics) / self._total_steps
+        self._progress = len(metrics) / self._total_steps
+        return self._progress
 
 
 class InferenceCallback(ThreadProgressCallback):
     def __init__(self, total_steps: int):
         super().__init__(total_steps)
 
-        self._result: list[dict] = []
-
-        self._result_dir: str = None
+        self._inference_dir: str = None
+        self._draw_dir: str = None
 
     @property
-    def result_dir(self) -> str:
+    def inference_dir(self) -> str:
         """Get the path of the result directory."""
-        return self._result_dir
+        return self._inference_dir
 
-    @result_dir.setter
-    def result_dir(self, path: str):
-        self._result_dir = path
+    @inference_dir.setter
+    def inference_dir(self, path: str):
+        self._inference_dir = path
 
-    def update(self, step: int, result: dict):
-        super().update(step)
-        self._result.append(result)
+    @property
+    def draw_dir(self) -> str:
+        """Get the path of the visualize directory."""
+        return self._draw_dir
 
-    def get_result(self) -> list[dict]:
-        """Get the results of the task. (list of dict)"""
-        return self._result
+    @draw_dir.setter
+    def draw_dir(self, path: str):
+        self._draw_dir = path
 
 
 class ExportCallback(ThreadProgressCallback):
     def __init__(self, total_steps: int):
         super().__init__(total_steps)
 
-        self._result_file: str = None
+        self._export_file: str = None
 
     @property
-    def result_file(self) -> str:
+    def export_file(self) -> str:
         """Get the path of the result file."""
-        return self._result_file
+        return self._export_file
 
-    @result_file.setter
-    def result_file(self, path: str):
-        self._result_file = path
-
-    def get_result(self) -> str:
-        """Get the path of the result file."""
-        return self._result_file
+    @export_file.setter
+    def export_file(self, path: str):
+        self._export_file = path

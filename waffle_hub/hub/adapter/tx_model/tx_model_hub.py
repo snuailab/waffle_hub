@@ -208,6 +208,7 @@ class TxModelHub(BaseHub):
             self.last_ckpt_file,
             create_directory=True,
         )
+        io.save_json(self.get_metrics(), self.metric_file)
 
     # Inference Hook
     def get_model(

@@ -95,6 +95,8 @@ class BaseHub:
     EVALUATION_DIR = Path("evaluations")
     EXPORT_DIR = Path("exports")
 
+    DRAW_DIR = Path("draws")
+
     # config files
     CONFIG_DIR = Path("configs")
     MODEL_CONFIG_FILE = CONFIG_DIR / "model.yaml"
@@ -103,7 +105,7 @@ class BaseHub:
     # train results
     LAST_CKPT_FILE = "weights/last_ckpt.pt"
     BEST_CKPT_FILE = "weights/best_ckpt.pt"  # TODO: best metric?
-    METRIC_FILE = "metrics.csv"
+    METRIC_FILE = "metrics.json"
 
     # export results
     ONNX_FILE = "weights/model.onnx"
@@ -324,6 +326,11 @@ class BaseHub:
         return self.hub_dir / BaseHub.EXPORT_DIR
 
     @cached_property
+    def draw_dir(self) -> Path:
+        """Draw Results Directory"""
+        return self.hub_dir / BaseHub.DRAW_DIR
+
+    @cached_property
     def model_config_file(self) -> Path:
         """Model Config yaml File"""
         return self.hub_dir / BaseHub.MODEL_CONFIG_FILE
@@ -467,17 +474,18 @@ class BaseHub:
         def inner(callback: TrainCallback):
             try:
                 self.training(ctx, callback)
+                callback.best_ckpt_file = self.best_ckpt_file
+                callback.last_ckpt_file = self.last_ckpt_file
+                callback.metric_file = self.metric_file
+                callback.result_dir = self.hub_dir
+                callback.force_finish()
+                self.on_train_end(ctx)
+                self.after_train(ctx)
             except Exception as e:
                 if self.artifact_dir.exists():
                     io.remove_directory(self.artifact_dir)
                     callback.force_finish()
                 raise e
-            callback.best_model_path = self.best_ckpt_file
-            callback.last_model_path = self.last_ckpt_file
-            callback.result_dir = self.hub_dir
-            callback.force_finish()
-            self.on_train_end(ctx)
-            self.after_train(ctx)
 
         callback = TrainCallback(ctx.epochs, self.get_metrics)
         if hold:
@@ -531,9 +539,7 @@ class BaseHub:
                 relpath = Path(image_path).relative_to(ctx.source)
                 io.save_json(
                     result,
-                    self.inference_dir
-                    / "results"
-                    / relpath.with_suffix(".json"),
+                    self.inference_dir / relpath.with_suffix(".json"),
                     create_directory=True,
                 )
 
@@ -546,15 +552,11 @@ class BaseHub:
                         task=self.task,
                         names=[x["name"] for x in self.classes],
                     )
-                    draw_path = (
-                        self.inference_dir
-                        / "draw"
-                        / relpath.with_suffix(".png")
-                    )
+                    draw_path = self.draw_dir / relpath.with_suffix(".png")
                     io.make_directory(draw_path.parent)
                     cv2.imwrite(str(draw_path), draw)
 
-            callback.update(i, results)
+            callback.update(i)
 
     def on_inference_end(self, ctx: InferenceContext):
         pass
@@ -623,15 +625,16 @@ class BaseHub:
         def inner(callback):
             try:
                 self.inferencing(ctx, callback)
+                callback.inference_dir = self.inference_dir
+                callback.draw_dir = self.draw_dir if ctx.draw else None
+                callback.force_finish()
+                self.on_inference_end(ctx)
+                self.after_inference(ctx)
             except Exception as e:
                 if self.inference_dir.exists():
                     io.remove_directory(self.inference_dir)
                 callback.force_finish()
                 raise e
-            callback.result = self.inference_dir
-            callback.force_finish()
-            self.on_inference_end(ctx)
-            self.after_inference(ctx)
 
         callback = InferenceCallback(len(ctx.dataloader))
 
@@ -706,13 +709,13 @@ class BaseHub:
                         for name in input_name + output_names
                     },
                 )
+                callback.export_file = self.onnx_file
+                callback.force_finish()
             except Exception as e:
                 if self.onnx_file.exists():
                     io.remove_file(self.onnx_file)
                 callback.force_finish()
                 raise e
-            callback.result_file = self.onnx_file
-            callback.force_finish()
 
         callback = ExportCallback(1)
 
