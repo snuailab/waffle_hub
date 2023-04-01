@@ -19,8 +19,6 @@ repos:
       # - id: end-of-file-fixer
       - id: trailing-whitespace
       - id: check-case-conflict
-      - id: check-yaml
-      - id: check-toml
       - id: pretty-format-json
         args:
           - --autofix
