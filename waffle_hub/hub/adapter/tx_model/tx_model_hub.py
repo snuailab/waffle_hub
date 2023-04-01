@@ -64,6 +64,29 @@ class TxModelHub(BaseHub):
         classes: Union[list[dict], list] = None,
         root_dir: str = None,
     ):
+        """Create Tx Model Hub Class. Do not use this class directly. Use TxModelHub.new() instead."""
+
+        super().__init__(
+            name=name,
+            backend=BACKEND_NAME,
+            version=BACKEND_VERSION,
+            task=task,
+            model_type=model_type,
+            model_size=model_size,
+            classes=classes,
+            root_dir=root_dir,
+        )
+
+    @classmethod
+    def new(
+        cls,
+        name: str,
+        task: str = None,
+        model_type: str = None,
+        model_size: str = None,
+        classes: Union[list[dict], list] = None,
+        root_dir: str = None,
+    ):
         """Create Tx Model Hub.
 
         Args:
@@ -74,10 +97,8 @@ class TxModelHub(BaseHub):
             classes (Union[list[dict], list]): class dictionary or list. [{"supercategory": "name"}, ] or ["name",].
             root_dir (str, optional): Root directory of hub repository. Defaults to None.
         """
-        super().__init__(
+        return cls(
             name=name,
-            backend=BACKEND_NAME,
-            version=BACKEND_VERSION,
             task=task,
             model_type=model_type,
             model_size=model_size,

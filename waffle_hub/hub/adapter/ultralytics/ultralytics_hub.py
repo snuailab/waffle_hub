@@ -26,8 +26,8 @@ class UltralyticsHub(BaseHub):
     MODEL_TYPES = {
         "object_detection": {"yolov8": list("nsmlx")},
         "classification": {"yolov8": list("nsmlx")},
-        "segmentation": {"yolov8": list("nsmlx")},
-        "keypoint_detection": {"yolov8": list("nsmlx")},
+        # "segmentation": {"yolov8": list("nsmlx")},
+        # "keypoint_detection": {"yolov8": list("nsmlx")},
     }
 
     # Backend Specifics
@@ -52,16 +52,8 @@ class UltralyticsHub(BaseHub):
         classes: Union[list[dict], list] = None,
         root_dir: str = None,
     ):
-        """Create Ultralytics Hub.
+        """Create Ultralytics Hub Class. Do not use this class directly. Use UltralyticsHub.new() instead."""
 
-        Args:
-            name (str): Hub name
-            task (str, optional): Task Name. See UltralyticsHub.TASKS. Defaults to None.
-            model_type (str, optional): Model Type. See UltralyticsHub.MODEL_TYPES. Defaults to None.
-            model_size (str, optional): Model Size. See UltralyticsHub.MODEL_SIZES. Defaults to None.
-            classes (Union[list[dict], list]): class dictionary or list. [{"supercategory": "name"}, ] or ["name",].
-            root_dir (str, optional): Root directory of hub repository. Defaults to None.
-        """
         super().__init__(
             name=name,
             backend=BACKEND_NAME,
@@ -74,6 +66,35 @@ class UltralyticsHub(BaseHub):
         )
 
         self.backend_task_name = self.TASK_MAP[self.task]
+
+    @classmethod
+    def new(
+        cls,
+        name: str,
+        task: str = None,
+        model_type: str = None,
+        model_size: str = None,
+        classes: Union[list[dict], list] = None,
+        root_dir: str = None,
+    ):
+        """Create Ultralytics Hub.
+
+        Args:
+            name (str): Hub name
+            task (str, optional): Task Name. See UltralyticsHub.TASKS. Defaults to None.
+            model_type (str, optional): Model Type. See UltralyticsHub.MODEL_TYPES. Defaults to None.
+            model_size (str, optional): Model Size. See UltralyticsHub.MODEL_SIZES. Defaults to None.
+            classes (Union[list[dict], list]): class dictionary or list. [{"supercategory": "name"}, ] or ["name",].
+            root_dir (str, optional): Root directory of hub repository. Defaults to None.
+        """
+        return cls(
+            name=name,
+            task=task,
+            model_type=model_type,
+            model_size=model_size,
+            classes=classes,
+            root_dir=root_dir,
+        )
 
     # Hub Utils
     def get_preprocess(self, task: str, *args, **kwargs):
