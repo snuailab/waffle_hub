@@ -46,8 +46,6 @@ class UltralyticsHub(BaseHub):
     def __init__(
         self,
         name: str,
-        backend: str = None,
-        version: str = None,
         task: str = None,
         model_type: str = None,
         model_size: str = None,
@@ -58,8 +56,6 @@ class UltralyticsHub(BaseHub):
 
         Args:
             name (str): Hub name
-            backend (str, optional): Backend name. See waffle_hub.get_backends(). Defaults to None.
-            version (str, optional): Version. See waffle_hub.get_installed_backend_version(backend). Defaults to None.
             task (str, optional): Task Name. See UltralyticsHub.TASKS. Defaults to None.
             model_type (str, optional): Model Type. See UltralyticsHub.MODEL_TYPES. Defaults to None.
             model_size (str, optional): Model Size. See UltralyticsHub.MODEL_SIZES. Defaults to None.
@@ -68,8 +64,8 @@ class UltralyticsHub(BaseHub):
         """
         super().__init__(
             name=name,
-            backend=backend if backend else BACKEND_NAME,
-            version=version if version else BACKEND_VERSION,
+            backend=BACKEND_NAME,
+            version=BACKEND_VERSION,
             task=task,
             model_type=model_type,
             model_size=model_size,
