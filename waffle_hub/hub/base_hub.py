@@ -63,7 +63,7 @@ class InferenceContext(ConfigContext):
     image_size: int
     letter_box: bool
     confidence_threshold: float
-    iou_thresold: float
+    iou_threshold: float
     half: bool
     workers: int
     device: str
@@ -572,7 +572,7 @@ class BaseHub:
         letter_box: bool = None,
         batch_size: int = 4,
         confidence_threshold: float = 0.25,
-        iou_thresold: float = 0.5,
+        iou_threshold: float = 0.5,
         half: bool = False,
         workers: int = 2,
         device: str = "0",
@@ -587,8 +587,8 @@ class BaseHub:
             image_size (int, optional): inference image size. None for same with train_config (recommended).
             letter_box (bool, optional): letter box preprocess. None for same with train_config (recommended).
             batch_size (int, optional): batch size. Defaults to 4.
-            conf_thres (float, optional): confidence threshold. Defaults to 0.25.
-            iou_thres (float, optional): iou threshold. Defaults to 0.7.
+            confidence_threshold (float, optional): confidence threshold. Defaults to 0.25.
+            iou_threshold (float, optional): iou threshold. Defaults to 0.7.
             half (bool, optional): fp16 inference. Defaults to False.
             device (str, optional): gpu device. Defaults to "0".
             draw (bool, optional): save draw or not. Defaults to False.
@@ -612,7 +612,7 @@ class BaseHub:
             image_size=image_size,
             letter_box=letter_box,
             confidence_threshold=confidence_threshold,
-            iou_thresold=iou_thresold,
+            iou_threshold=iou_threshold,
             half=half,
             workers=workers,
             device="cpu" if device == "cpu" else f"cuda:{device}",
