@@ -1,4 +1,4 @@
-__version__ = "0.1.1"
+__version__ = "0.1.2"
 
 import importlib
 import warnings
@@ -31,10 +31,7 @@ except ModuleNotFoundError as e:
 
 # backend supports
 _backends = OrderedDict(
-    {
-        "ultralytics": ["8.0.54"],
-        "autocare_tx_model": ["0.2.0"]
-    }
+    {"ultralytics": ["8.0.54"], "autocare_tx_model": ["0.2.0"]}
 )
 
 

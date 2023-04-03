@@ -141,7 +141,7 @@ class TrainCallback(ThreadProgressCallback):
     def result_dir(self, path: str):
         self._result_dir = path
 
-    def get_result(self) -> list[list[dict]]:
+    def get_metrics(self) -> list[list[dict]]:
         """Get the metrics of the task. (list of list of dict)"""
         return self._get_metric_func()
 

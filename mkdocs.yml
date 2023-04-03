@@ -1,0 +1,51 @@
+site_name: SNUAILAB Waffle
+repo_url: https://github.com/snuailab/waffle_hub
+repo_name: snuailab/waffle_hub
+
+theme:
+  name: material
+  logo: assets/waffle_icon_gray.png
+  favicon: assets/waffle_icon.png
+  palette:
+    primary: orange
+  features:
+    - navigation.tabs
+    - navigation.instant
+    - navigation.sections
+    - navigation.footer
+    - content.code.copy
+
+extra:
+  social:
+    - icon: fontawesome/brands/github
+      link: https://github.com/snuailab/waffle_hub
+
+    - icon: fontawesome/brands/linkedin
+      link: https://www.linkedin.com/company/snuailab/mycompany/
+
+    - icon: fontawesome/brands/medium
+      link: https://medium.com/snuailab
+
+markdown_extensions:
+  - pymdownx.tabbed:
+      alternate_style: true
+  - pymdownx.superfences:
+      custom_fences:
+        - name: mermaid
+          class: mermaid
+          format: !!python/name:pymdownx.superfences.fence_code_format
+nav:
+  - Home: index.md
+  - Getting Started: getting_started.md
+  - Documentations:
+    - Dataset: tutorials/prepare_dataset.md
+    - Hub:
+      - What is Hub?: tutorials/hub/index.md
+      - Train: tutorials/hub/train.md
+      - Inference: tutorials/hub/inference.md
+      - Evaluate: tutorials/hub/evaluate.md
+      - Export: tutorials/hub/export.md
+      - Callbacks: tutorials/hub/callbacks.md
+  - Blogs:
+    - blogs/active_learning.md
+    - blogs/synthetic_data.md

@@ -66,5 +66,5 @@ setup(
         # 'Operating System :: Microsoft :: Windows',
     ],
     keywords="machine-learning, deep-learning, vision, ML, DL, AI, YOLO, Ultralytics, SNUAILAB",
-    entry_points={"console_scripts": ["wu = waffle_hub.run:app"]},
+    # entry_points={"console_scripts": ["wh = waffle_hub.run:app"]},
 )

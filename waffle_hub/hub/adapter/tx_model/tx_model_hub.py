@@ -58,8 +58,42 @@ class TxModelHub(BaseHub):
     def __init__(
         self,
         name: str,
+        task: str = None,
+        model_type: str = None,
+        model_size: str = None,
+        classes: Union[list[dict], list] = None,
+        root_dir: str = None,
         backend: str = None,
         version: str = None,
+    ):
+        """Create Tx Model Hub Class. Do not use this class directly. Use TxModelHub.new() instead."""
+
+        if backend is not None and backend != BACKEND_NAME:
+            raise ValueError(
+                f"you've loaded {backend}. backend must be {BACKEND_NAME}"
+            )
+
+        if version is not None and version != BACKEND_VERSION:
+            warnings.warn(
+                f"you've loaded a {BACKEND_NAME}=={version} version while {BACKEND_NAME}=={BACKEND_VERSION} version is installed."
+                "It will cause unexpected results."
+            )
+
+        super().__init__(
+            name=name,
+            backend=BACKEND_NAME,
+            version=BACKEND_VERSION,
+            task=task,
+            model_type=model_type,
+            model_size=model_size,
+            classes=classes,
+            root_dir=root_dir,
+        )
+
+    @classmethod
+    def new(
+        cls,
+        name: str,
         task: str = None,
         model_type: str = None,
         model_size: str = None,
@@ -70,18 +104,14 @@ class TxModelHub(BaseHub):
 
         Args:
             name (str): Hub name
-            backend (str, optional): Backend name. See waffle_hub.get_backends(). Defaults to None.
-            version (str, optional): Version. See waffle_hub.get_installed_backend_version(backend). Defaults to None.
             task (str, optional): Task Name. See UltralyticsHub.TASKS. Defaults to None.
             model_type (str, optional): Model Type. See UltralyticsHub.MODEL_TYPES. Defaults to None.
             model_size (str, optional): Model Size. See UltralyticsHub.MODEL_SIZES. Defaults to None.
             classes (Union[list[dict], list]): class dictionary or list. [{"supercategory": "name"}, ] or ["name",].
             root_dir (str, optional): Root directory of hub repository. Defaults to None.
         """
-        super().__init__(
+        return cls(
             name=name,
-            backend=backend if backend else BACKEND_NAME,
-            version=version if version else BACKEND_VERSION,
             task=task,
             model_type=model_type,
             model_size=model_size,
