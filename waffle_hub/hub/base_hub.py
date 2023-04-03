@@ -3,11 +3,15 @@ Base Hub Class
 Do not use this Class directly.
 Use {Backend}Hub instead.
 """
-
+import contextlib
 import logging
+import os
+import sys
+import threading
 from abc import abstractmethod
 from dataclasses import asdict, dataclass
 from functools import cached_property
+from io import StringIO
 from pathlib import Path
 from typing import Union
 
@@ -17,8 +21,13 @@ import tqdm
 from waffle_utils.file import io
 from waffle_utils.utils import type_validator
 
-from waffle_hub.hub.model.wrapper import ModelWrapper, ResultParser, get_parser
+from waffle_hub.hub.model.wrapper import get_parser
 from waffle_hub.schemas.configs import Model, Train
+from waffle_hub.utils.callback import (
+    ExportCallback,
+    InferenceCallback,
+    TrainCallback,
+)
 from waffle_hub.utils.image import ImageDataset, draw_results
 
 logger = logging.getLogger(__name__)
@@ -54,7 +63,7 @@ class InferenceContext(ConfigContext):
     image_size: int
     letter_box: bool
     confidence_threshold: float
-    iou_thresold: float
+    iou_threshold: float
     half: bool
     workers: int
     device: str
@@ -86,6 +95,8 @@ class BaseHub:
     EVALUATION_DIR = Path("evaluations")
     EXPORT_DIR = Path("exports")
 
+    DRAW_DIR = Path("draws")
+
     # config files
     CONFIG_DIR = Path("configs")
     MODEL_CONFIG_FILE = CONFIG_DIR / "model.yaml"
@@ -94,7 +105,7 @@ class BaseHub:
     # train results
     LAST_CKPT_FILE = "weights/last_ckpt.pt"
     BEST_CKPT_FILE = "weights/best_ckpt.pt"  # TODO: best metric?
-    METRIC_FILE = "metrics.csv"
+    METRIC_FILE = "metrics.json"
 
     # export results
     ONNX_FILE = "weights/model.onnx"
@@ -315,6 +326,11 @@ class BaseHub:
         return self.hub_dir / BaseHub.EXPORT_DIR
 
     @cached_property
+    def draw_dir(self) -> Path:
+        """Draw Results Directory"""
+        return self.hub_dir / BaseHub.DRAW_DIR
+
+    @cached_property
     def model_config_file(self) -> Path:
         """Model Config yaml File"""
         return self.hub_dir / BaseHub.MODEL_CONFIG_FILE
@@ -410,6 +426,7 @@ class BaseHub:
         workers: int = 2,
         seed: int = 0,
         verbose: bool = True,
+        hold: bool = True,
     ) -> str:
         """Start Train
 
@@ -424,6 +441,9 @@ class BaseHub:
             workers (int, optional): num workers. Defaults to 2.
             seed (int, optional): random seed. Defaults to 0.
             verbose (bool, optional): verbose. Defaults to True.
+            hold (bool, optional): hold or not.
+                If True then it holds until task finished.
+                If False then return Inferece Callback and run in background. Defaults to True.
 
         Raises:
             FileExistsError: if trained artifact exists.
@@ -435,7 +455,7 @@ class BaseHub:
             str: hub directory
         """
 
-        with TrainContext(
+        ctx = TrainContext(
             dataset_path=dataset_path,
             epochs=epochs,
             batch_size=batch_size,
@@ -446,20 +466,38 @@ class BaseHub:
             workers=workers,
             seed=seed,
             verbose=verbose,
-        ) as ctx:
-            self.before_train(ctx)
-            self.on_train_start(ctx)
-            self.save_train_config(ctx)
+        )
+        self.before_train(ctx)
+        self.on_train_start(ctx)
+        self.save_train_config(ctx)
+
+        def inner(callback: TrainCallback):
             try:
-                self.training(ctx)
+                self.training(ctx, callback)
+                callback.best_ckpt_file = self.best_ckpt_file
+                callback.last_ckpt_file = self.last_ckpt_file
+                callback.metric_file = self.metric_file
+                callback.result_dir = self.hub_dir
+                callback.force_finish()
+                self.on_train_end(ctx)
+                self.after_train(ctx)
             except Exception as e:
                 if self.artifact_dir.exists():
                     io.remove_directory(self.artifact_dir)
+                    callback.force_finish()
                 raise e
-            self.on_train_end(ctx)
-            self.after_train(ctx)
 
-        return str(self.hub_dir)
+        callback = TrainCallback(ctx.epochs, self.get_metrics)
+        if hold:
+            inner(callback)
+        else:
+            thread = threading.Thread(
+                target=inner, args=(callback,), daemon=True
+            )
+            callback.register_thread(thread)
+            callback.start()
+
+        return callback
 
     # Inference Hook
     def get_model(self):
@@ -483,44 +521,42 @@ class BaseHub:
             ctx.source, ctx.image_size, letter_box=ctx.letter_box
         ).get_dataloader(ctx.batch_size, ctx.workers)
 
-    def inferencing(self, ctx: InferenceContext) -> str:
+    def inferencing(
+        self, ctx: InferenceContext, callback: InferenceCallback
+    ) -> str:
         model = ctx.model.to(ctx.device)
         dataloader = ctx.dataloader
         device = ctx.device
 
-        for images, image_infos in tqdm.tqdm(dataloader):
+        for i, (images, image_infos) in tqdm.tqdm(
+            enumerate(dataloader, start=1), total=len(dataloader)
+        ):
             result_batch = model(images.to(device), image_infos)
-            for results, image_info in zip(result_batch, image_infos):
+            results = []
+            for result, image_info in zip(result_batch, image_infos):
                 image_path = image_info.get("image_path")
 
                 relpath = Path(image_path).relative_to(ctx.source)
-                if relpath == Path("."):
-                    relpath = Path(
-                        "test.png"
-                    )  # TODO: path correction for none directory source.
                 io.save_json(
-                    results,
-                    self.inference_dir
-                    / "results"
-                    / relpath.with_suffix(".json"),
+                    result,
+                    self.inference_dir / relpath.with_suffix(".json"),
                     create_directory=True,
                 )
+
+                results.append(result)
+
                 if ctx.draw:
                     draw = draw_results(
                         image_path,
-                        results,
+                        result,
                         task=self.task,
                         names=[x["name"] for x in self.classes],
                     )
-                    draw_path = (
-                        self.inference_dir
-                        / "draw"
-                        / relpath.with_suffix(".png")
-                    )
+                    draw_path = self.draw_dir / relpath.with_suffix(".png")
                     io.make_directory(draw_path.parent)
                     cv2.imwrite(str(draw_path), draw)
 
-        return results  # TODO: return what?
+            callback.update(i)
 
     def on_inference_end(self, ctx: InferenceContext):
         pass
@@ -536,11 +572,12 @@ class BaseHub:
         letter_box: bool = None,
         batch_size: int = 4,
         confidence_threshold: float = 0.25,
-        iou_thresold: float = 0.5,
+        iou_threshold: float = 0.5,
         half: bool = False,
         workers: int = 2,
         device: str = "0",
         draw: bool = False,
+        hold: bool = True,
     ) -> str:
         """Start Inference
 
@@ -550,11 +587,14 @@ class BaseHub:
             image_size (int, optional): inference image size. None for same with train_config (recommended).
             letter_box (bool, optional): letter box preprocess. None for same with train_config (recommended).
             batch_size (int, optional): batch size. Defaults to 4.
-            conf_thres (float, optional): confidence threshold. Defaults to 0.25.
-            iou_thres (float, optional): iou threshold. Defaults to 0.7.
+            confidence_threshold (float, optional): confidence threshold. Defaults to 0.25.
+            iou_threshold (float, optional): iou threshold. Defaults to 0.7.
             half (bool, optional): fp16 inference. Defaults to False.
             device (str, optional): gpu device. Defaults to "0".
             draw (bool, optional): save draw or not. Defaults to False.
+            hold (bool, optional): hold or not.
+                If True then it holds until task finished.
+                If False then return Inferece Callback and run in background. Defaults to True.
 
         Raises:
             FileNotFoundError: if can not detect appropriate dataset.
@@ -565,32 +605,49 @@ class BaseHub:
         """
         self.check_train_sanity()
 
-        with InferenceContext(
+        ctx = InferenceContext(
             source=source,
             batch_size=batch_size,
             recursive=recursive,
             image_size=image_size,
             letter_box=letter_box,
             confidence_threshold=confidence_threshold,
-            iou_thresold=iou_thresold,
+            iou_threshold=iou_threshold,
             half=half,
             workers=workers,
             device="cpu" if device == "cpu" else f"cuda:{device}",
             draw=draw,
-        ) as ctx:
+        )
 
-            self.before_inference(ctx)
-            self.on_inference_start(ctx)
+        self.before_inference(ctx)
+        self.on_inference_start(ctx)
+
+        def inner(callback):
             try:
-                self.inferencing(ctx)
+                self.inferencing(ctx, callback)
+                callback.inference_dir = self.inference_dir
+                callback.draw_dir = self.draw_dir if ctx.draw else None
+                callback.force_finish()
+                self.on_inference_end(ctx)
+                self.after_inference(ctx)
             except Exception as e:
                 if self.inference_dir.exists():
                     io.remove_directory(self.inference_dir)
+                callback.force_finish()
                 raise e
-            self.on_inference_end(ctx)
-            self.after_inference(ctx)
 
-        return str(self.inference_dir)
+        callback = InferenceCallback(len(ctx.dataloader))
+
+        if hold:
+            inner(callback)
+        else:
+            thread = threading.Thread(
+                target=inner, args=(callback,), daemon=True
+            )
+            callback.register_thread(thread)
+            callback.start()
+
+        return callback
 
     # Export Hook
     def export(
@@ -598,6 +655,7 @@ class BaseHub:
         image_size: int = None,
         batch_size: int = 1,
         opset_version: int = 11,
+        hold: bool = True,
     ) -> str:
         """Export Model
 
@@ -605,6 +663,9 @@ class BaseHub:
             image_size (int, optional): inference image size. None for same with train_config (recommended).
             batch_size (int, optional): dynamic batch size. Defaults to 16.
             opset_version (int, optional): onnx opset version. Defaults to 11.
+            hold (bool, optional): hold or not.
+                If True then it holds until task finished.
+                If False then return Inferece Callback and run in background. Defaults to True.
 
         Returns:
             str: export onnx file path
@@ -634,19 +695,40 @@ class BaseHub:
 
         dummy_input = torch.randn(batch_size, 3, *image_size)
 
-        torch.onnx.export(
-            model,
-            dummy_input,
-            str(self.onnx_file),
-            input_names=input_name,
-            output_names=output_names,
-            opset_version=opset_version,
-            dynamic_axes={
-                name: {0: "batch_size"} for name in input_name + output_names
-            },
-        )
+        def inner(callback):
+            try:
+                torch.onnx.export(
+                    model,
+                    dummy_input,
+                    str(self.onnx_file),
+                    input_names=input_name,
+                    output_names=output_names,
+                    opset_version=opset_version,
+                    dynamic_axes={
+                        name: {0: "batch_size"}
+                        for name in input_name + output_names
+                    },
+                )
+                callback.export_file = self.onnx_file
+                callback.force_finish()
+            except Exception as e:
+                if self.onnx_file.exists():
+                    io.remove_file(self.onnx_file)
+                callback.force_finish()
+                raise e
 
-        return str(self.onnx_file)
+        callback = ExportCallback(1)
+
+        if hold:
+            inner(callback)
+        else:
+            thread = threading.Thread(
+                target=inner, args=(callback,), daemon=True
+            )
+            callback.register_thread(thread)
+            callback.start()
+
+        return callback
 
     @abstractmethod
     def evaluate(self):

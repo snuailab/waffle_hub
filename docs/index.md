@@ -10,4 +10,3 @@ Waffle is a framework that lets you use lots of different deep learning tools th
 
 Experience the power of multiple deep learning frameworks at your fingertips with Waffle's seamless integration, unlocking limitless possibilities for your machine learning projects.
 
-See our [documentation](https://snuailab.github.io/waffle_hub/) for more information!

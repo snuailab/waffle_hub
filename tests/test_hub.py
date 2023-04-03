@@ -1,3 +1,4 @@
+import time
 from pathlib import Path
 
 import pytest
@@ -5,6 +6,11 @@ from waffle_utils.dataset import Dataset
 from waffle_utils.file import io, network
 
 from waffle_hub.hub.adapter.ultralytics import UltralyticsHub
+from waffle_hub.utils.callback import (
+    ExportCallback,
+    InferenceCallback,
+    TrainCallback,
+)
 
 
 @pytest.fixture
@@ -26,9 +32,7 @@ def dummy_dataset(tmpdir: Path):
     return ds
 
 
-def test_ultralytics_detect_train_inference(
-    tmpdir: Path, dummy_dataset: Dataset
-):
+def test_ultralytics_object_detection(tmpdir: Path, dummy_dataset: Dataset):
 
     export_dir = dummy_dataset.export("yolo_detection")
 
@@ -48,7 +52,7 @@ def test_ultralytics_detect_train_inference(
         model_config_file=tmpdir / name / UltralyticsHub.MODEL_CONFIG_FILE,
         root_dir=tmpdir,
     )
-    hub.train(
+    train_callback: TrainCallback = hub.train(
         dataset_path=export_dir,
         epochs=1,
         batch_size=4,
@@ -56,23 +60,30 @@ def test_ultralytics_detect_train_inference(
         pretrained_model=None,
         device="cpu",
     )
-    assert hub.check_train_sanity()
+    assert train_callback.get_progress() == 1
+    assert len(train_callback.get_metrics()) == 1
+    assert Path(train_callback.best_ckpt_file).exists()
+    assert Path(train_callback.last_ckpt_file).exists()
+    assert Path(train_callback.metric_file).exists()
+    assert Path(train_callback.result_dir).exists()
 
-    inference_dir = hub.inference(
+    inference_callback: InferenceCallback = hub.inference(
         source=export_dir,
         device="cpu",
     )
-    assert (Path(inference_dir) / "results").exists()
+    assert inference_callback.get_progress() == 1
+    assert Path(inference_callback.inference_dir).exists()
 
-    onnx_file = hub.export()
-    assert Path(onnx_file).exists()
+    export_callback: ExportCallback = hub.export()
+    assert Path(export_callback.export_file).exists()
 
 
-def test_ultralytics_classify_train(tmpdir: Path, dummy_dataset: Dataset):
+def test_ultralytics_classification(tmpdir: Path, dummy_dataset: Dataset):
+
+    export_dir = dummy_dataset.export("yolo_classification")
 
     name = "test_cls"
 
-    export_dir = dummy_dataset.export("yolo_classification")
     hub = UltralyticsHub(
         name=name,
         task="classification",
@@ -81,21 +92,90 @@ def test_ultralytics_classify_train(tmpdir: Path, dummy_dataset: Dataset):
         classes=["1", "2"],
         root_dir=tmpdir,
     )
-    hub.train(
+    hub = UltralyticsHub.load(name=name, root_dir=tmpdir)
+    hub: UltralyticsHub = UltralyticsHub.from_model_config(
+        name=name,
+        model_config_file=tmpdir / name / UltralyticsHub.MODEL_CONFIG_FILE,
+        root_dir=tmpdir,
+    )
+    train_callback: TrainCallback = hub.train(
         dataset_path=export_dir,
         epochs=1,
         batch_size=4,
-        image_size=28,
+        image_size=32,
         pretrained_model=None,
         device="cpu",
     )
-    assert hub.check_train_sanity()
+    assert train_callback.get_progress() == 1
+    assert len(train_callback.get_metrics()) == 1
+    assert Path(train_callback.best_ckpt_file).exists()
+    assert Path(train_callback.last_ckpt_file).exists()
+    assert Path(train_callback.metric_file).exists()
+    assert Path(train_callback.result_dir).exists()
 
-    inference_dir = hub.inference(
+    inference_callback: InferenceCallback = hub.inference(
         source=export_dir,
         device="cpu",
     )
-    assert (Path(inference_dir) / "results").exists()
+    assert inference_callback.get_progress() == 1
+    assert Path(inference_callback.inference_dir).exists()
 
-    onnx_file = hub.export()
-    assert Path(onnx_file).exists()
+    export_callback: ExportCallback = hub.export()
+    assert Path(export_callback.export_file).exists()
+
+
+def test_non_hold(tmpdir: Path, dummy_dataset: Dataset):
+
+    export_dir = dummy_dataset.export("yolo_detection")
+
+    name = "test_det"
+
+    hub = UltralyticsHub(
+        name=name,
+        task="object_detection",
+        model_type="yolov8",
+        model_size="n",
+        classes=["1", "2"],
+        root_dir=tmpdir,
+    )
+    hub = UltralyticsHub.load(name=name, root_dir=tmpdir)
+    hub: UltralyticsHub = UltralyticsHub.from_model_config(
+        name=name,
+        model_config_file=tmpdir / name / UltralyticsHub.MODEL_CONFIG_FILE,
+        root_dir=tmpdir,
+    )
+    train_callback: TrainCallback = hub.train(
+        dataset_path=export_dir,
+        epochs=1,
+        batch_size=4,
+        image_size=32,
+        pretrained_model=None,
+        device="cpu",
+        hold=False,
+    )
+
+    while not train_callback.is_finished():
+        time.sleep(0.1)
+
+    assert train_callback.get_progress() == 1
+    assert len(train_callback.get_metrics()) == 1
+    assert Path(train_callback.best_ckpt_file).exists()
+    assert Path(train_callback.last_ckpt_file).exists()
+    assert Path(train_callback.metric_file).exists()
+    assert Path(train_callback.result_dir).exists()
+
+    inference_callback: InferenceCallback = hub.inference(
+        source=export_dir, device="cpu", hold=False
+    )
+    while not inference_callback.is_finished():
+        time.sleep(0.1)
+
+    assert inference_callback.get_progress() == 1
+    assert Path(inference_callback.inference_dir).exists()
+
+    export_callback: ExportCallback = hub.export(hold=False)
+
+    while not export_callback.is_finished():
+        time.sleep(0.1)
+
+    assert Path(export_callback.export_file).exists()
