@@ -63,8 +63,21 @@ class TxModelHub(BaseHub):
         model_size: str = None,
         classes: Union[list[dict], list] = None,
         root_dir: str = None,
+        backend: str = None,
+        version: str = None,
     ):
         """Create Tx Model Hub Class. Do not use this class directly. Use TxModelHub.new() instead."""
+
+        if backend is not None and backend != BACKEND_NAME:
+            raise ValueError(
+                f"you've loaded {backend}. backend must be {BACKEND_NAME}"
+            )
+
+        if version is not None and version != BACKEND_VERSION:
+            warnings.warn(
+                f"you've loaded a {BACKEND_NAME}=={version} version while {BACKEND_NAME}=={BACKEND_VERSION} version is installed."
+                "It will cause unexpected results."
+            )
 
         super().__init__(
             name=name,
