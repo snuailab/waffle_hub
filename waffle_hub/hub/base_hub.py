@@ -484,7 +484,7 @@ class BaseHub:
             except Exception as e:
                 if self.artifact_dir.exists():
                     io.remove_directory(self.artifact_dir)
-                    callback.force_finish()
+                callback.force_finish()
                 raise e
 
         callback = TrainCallback(ctx.epochs, self.get_metrics)
