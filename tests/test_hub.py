@@ -155,7 +155,7 @@ def test_non_hold(tmpdir: Path, dummy_dataset: Dataset):
     )
 
     while not train_callback.is_finished():
-        time.sleep(0.1)
+        time.sleep(1)
 
     assert train_callback.get_progress() == 1
     assert len(train_callback.get_metrics()) == 1
@@ -168,7 +168,7 @@ def test_non_hold(tmpdir: Path, dummy_dataset: Dataset):
         source=export_dir, device="cpu", hold=False
     )
     while not inference_callback.is_finished():
-        time.sleep(0.1)
+        time.sleep(1)
 
     assert inference_callback.get_progress() == 1
     assert Path(inference_callback.inference_dir).exists()
@@ -176,6 +176,6 @@ def test_non_hold(tmpdir: Path, dummy_dataset: Dataset):
     export_callback: ExportCallback = hub.export(hold=False)
 
     while not export_callback.is_finished():
-        time.sleep(0.1)
+        time.sleep(1)
 
     assert Path(export_callback.export_file).exists()
