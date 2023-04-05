@@ -478,9 +478,9 @@ class BaseHub:
                 callback.last_ckpt_file = self.last_ckpt_file
                 callback.metric_file = self.metric_file
                 callback.result_dir = self.hub_dir
-                callback.force_finish()
                 self.on_train_end(ctx)
                 self.after_train(ctx)
+                callback.force_finish()
             except Exception as e:
                 if self.artifact_dir.exists():
                     io.remove_directory(self.artifact_dir)
@@ -627,9 +627,9 @@ class BaseHub:
                 self.inferencing(ctx, callback)
                 callback.inference_dir = self.inference_dir
                 callback.draw_dir = self.draw_dir if ctx.draw else None
-                callback.force_finish()
                 self.on_inference_end(ctx)
                 self.after_inference(ctx)
+                callback.force_finish()
             except Exception as e:
                 if self.inference_dir.exists():
                     io.remove_directory(self.inference_dir)
