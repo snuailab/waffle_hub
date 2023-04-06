@@ -15,7 +15,7 @@ from waffle_hub.utils.callback import (
 
 @pytest.fixture
 def dummy_dataset(tmpdir: Path):
-    url = "https://github.com/snuailab/waffle_utils/raw/main/mnist.zip"
+    url = "https://raw.githubusercontent.com/snuailab/assets/main/waffle/sample_dataset/mnist.zip"
 
     dummy_zip_file = tmpdir / "mnist.zip"
     dummy_extract_dir = tmpdir / "extract"
