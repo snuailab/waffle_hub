@@ -13,6 +13,8 @@ After you [create `Hub`](./index.md), you can train it using `Hub.train` method.
         epochs=10,
         batch_size=16,
         image_size=320,
+        letter_box=False,
+        pretrained_model=None,
         device="0",
         workers=2,
         seed=0,
@@ -26,6 +28,8 @@ After you [create `Hub`](./index.md), you can train it using `Hub.train` method.
     | epochs | int | Number of epochs |
     | batch_size | int | Batch size |
     | image_size | int | Image size |
+    | letter_box | bool | Letter box |
+    | pretrained_model | str | Pretrained model path |
     | device | str | Device to train |
     | workers | int | Number of workers |
     | seed | int | Random seed |
