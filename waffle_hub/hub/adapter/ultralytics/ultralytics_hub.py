@@ -190,7 +190,7 @@ class UltralyticsHub(BaseHub):
         header = lines[0].strip().split(",")
         metrics = []
         for line in lines[1:]:
-            values = line.strip().split(",")[1:]
+            values = line.strip().split(",")
             metric = []
             for i, value in enumerate(values):
                 metric.append(
