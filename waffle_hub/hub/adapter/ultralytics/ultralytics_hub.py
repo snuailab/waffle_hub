@@ -7,7 +7,6 @@ from waffle_hub import get_installed_backend_version
 BACKEND_NAME = "ultralytics"
 BACKEND_VERSION = get_installed_backend_version(BACKEND_NAME)
 
-import os
 import warnings
 from pathlib import Path
 from typing import Union
