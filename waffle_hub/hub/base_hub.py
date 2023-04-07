@@ -171,17 +171,19 @@ class BaseHub:
         Returns:
             Hub: Hub instance
         """
-        model_config_file = (
-            Path(root_dir if root_dir else BaseHub.DEFAULT_ROOT_DIR)
-            / name
-            / BaseHub.MODEL_CONFIG_FILE
-        )
+        root_dir = Path(root_dir if root_dir else BaseHub.DEFAULT_ROOT_DIR)
+        model_config_file = root_dir / name / BaseHub.MODEL_CONFIG_FILE
         if not model_config_file.exists():
             raise FileNotFoundError(
                 f"Model[{name}] does not exists. {model_config_file}"
             )
         model_config = io.load_yaml(model_config_file)
-        return cls(**model_config)
+        return cls(
+            **{
+                **model_config,
+                "root_dir": root_dir,
+            }
+        )
 
     @classmethod
     def from_model_config(
