@@ -15,12 +15,12 @@ from waffle_hub.utils.callback import (
 
 @pytest.fixture
 def dummy_dataset(tmpdir: Path):
-    url = "https://github.com/snuailab/waffle_utils/raw/main/mnist.zip"
+    url = "https://raw.githubusercontent.com/snuailab/assets/main/waffle/sample_dataset/mnist.zip"
 
     dummy_zip_file = tmpdir / "mnist.zip"
     dummy_extract_dir = tmpdir / "extract"
-    dummy_coco_root_dir = tmpdir / "extract/raw"
-    dummy_coco_file = tmpdir / "extract/exports/coco.json"
+    dummy_coco_root_dir = tmpdir / "extract/images"
+    dummy_coco_file = tmpdir / "extract/coco.json"
 
     network.get_file_from_url(url, dummy_zip_file, create_directory=True)
     io.unzip(dummy_zip_file, dummy_extract_dir, create_directory=True)

@@ -7,6 +7,7 @@ from waffle_hub import get_installed_backend_version
 BACKEND_NAME = "ultralytics"
 BACKEND_VERSION = get_installed_backend_version(BACKEND_NAME)
 
+import os
 import warnings
 from pathlib import Path
 from typing import Union
@@ -219,6 +220,16 @@ class UltralyticsHub(BaseHub):
             else:
                 ctx.dataset_path = ctx.dataset_path.absolute()
         elif self.backend_task_name == "classify":
+
+            from torchvision.datasets.folder import ImageFolder
+
+            def find_classes(_, directory: str):
+                return directory, {
+                    v["name"]: i for i, v in enumerate(self.classes)
+                }
+
+            ImageFolder.find_classes = find_classes
+
             if not ctx.dataset_path.is_dir():
                 raise ValueError(
                     f"Classification dataset should be directory. Not {ctx.dataset_path}"
