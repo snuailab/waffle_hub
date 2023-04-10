@@ -219,7 +219,6 @@ class ModelWrapper(torch.nn.Module):
             layer_names = [layer_names]
 
         for name, module in self.model.named_modules():
-            print(name)
             if name in layer_names:
                 print(name)
                 module.register_forward_hook(hook(name))

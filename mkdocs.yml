@@ -54,6 +54,9 @@ nav:
         - Inference: waffle_hub/hub/inference.md
         - Evaluate: waffle_hub/hub/evaluate.md
         - Export: waffle_hub/hub/export.md
+      - Model:
+        - Introduction: waffle_hub/model/index.md
+        - Wrapper: waffle_hub/model/wrapper.md
   - Experimental:
     - Model Serve: experimental/model_serve.md
   - Blogs: None
