@@ -13,5 +13,5 @@ torchaudio==0.13.1
 torchvision==0.14.1
 
 # waffle dependencies
-waffle-utils==0.2.2
+waffle-utils==0.2.3
 ultralytics==8.0.72
