@@ -16,8 +16,9 @@ from torchvision import transforms as T
 from ultralytics import YOLO
 from waffle_utils.file import io
 
-from waffle_hub.hub.base_hub import BaseHub, InferenceContext, TrainContext
-from waffle_hub.hub.model.wrapper import ModelWrapper, ResultParser
+from waffle_hub.hub.base_hub import BaseHub
+from waffle_hub.hub.model.wrapper import ModelWrapper
+from waffle_hub.schema.configs import TrainConfig
 from waffle_hub.utils.callback import TrainCallback
 
 
@@ -116,13 +117,13 @@ class UltralyticsHub(BaseHub):
         if task == "classification":
             normalize = T.Normalize([0, 0, 0], [1, 1, 1], inplace=True)
 
-            def preprocess(x):
+            def preprocess(x, *args, **kwargs):
                 return normalize(x)
 
         elif task == "object_detection":
             normalize = T.Normalize([0, 0, 0], [1, 1, 1], inplace=True)
 
-            def preprocess(x):
+            def preprocess(x, *args, **kwargs):
                 return normalize(x)
 
         else:
@@ -134,18 +135,14 @@ class UltralyticsHub(BaseHub):
 
         if task == "classification":
 
-            def inner(x: torch.Tensor):
+            def inner(x: torch.Tensor, *args, **kwargs):
                 return [x]
 
         elif task == "object_detection":
-            image_size = kwargs.get("image_size")
-            image_size = (
-                image_size
-                if isinstance(image_size, list)
-                else [image_size, image_size]
-            )
 
-            def inner(x: torch.Tensor):
+            def inner(
+                x: torch.Tensor, image_size: tuple[int, int], *args, **kwargs
+            ):
                 x = x[0]  # x[0]: prediction, x[1]: TODO: what is this...?
                 x = x.transpose(1, 2)
 
@@ -203,7 +200,7 @@ class UltralyticsHub(BaseHub):
         return metrics
 
     # Train Hook
-    def on_train_start(self, ctx: TrainContext):
+    def on_train_start(self, ctx: TrainConfig):
         # set data
         ctx.dataset_path: Path = Path(ctx.dataset_path)
         if self.backend_task_name in ["detect", "segment"]:
@@ -246,7 +243,7 @@ class UltralyticsHub(BaseHub):
             + ".pt"
         )
 
-    def training(self, ctx: TrainContext, callback: TrainCallback):
+    def training(self, ctx: TrainConfig, callback: TrainCallback):
 
         model = YOLO(ctx.pretrained_model, task=self.backend_task_name)
         model.train(
@@ -264,7 +261,7 @@ class UltralyticsHub(BaseHub):
         )
         del model
 
-    def on_train_end(self, ctx: TrainContext):
+    def on_train_end(self, ctx: TrainConfig):
         io.copy_file(
             self.artifact_dir / "weights" / "best.pt",
             self.best_ckpt_file,
@@ -278,31 +275,25 @@ class UltralyticsHub(BaseHub):
         io.save_json(self.get_metrics(), self.metric_file)
 
     # Inference Hook
-    def get_model(
-        self, image_size: Union[int, list] = None, parser: ResultParser = None
-    ):
+    def get_model(self):
+        """Get model.
+        Returns:
+            ModelWrapper: Model wrapper
+        """
         self.check_train_sanity()
-
-        if image_size is None:
-            train_config = io.load_yaml(self.train_config_file)
-            image_size = train_config.get("image_size")
 
         # get adapt functions
         preprocess = self.get_preprocess(self.task)
-        postprocess = self.get_postprocess(self.task, image_size=image_size)
+        postprocess = self.get_postprocess(self.task)
 
         # get model
         model = ModelWrapper(
             model=YOLO(self.best_ckpt_file).model.eval(),
             preprocess=preprocess,
             postprocess=postprocess,
-            parser=parser if parser else None,
         )
 
         return model
-
-    def on_inference_end(self, ctx: InferenceContext):
-        pass
 
     # Evaluate Hook
     def evaluating(self):

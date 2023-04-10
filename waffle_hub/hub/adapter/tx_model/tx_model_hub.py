@@ -125,7 +125,7 @@ class TxModelHub(BaseHub):
         if task == "object_detection":
             normalize = T.Normalize([0, 0, 0], [1, 1, 1], inplace=True)
 
-            def preprocess(x):
+            def preprocess(x, *args, **kwargs):
                 return normalize(x)
 
         return preprocess
@@ -134,7 +134,7 @@ class TxModelHub(BaseHub):
 
         if task == "object_detection":
 
-            def inner(x: torch.Tensor):
+            def inner(x: torch.Tensor, *args, **kwargs):
                 return x
 
         return inner
@@ -241,13 +241,8 @@ class TxModelHub(BaseHub):
         io.save_json(self.get_metrics(), self.metric_file)
 
     # Inference Hook
-    def get_model(
-        self, image_size: Union[int, list] = None, parser: ResultParser = None
-    ):
+    def get_model(self):
         """Get model.
-        Args:
-            image_size (Union[int, list], optional): Image size. Defaults to None.
-            parser (ResultParser, optional): Result parser. Defaults to None.
         Returns:
             ModelWrapper: Model wrapper
         """
@@ -270,7 +265,6 @@ class TxModelHub(BaseHub):
             model=model.eval(),
             preprocess=preprocess,
             postprocess=postprocess,
-            parser=parser if parser else None,
         )
 
         return model
