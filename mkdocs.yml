@@ -46,6 +46,6 @@ nav:
       - Evaluate: tutorials/hub/evaluate.md
       - Export: tutorials/hub/export.md
       - Callbacks: tutorials/hub/callbacks.md
-  - Blogs:
-    - blogs/active_learning.md
-    - blogs/synthetic_data.md
+  - Experimental:
+    - Model Serve: experimental/model_serve.md
+  - Blogs: None
