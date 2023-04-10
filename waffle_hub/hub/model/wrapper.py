@@ -184,10 +184,27 @@ class ModelWrapper(torch.nn.Module):
         x = self.postprocess(x, image_size=(W, H))
         return x
 
-    def get_layer_names(self):
-        return [name for name, _ in self.model.model.named_modules()]
+    def get_layer_names(self) -> list[str]:
+        """
+        Get all layer names in model.
+        """
+        return [name for name, _ in self.model.named_modules()]
 
-    def get_feature_maps(self, x, layer_names: Union[list[str], str] = None):
+    def get_feature_maps(
+        self, x, layer_names: Union[list[str], str] = None
+    ) -> tuple[torch.Tensor, dict]:
+        """
+        Get feature maps from model.
+
+        Args:
+            x (torch.Tensor): input image
+            layer_names (Union[list[str], str]): layer names to get feature maps
+
+        Returns:
+            x (torch.Tensor): model output
+            feature_maps (dict): feature maps
+        """
+
         feature_maps = {}
 
         def hook(name):
@@ -201,11 +218,12 @@ class ModelWrapper(torch.nn.Module):
         elif isinstance(layer_names, str):
             layer_names = [layer_names]
 
-        for name, module in self.model.named_children():
+        for name, module in self.model.named_modules():
+            print(name)
             if name in layer_names:
+                print(name)
                 module.register_forward_hook(hook(name))
 
-        x = self.preprocess(x)
-        self.model(x)
+        x = self.forward(x)
 
-        return feature_maps
+        return x, feature_maps

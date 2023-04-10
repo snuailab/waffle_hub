@@ -11,7 +11,7 @@ FONT_WEIGHT = 2
 
 THICKNESS = 2
 
-# random colors with 1000 classes
+# random colors with 1000 categories
 colors = np.random.randint(0, 255, (1000, 3), dtype="uint8").tolist()
 
 

@@ -68,7 +68,7 @@ class UltralyticsHub(BaseHub):
         task: str = None,
         model_type: str = None,
         model_size: str = None,
-        classes: Union[list[dict], list] = None,
+        categories: Union[list[dict], list] = None,
         root_dir: str = None,
         backend: str = None,
         version: str = None,
@@ -93,7 +93,7 @@ class UltralyticsHub(BaseHub):
             task=task,
             model_type=model_type,
             model_size=model_size,
-            classes=classes,
+            categories=categories,
             root_dir=root_dir,
         )
 
@@ -106,7 +106,7 @@ class UltralyticsHub(BaseHub):
         task: str = None,
         model_type: str = None,
         model_size: str = None,
-        classes: Union[list[dict], list] = None,
+        categories: Union[list[dict], list] = None,
         root_dir: str = None,
     ):
         """Create Ultralytics Hub.
@@ -116,7 +116,7 @@ class UltralyticsHub(BaseHub):
             task (str, optional): Task Name. See UltralyticsHub.TASKS. Defaults to None.
             model_type (str, optional): Model Type. See UltralyticsHub.MODEL_TYPES. Defaults to None.
             model_size (str, optional): Model Size. See UltralyticsHub.MODEL_SIZES. Defaults to None.
-            classes (Union[list[dict], list]): class dictionary or list. [{"supercategory": "name"}, ] or ["name",].
+            categories (Union[list[dict], list]): class dictionary or list. [{"supercategory": "name"}, ] or ["name",].
             root_dir (str, optional): Root directory of hub repository. Defaults to None.
         """
         return cls(
@@ -124,7 +124,7 @@ class UltralyticsHub(BaseHub):
             task=task,
             model_type=model_type,
             model_size=model_size,
-            classes=classes,
+            categories=categories,
             root_dir=root_dir,
         )
 
@@ -237,12 +237,12 @@ class UltralyticsHub(BaseHub):
 
             from torchvision.datasets.folder import ImageFolder
 
-            def find_classes(_, directory: str):
+            def find_categories(_, directory: str):
                 return directory, {
-                    v["name"]: i for i, v in enumerate(self.classes)
+                    v["name"]: i for i, v in enumerate(self.categories)
                 }
 
-            ImageFolder.find_classes = find_classes
+            ImageFolder.find_categories = find_categories
 
             if not cfg.dataset_path.is_dir():
                 raise ValueError(

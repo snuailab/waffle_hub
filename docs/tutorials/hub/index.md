@@ -19,7 +19,7 @@ Waffle Hub is also based on Object-oriented filesystem like [Waffle Dataset](../
 | model_size | str | Model Size. |
 | backend | str | Backend name. |
 | version | str | Version |
-| classes | list[dict] | Classes |
+| categories | list[dict] | Categories |
 | hub_dir | Path | Hub(Model) Directory |
 | artifact_dir | Path | Artifact Directory. This is raw output of each backend. |
 | inference_dir | Path | Inference Results Directory |
@@ -64,7 +64,7 @@ Create new hub.
 | task | str | Task name. |
 | model_type | str | Model Type. |
 | model_size | str | Model Size. |
-| classes | list[dict] | Classes |
+| categories | list[dict] | Categories |
 | root_dir | str | Root directory of hub repository. |
 
 #### `load`

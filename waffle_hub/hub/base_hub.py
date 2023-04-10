@@ -70,14 +70,14 @@ class BaseHub:
         task: str = None,
         model_type: str = None,
         model_size: str = None,
-        classes: Union[list[dict], list] = None,
+        categories: Union[list[dict], list] = None,
         root_dir: str = None,
     ):
         self.name: str = name
         self.task: str = task
         self.model_type: str = model_type
         self.model_size: str = model_size
-        self.classes: list[dict] = classes
+        self.categories: list[dict] = categories
         self.root_dir: Path = Path(root_dir) if root_dir else None
 
         self.backend: str = backend
@@ -99,7 +99,7 @@ class BaseHub:
                 task=self.task,
                 model_type=self.model_type,
                 model_size=self.model_size,
-                classes=self.classes,
+                categories=self.categories,
             )
             model_config.save_yaml(self.model_config_file)
         except Exception as e:
@@ -240,15 +240,15 @@ class BaseHub:
         self.__version = v
 
     @property
-    def classes(self) -> list[dict]:
-        return self.__classes
+    def categories(self) -> list[dict]:
+        return self.__categories
 
-    @classes.setter
+    @categories.setter
     @type_validator(list)
-    def classes(self, v):
+    def categories(self, v):
         if isinstance(v[0], str):
             v = [{"supercategory": "object", "name": n} for n in v]
-        self.__classes = v
+        self.__categories = v
 
     @cached_property
     def hub_dir(self) -> Path:
@@ -498,7 +498,7 @@ class BaseHub:
                     draw = draw_results(
                         image_path,
                         result,
-                        names=[x["name"] for x in self.classes],
+                        names=[x["name"] for x in self.categories],
                     )
                     draw_path = self.draw_dir / relpath.with_suffix(".png")
                     io.make_directory(draw_path.parent)

@@ -43,7 +43,7 @@ def test_ultralytics_object_detection(tmpdir: Path, dummy_dataset: Dataset):
         task="object_detection",
         model_type="yolov8",
         model_size="n",
-        classes=["1", "2"],
+        categories=["1", "2"],
         root_dir=tmpdir,
     )
     hub = UltralyticsHub.load(name=name, root_dir=tmpdir)
@@ -89,7 +89,7 @@ def test_ultralytics_classification(tmpdir: Path, dummy_dataset: Dataset):
         task="classification",
         model_type="yolov8",
         model_size="n",
-        classes=["1", "2"],
+        categories=["1", "2"],
         root_dir=tmpdir,
     )
     hub = UltralyticsHub.load(name=name, root_dir=tmpdir)
@@ -135,7 +135,7 @@ def test_non_hold(tmpdir: Path, dummy_dataset: Dataset):
         task="object_detection",
         model_type="yolov8",
         model_size="n",
-        classes=["1", "2"],
+        categories=["1", "2"],
         root_dir=tmpdir,
     )
     hub = UltralyticsHub.load(name=name, root_dir=tmpdir)

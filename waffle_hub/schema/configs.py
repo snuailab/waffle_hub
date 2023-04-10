@@ -12,7 +12,7 @@ class ModelConfig(BaseSchema):
     task: str = None
     model_type: str = None
     model_size: str = None
-    classes: list = None
+    categories: list = None
 
 
 @dataclass
