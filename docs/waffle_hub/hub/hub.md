@@ -1,14 +1,8 @@
-# Waffle Hub
-`waffle_hub` provides same interface for various powerfull Deep Learning Frameworks. Here is our brief system architecture.
 
-<img src="https://raw.githubusercontent.com/snuailab/assets/main/waffle/docs/diagrams/hub_flow.png">
+# Hub
+Waffle Hub is also based on Object-oriented filesystem like [Waffle Dataset](../../waffle_utils/dataset/dataset.md).
 
-Each input and output adapter is responsible for converting our interface to the framework's interface. For example, [`Ultralytics`](https://github.com/ultralytics/ultralytics) uses `imgsz` for image size parameter, but [`detectron2`](https://github.com/facebookresearch/detectron2) uses `IMAGE_SIZE`. So, we need to convert our interface to the framework's interface. `waffle_hub` provides `InputAdapter` and `OutputAdapter` for this purpose.
-
-## Hub
-Waffle Hub is also based on Object-oriented filesystem like [Waffle Dataset](../prepare_dataset.md).
-
-### Attributes
+## Attributes
 
 | Name | Type | Description |
 | --- | --- | --- |
@@ -33,7 +27,7 @@ Waffle Hub is also based on Object-oriented filesystem like [Waffle Dataset](../
 | last_ckpt_file | Path | Last Checkpoint File |
 | metric_file | Path | Metric Csv File |
 
-### Support Specifications
+## Support Specifications
 
 You can find which `task`, `model_type`, `model_size` are available in `[BackendName]Hub.MODEL_TYPES`.
 
@@ -52,9 +46,9 @@ You can find which `task`, `model_type`, `model_size` are available in `[Backend
     }
     ```
 
-### Methods
+## Methods
 
-#### `new`
+### `new`
 
 Create new hub.
 
@@ -67,7 +61,7 @@ Create new hub.
 | categories | list[dict] | Categories |
 | root_dir | str | Root directory of hub repository. |
 
-#### `load`
+### `load`
 
 Load existing hub.
 
@@ -76,7 +70,7 @@ Load existing hub.
 | name | str | Hub name |
 | root_dir | str | Root directory of hub repository. |
 
-#### `from_model_config`
+### `from_model_config`
 
 Create new hub from model config.
 

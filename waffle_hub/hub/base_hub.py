@@ -372,23 +372,22 @@ class BaseHub:
         seed: int = 0,
         verbose: bool = True,
         hold: bool = True,
-    ) -> str:
+    ) -> TrainCallback:
         """Start Train
 
         Args:
-            dataset_path (str): Dataset Path. Recommend to use result of waffle_utils.dataset.Dataset.export.
-            epochs (int): total epochs
-            batch_size (int): batch size
-            image_size (Union[int, list[int]]): image size
-            letter_box (bool): letter box preprocess. Defaults to False.
-            pretrained_model (str, optional): pretrained model file. Defaults to None.
-            device (str, optional): gpu device. Defaults to "0".
-            workers (int, optional): num workers. Defaults to 2.
+            dataset_path (str): dataset path
+            epochs (int, optional): number of epochs. None to use default. Defaults to None.
+            batch_size (int, optional): batch size. None to use default. Defaults to None.
+            image_size (Union[int, list[int]], optional): image size. None to use default. Defaults to None.
+            learning_rate (float, optional): learning rate. None to use default. Defaults to None.
+            letter_box (bool, optional): letter box. None to use default. Defaults to None.
+            pretrained_model (str, optional): pretrained model. None to use default. Defaults to None.
+            device (str, optional): device. "cpu" or "gpu_id". Defaults to "0".
+            workers (int, optional): number of workers. Defaults to 2.
             seed (int, optional): random seed. Defaults to 0.
             verbose (bool, optional): verbose. Defaults to True.
-            hold (bool, optional): hold or not.
-                If True then it holds until task finished.
-                If False then return Inferece Callback and run in background. Defaults to True.
+            hold (bool, optional): hold process. Defaults to True.
 
         Raises:
             FileExistsError: if trained artifact exists.
@@ -397,7 +396,7 @@ class BaseHub:
             e: something gone wrong with ultralytics
 
         Returns:
-            str: hub directory
+            TrainCallback: train callback
         """
 
         cfg = TrainConfig(
@@ -526,30 +525,30 @@ class BaseHub:
         device: str = "0",
         draw: bool = False,
         hold: bool = True,
-    ) -> str:
+    ) -> InferenceCallback:
         """Start Inference
 
         Args:
-            source (str): dataset source. image file or image directory. TODO: video
-            recursive (bool, optional): get images from directory recursively. Defaults to True.
-            image_size (Union[int, list[int]], optional): inference image size. None for same with train_config (recommended).
-            letter_box (bool, optional): letter box preprocess. None for same with train_config (recommended).
+            source (str): source directory
+            recursive (bool, optional): recursive. Defaults to True.
+            image_size (Union[int, list[int]], optional): image size. None for using training config. Defaults to None.
+            letter_box (bool, optional): letter box. None for using training config. Defaults to None.
             batch_size (int, optional): batch size. Defaults to 4.
             confidence_threshold (float, optional): confidence threshold. Defaults to 0.25.
-            iou_threshold (float, optional): iou threshold. Defaults to 0.7.
-            half (bool, optional): fp16 inference. Defaults to False.
-            device (str, optional): gpu device. Defaults to "0".
-            draw (bool, optional): save draw or not. Defaults to False.
-            hold (bool, optional): hold or not.
-                If True then it holds until task finished.
-                If False then return Inferece Callback and run in background. Defaults to True.
+            iou_threshold (float, optional): iou threshold. Defaults to 0.5.
+            half (bool, optional): half. Defaults to False.
+            workers (int, optional): workers. Defaults to 2.
+            device (str, optional): device. "cpu" or "gpu_id". Defaults to "0".
+            draw (bool, optional): draw. Defaults to False.
+            hold (bool, optional): hold. Defaults to True.
+
 
         Raises:
             FileNotFoundError: if can not detect appropriate dataset.
             e: something gone wrong with ultralytics
 
         Returns:
-            str: inference result directory
+            InferenceCallback: inference callback
         """
         self.check_train_sanity()
 
@@ -601,10 +600,10 @@ class BaseHub:
     def export(
         self,
         image_size: Union[int, list[int]] = None,
-        batch_size: int = 1,
+        batch_size: int = 16,
         opset_version: int = 11,
         hold: bool = True,
-    ) -> str:
+    ) -> ExportCallback:
         """Export Model
 
         Args:
@@ -616,7 +615,7 @@ class BaseHub:
                 If False then return Inferece Callback and run in background. Defaults to True.
 
         Returns:
-            str: export onnx file path
+            ExportCallback: export callback
         """
         self.check_train_sanity()
 
