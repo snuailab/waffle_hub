@@ -21,6 +21,7 @@ class TrainConfig(BaseSchema):
     epochs: int = None
     batch_size: int = None
     image_size: Union[int, list[int]] = None
+    learning_rate: float = None
     letter_box: bool = None
     pretrained_model: str = None
     device: str = None

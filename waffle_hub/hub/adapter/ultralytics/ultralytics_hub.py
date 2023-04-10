@@ -45,6 +45,23 @@ class UltralyticsHub(BaseHub):
         # "segment": "-seg",
     }
 
+    DEFAULT_PARAMAS = {
+        "object_detection": {
+            "epochs": 50,
+            "image_size": [640, 640],
+            "learning_rate": 0.01,
+            "letter_box": True,
+            "batch_size": 16,
+        },
+        "classification": {
+            "epochs": 50,
+            "image_size": [224, 224],
+            "learning_rate": 0.01,
+            "letter_box": False,
+            "batch_size": 16,
+        },
+    }
+
     def __init__(
         self,
         name: str,
@@ -200,21 +217,22 @@ class UltralyticsHub(BaseHub):
         return metrics
 
     # Train Hook
-    def on_train_start(self, ctx: TrainConfig):
+    def on_train_start(self, cfg: TrainConfig):
+
         # set data
-        ctx.dataset_path: Path = Path(ctx.dataset_path)
+        cfg.dataset_path: Path = Path(cfg.dataset_path)
         if self.backend_task_name in ["detect", "segment"]:
-            if ctx.dataset_path.suffix not in [".yml", ".yaml"]:
-                yaml_files = list(ctx.dataset_path.glob("*.yaml")) + list(
-                    ctx.dataset_path.glob("*.yml")
+            if cfg.dataset_path.suffix not in [".yml", ".yaml"]:
+                yaml_files = list(cfg.dataset_path.glob("*.yaml")) + list(
+                    cfg.dataset_path.glob("*.yml")
                 )
                 if len(yaml_files) != 1:
                     raise FileNotFoundError(
                         f"Ambiguous data file. Detected files: {yaml_files}"
                     )
-                ctx.dataset_path = Path(yaml_files[0]).absolute()
+                cfg.dataset_path = Path(yaml_files[0]).absolute()
             else:
-                ctx.dataset_path = ctx.dataset_path.absolute()
+                cfg.dataset_path = cfg.dataset_path.absolute()
         elif self.backend_task_name == "classify":
 
             from torchvision.datasets.folder import ImageFolder
@@ -226,42 +244,49 @@ class UltralyticsHub(BaseHub):
 
             ImageFolder.find_classes = find_classes
 
-            if not ctx.dataset_path.is_dir():
+            if not cfg.dataset_path.is_dir():
                 raise ValueError(
-                    f"Classification dataset should be directory. Not {ctx.dataset_path}"
+                    f"Classification dataset should be directory. Not {cfg.dataset_path}"
                 )
-            ctx.dataset_path = ctx.dataset_path.absolute()
-        ctx.dataset_path = str(ctx.dataset_path)
+            cfg.dataset_path = cfg.dataset_path.absolute()
+        cfg.dataset_path = str(cfg.dataset_path)
 
         # pretrained model
-        ctx.pretrained_model = (
-            ctx.pretrained_model
-            if ctx.pretrained_model
+        cfg.pretrained_model = (
+            cfg.pretrained_model
+            if cfg.pretrained_model
             else self.model_type
             + self.model_size
             + self.TASK_SUFFIX[self.backend_task_name]
             + ".pt"
         )
 
-    def training(self, ctx: TrainConfig, callback: TrainCallback):
+        # overwrite train config with default config
+        for k, v in cfg.to_dict().items():
+            if v is None:
+                setattr(cfg, k, self.DEFAULT_PARAMAS[self.task][k])
 
-        model = YOLO(ctx.pretrained_model, task=self.backend_task_name)
+    def training(self, cfg: TrainConfig, callback: TrainCallback):
+
+        model = YOLO(cfg.pretrained_model, task=self.backend_task_name)
         model.train(
-            data=ctx.dataset_path,
-            epochs=ctx.epochs,
-            batch=ctx.batch_size,
-            imgsz=ctx.image_size,
-            rect=ctx.letter_box,
-            device=ctx.device,
-            workers=ctx.workers,
-            seed=ctx.seed,
-            verbose=ctx.verbose,
+            data=cfg.dataset_path,
+            epochs=cfg.epochs,
+            batch=cfg.batch_size,
+            imgsz=cfg.image_size,
+            lr0=cfg.learning_rate,
+            lrf=cfg.learning_rate,
+            rect=cfg.letter_box,
+            device=cfg.device,
+            workers=cfg.workers,
+            seed=cfg.seed,
+            verbose=cfg.verbose,
             project=self.hub_dir,
             name=self.ARTIFACT_DIR,
         )
         del model
 
-    def on_train_end(self, ctx: TrainConfig):
+    def on_train_end(self, cfg: TrainConfig):
         io.copy_file(
             self.artifact_dir / "weights" / "best.pt",
             self.best_ckpt_file,
