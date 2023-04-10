@@ -38,14 +38,25 @@ nav:
   - Home: index.md
   - Getting Started: getting_started.md
   - Documentations:
-    - Dataset: tutorials/prepare_dataset.md
-    - Hub:
-      - What is Hub?: tutorials/hub/index.md
-      - Train: tutorials/hub/train.md
-      - Inference: tutorials/hub/inference.md
-      - Evaluate: tutorials/hub/evaluate.md
-      - Export: tutorials/hub/export.md
-      - Callbacks: tutorials/hub/callbacks.md
-  - Blogs:
-    - blogs/active_learning.md
-    - blogs/synthetic_data.md
+    - Waffle Utils:
+      - Dataset:
+        - Introduction: waffle_utils/dataset/index.md
+        - Create Dataset: waffle_utils/dataset/dataset.md
+        - Field: waffle_utils/dataset/field.md
+      - Utility:
+        - Introduction: waffle_utils/utility/index.md
+
+    - Waffle Hub:
+      - Hub:
+        - Introduction: waffle_hub/hub/index.md
+        - Create Hub: waffle_hub/hub/hub.md
+        - Train: waffle_hub/hub/train.md
+        - Inference: waffle_hub/hub/inference.md
+        - Evaluate: waffle_hub/hub/evaluate.md
+        - Export: waffle_hub/hub/export.md
+      - Model:
+        - Introduction: waffle_hub/model/index.md
+        - Wrapper: waffle_hub/model/wrapper.md
+  - Experimental:
+    - Model Serve: experimental/model_serve.md
+  - Blogs: None

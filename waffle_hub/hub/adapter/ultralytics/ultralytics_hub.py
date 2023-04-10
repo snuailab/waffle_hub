@@ -16,8 +16,9 @@ from torchvision import transforms as T
 from ultralytics import YOLO
 from waffle_utils.file import io
 
-from waffle_hub.hub.base_hub import BaseHub, InferenceContext, TrainContext
-from waffle_hub.hub.model.wrapper import ModelWrapper, ResultParser
+from waffle_hub.hub.base_hub import BaseHub
+from waffle_hub.hub.model.wrapper import ModelWrapper
+from waffle_hub.schema.configs import TrainConfig
 from waffle_hub.utils.callback import TrainCallback
 
 
@@ -44,13 +45,30 @@ class UltralyticsHub(BaseHub):
         # "segment": "-seg",
     }
 
+    DEFAULT_PARAMAS = {
+        "object_detection": {
+            "epochs": 50,
+            "image_size": [640, 640],
+            "learning_rate": 0.01,
+            "letter_box": True,
+            "batch_size": 16,
+        },
+        "classification": {
+            "epochs": 50,
+            "image_size": [224, 224],
+            "learning_rate": 0.01,
+            "letter_box": False,
+            "batch_size": 16,
+        },
+    }
+
     def __init__(
         self,
         name: str,
         task: str = None,
         model_type: str = None,
         model_size: str = None,
-        classes: Union[list[dict], list] = None,
+        categories: Union[list[dict], list] = None,
         root_dir: str = None,
         backend: str = None,
         version: str = None,
@@ -75,7 +93,7 @@ class UltralyticsHub(BaseHub):
             task=task,
             model_type=model_type,
             model_size=model_size,
-            classes=classes,
+            categories=categories,
             root_dir=root_dir,
         )
 
@@ -88,7 +106,7 @@ class UltralyticsHub(BaseHub):
         task: str = None,
         model_type: str = None,
         model_size: str = None,
-        classes: Union[list[dict], list] = None,
+        categories: Union[list[dict], list] = None,
         root_dir: str = None,
     ):
         """Create Ultralytics Hub.
@@ -98,7 +116,7 @@ class UltralyticsHub(BaseHub):
             task (str, optional): Task Name. See UltralyticsHub.TASKS. Defaults to None.
             model_type (str, optional): Model Type. See UltralyticsHub.MODEL_TYPES. Defaults to None.
             model_size (str, optional): Model Size. See UltralyticsHub.MODEL_SIZES. Defaults to None.
-            classes (Union[list[dict], list]): class dictionary or list. [{"supercategory": "name"}, ] or ["name",].
+            categories (Union[list[dict], list]): class dictionary or list. [{"supercategory": "name"}, ] or ["name",].
             root_dir (str, optional): Root directory of hub repository. Defaults to None.
         """
         return cls(
@@ -106,7 +124,7 @@ class UltralyticsHub(BaseHub):
             task=task,
             model_type=model_type,
             model_size=model_size,
-            classes=classes,
+            categories=categories,
             root_dir=root_dir,
         )
 
@@ -116,13 +134,13 @@ class UltralyticsHub(BaseHub):
         if task == "classification":
             normalize = T.Normalize([0, 0, 0], [1, 1, 1], inplace=True)
 
-            def preprocess(x):
+            def preprocess(x, *args, **kwargs):
                 return normalize(x)
 
         elif task == "object_detection":
             normalize = T.Normalize([0, 0, 0], [1, 1, 1], inplace=True)
 
-            def preprocess(x):
+            def preprocess(x, *args, **kwargs):
                 return normalize(x)
 
         else:
@@ -134,18 +152,14 @@ class UltralyticsHub(BaseHub):
 
         if task == "classification":
 
-            def inner(x: torch.Tensor):
+            def inner(x: torch.Tensor, *args, **kwargs):
                 return [x]
 
         elif task == "object_detection":
-            image_size = kwargs.get("image_size")
-            image_size = (
-                image_size
-                if isinstance(image_size, list)
-                else [image_size, image_size]
-            )
 
-            def inner(x: torch.Tensor):
+            def inner(
+                x: torch.Tensor, image_size: tuple[int, int], *args, **kwargs
+            ):
                 x = x[0]  # x[0]: prediction, x[1]: TODO: what is this...?
                 x = x.transpose(1, 2)
 
@@ -203,68 +217,76 @@ class UltralyticsHub(BaseHub):
         return metrics
 
     # Train Hook
-    def on_train_start(self, ctx: TrainContext):
+    def on_train_start(self, cfg: TrainConfig):
+
         # set data
-        ctx.dataset_path: Path = Path(ctx.dataset_path)
+        cfg.dataset_path: Path = Path(cfg.dataset_path)
         if self.backend_task_name in ["detect", "segment"]:
-            if ctx.dataset_path.suffix not in [".yml", ".yaml"]:
-                yaml_files = list(ctx.dataset_path.glob("*.yaml")) + list(
-                    ctx.dataset_path.glob("*.yml")
+            if cfg.dataset_path.suffix not in [".yml", ".yaml"]:
+                yaml_files = list(cfg.dataset_path.glob("*.yaml")) + list(
+                    cfg.dataset_path.glob("*.yml")
                 )
                 if len(yaml_files) != 1:
                     raise FileNotFoundError(
                         f"Ambiguous data file. Detected files: {yaml_files}"
                     )
-                ctx.dataset_path = Path(yaml_files[0]).absolute()
+                cfg.dataset_path = Path(yaml_files[0]).absolute()
             else:
-                ctx.dataset_path = ctx.dataset_path.absolute()
+                cfg.dataset_path = cfg.dataset_path.absolute()
         elif self.backend_task_name == "classify":
 
             from torchvision.datasets.folder import ImageFolder
 
-            def find_classes(_, directory: str):
+            def find_categories(_, directory: str):
                 return directory, {
-                    v["name"]: i for i, v in enumerate(self.classes)
+                    v["name"]: i for i, v in enumerate(self.categories)
                 }
 
-            ImageFolder.find_classes = find_classes
+            ImageFolder.find_categories = find_categories
 
-            if not ctx.dataset_path.is_dir():
+            if not cfg.dataset_path.is_dir():
                 raise ValueError(
-                    f"Classification dataset should be directory. Not {ctx.dataset_path}"
+                    f"Classification dataset should be directory. Not {cfg.dataset_path}"
                 )
-            ctx.dataset_path = ctx.dataset_path.absolute()
-        ctx.dataset_path = str(ctx.dataset_path)
+            cfg.dataset_path = cfg.dataset_path.absolute()
+        cfg.dataset_path = str(cfg.dataset_path)
 
         # pretrained model
-        ctx.pretrained_model = (
-            ctx.pretrained_model
-            if ctx.pretrained_model
+        cfg.pretrained_model = (
+            cfg.pretrained_model
+            if cfg.pretrained_model
             else self.model_type
             + self.model_size
             + self.TASK_SUFFIX[self.backend_task_name]
             + ".pt"
         )
 
-    def training(self, ctx: TrainContext, callback: TrainCallback):
+        # overwrite train config with default config
+        for k, v in cfg.to_dict().items():
+            if v is None:
+                setattr(cfg, k, self.DEFAULT_PARAMAS[self.task][k])
 
-        model = YOLO(ctx.pretrained_model, task=self.backend_task_name)
+    def training(self, cfg: TrainConfig, callback: TrainCallback):
+
+        model = YOLO(cfg.pretrained_model, task=self.backend_task_name)
         model.train(
-            data=ctx.dataset_path,
-            epochs=ctx.epochs,
-            batch=ctx.batch_size,
-            imgsz=ctx.image_size,
-            rect=ctx.letter_box,
-            device=ctx.device,
-            workers=ctx.workers,
-            seed=ctx.seed,
-            verbose=ctx.verbose,
+            data=cfg.dataset_path,
+            epochs=cfg.epochs,
+            batch=cfg.batch_size,
+            imgsz=cfg.image_size,
+            lr0=cfg.learning_rate,
+            lrf=cfg.learning_rate,
+            rect=cfg.letter_box,
+            device=cfg.device,
+            workers=cfg.workers,
+            seed=cfg.seed,
+            verbose=cfg.verbose,
             project=self.hub_dir,
             name=self.ARTIFACT_DIR,
         )
         del model
 
-    def on_train_end(self, ctx: TrainContext):
+    def on_train_end(self, cfg: TrainConfig):
         io.copy_file(
             self.artifact_dir / "weights" / "best.pt",
             self.best_ckpt_file,
@@ -278,31 +300,25 @@ class UltralyticsHub(BaseHub):
         io.save_json(self.get_metrics(), self.metric_file)
 
     # Inference Hook
-    def get_model(
-        self, image_size: Union[int, list] = None, parser: ResultParser = None
-    ):
+    def get_model(self):
+        """Get model.
+        Returns:
+            ModelWrapper: Model wrapper
+        """
         self.check_train_sanity()
-
-        if image_size is None:
-            train_config = io.load_yaml(self.train_config_file)
-            image_size = train_config.get("image_size")
 
         # get adapt functions
         preprocess = self.get_preprocess(self.task)
-        postprocess = self.get_postprocess(self.task, image_size=image_size)
+        postprocess = self.get_postprocess(self.task)
 
         # get model
         model = ModelWrapper(
             model=YOLO(self.best_ckpt_file).model.eval(),
             preprocess=preprocess,
             postprocess=postprocess,
-            parser=parser if parser else None,
         )
 
         return model
-
-    def on_inference_end(self, ctx: InferenceContext):
-        pass
 
     # Evaluate Hook
     def evaluating(self):

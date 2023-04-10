@@ -8,8 +8,16 @@ Returns:
     _type_: _description_
 """
 
+from typing import Union
+
 import torch
 from torchvision.ops import batched_nms
+
+from waffle_hub.schema.data import (
+    ClassificationResult,
+    ImageInfo,
+    ObjectDetectionResult,
+)
 
 
 class PreprocessFunction:
@@ -28,7 +36,13 @@ class ClassificationResultParser(ResultParser):
     def __init__(self, *args, **kwargs):
         pass
 
-    def __call__(self, results: list[torch.Tensor], *args, **kwargs):
+    def __call__(
+        self,
+        results: list[torch.Tensor],
+        image_infos: list[ImageInfo] = None,
+        *args,
+        **kwargs
+    ) -> list[ClassificationResult]:
         parseds = []
 
         results = results[0]  # TODO: multi label
@@ -40,7 +54,9 @@ class ClassificationResultParser(ResultParser):
             parsed = []
             for class_id, score in result:
                 parsed.append(
-                    {"category_id": int(class_id), "score": float(score)}
+                    ClassificationResult(
+                        category_id=int(class_id), score=float(score)
+                    )
                 )
             parseds.append(parsed)
         return parseds
@@ -60,10 +76,10 @@ class ObjectDetectionResultParser(ResultParser):
     def __call__(
         self,
         results: list[torch.Tensor],
-        image_infos: list[dict],
+        image_infos: list[ImageInfo],
         *args,
         **kwargs
-    ):
+    ) -> list[ObjectDetectionResult]:
         parseds = []
 
         bboxes_batch, confs_batch, class_ids_batch = results
@@ -84,10 +100,10 @@ class ObjectDetectionResultParser(ResultParser):
             confs = confs[idxs].cpu()
             class_ids = class_ids[idxs].cpu()
 
-            W, H = image_info.get("input_shape")
-            left_pad, top_pad = image_info.get("pad")
-            ori_w, ori_h = image_info.get("ori_shape")
-            new_w, new_h = image_info.get("new_shape")
+            W, H = image_info.input_shape
+            left_pad, top_pad = image_info.pad
+            ori_w, ori_h = image_info.ori_shape
+            new_w, new_h = image_info.new_shape
 
             parsed = []
             for (x1, y1, x2, y2), conf, class_id in zip(
@@ -100,12 +116,12 @@ class ObjectDetectionResultParser(ResultParser):
                 y2 = min(float((y2 * H - top_pad) / new_h * ori_h), ori_h)
 
                 parsed.append(
-                    {
-                        "bbox": [x1, y1, x2 - x1, y2 - y1],
-                        "area": float((x2 - x1) * (y2 - y1)),
-                        "category_id": int(class_id),
-                        "score": float(conf),
-                    }
+                    ObjectDetectionResult(
+                        bbox=[x1, y1, x2 - x1, y2 - y1],
+                        area=float((x2 - x1) * (y2 - y1)),
+                        category_id=int(class_id),
+                        score=float(conf),
+                    )
                 )
             parseds.append(parsed)
         return parseds
@@ -124,7 +140,6 @@ class ModelWrapper(torch.nn.Module):
         model: torch.nn.Module,
         preprocess: PreprocessFunction,
         postprocess: PostprocessFunction,
-        parser: ResultParser = None,
     ):
         """
         Model Wrapper.
@@ -134,7 +149,7 @@ class ModelWrapper(torch.nn.Module):
             model (torch.nn.Module): model
             preprocess (PreprocessFunction):
                 Preprocess Function that
-                recieves [batch, channel, height, width],
+                recieves [batch, channel, height, width] (0~1),
                 and
                 outputs [batch, channel, height, width].
 
@@ -161,12 +176,53 @@ class ModelWrapper(torch.nn.Module):
         self.model = model
         self.preprocess = preprocess
         self.postprocess = postprocess
-        self.parser = parser
 
-    def forward(self, x, image_infos: list[dict] = None, *args, **kwargs):
+    def forward(self, x):
+        _, _, H, W = x.shape
         x = self.preprocess(x)
         x = self.model(x)
-        x = self.postprocess(x)
-        if self.parser is not None:
-            x = self.parser(x, image_infos=image_infos, *args, **kwargs)
+        x = self.postprocess(x, image_size=(W, H))
         return x
+
+    def get_layer_names(self) -> list[str]:
+        """
+        Get all layer names in model.
+        """
+        return [name for name, _ in self.model.named_modules()]
+
+    def get_feature_maps(
+        self, x, layer_names: Union[list[str], str] = None
+    ) -> tuple[torch.Tensor, dict]:
+        """
+        Get feature maps from model.
+
+        Args:
+            x (torch.Tensor): input image
+            layer_names (Union[list[str], str]): layer names to get feature maps
+
+        Returns:
+            x (torch.Tensor): model output
+            feature_maps (dict): feature maps
+        """
+
+        feature_maps = {}
+
+        def hook(name):
+            def hook_fn(m, i, o):
+                feature_maps[name] = o
+
+            return hook_fn
+
+        if layer_names is None:
+            layer_names = self.get_layer_names()[-1]
+        elif isinstance(layer_names, str):
+            layer_names = [layer_names]
+
+        for name, module in self.model.named_modules():
+            if name in layer_names:
+                print(name)
+                module.register_forward_hook(hook(name))
+
+        x = self.forward(x)
+
+        return x, feature_maps

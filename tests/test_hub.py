@@ -2,6 +2,7 @@ import time
 from pathlib import Path
 
 import pytest
+import torch
 from waffle_utils.dataset import Dataset
 from waffle_utils.file import io, network
 
@@ -38,12 +39,12 @@ def test_ultralytics_object_detection(tmpdir: Path, dummy_dataset: Dataset):
 
     name = "test_det"
 
-    hub = UltralyticsHub(
+    hub = UltralyticsHub.new(
         name=name,
         task="object_detection",
         model_type="yolov8",
         model_size="n",
-        classes=["1", "2"],
+        categories=["1", "2"],
         root_dir=tmpdir,
     )
     hub = UltralyticsHub.load(name=name, root_dir=tmpdir)
@@ -76,6 +77,16 @@ def test_ultralytics_object_detection(tmpdir: Path, dummy_dataset: Dataset):
 
     export_callback: ExportCallback = hub.export()
     assert Path(export_callback.export_file).exists()
+
+    model = hub.get_model()
+
+    layer_names = model.get_layer_names()
+    assert len(layer_names) > 0
+
+    x = torch.randn(4, 3, 64, 64)
+    layer_name = layer_names[-1]
+    x, feature_maps = model.get_feature_maps(x, layer_name)
+    assert len(feature_maps) == 1
 
 
 def test_ultralytics_classification(tmpdir: Path, dummy_dataset: Dataset):
@@ -84,12 +95,12 @@ def test_ultralytics_classification(tmpdir: Path, dummy_dataset: Dataset):
 
     name = "test_cls"
 
-    hub = UltralyticsHub(
+    hub = UltralyticsHub.new(
         name=name,
         task="classification",
         model_type="yolov8",
         model_size="n",
-        classes=["1", "2"],
+        categories=["1", "2"],
         root_dir=tmpdir,
     )
     hub = UltralyticsHub.load(name=name, root_dir=tmpdir)
@@ -123,6 +134,16 @@ def test_ultralytics_classification(tmpdir: Path, dummy_dataset: Dataset):
     export_callback: ExportCallback = hub.export()
     assert Path(export_callback.export_file).exists()
 
+    model = hub.get_model()
+
+    layer_names = model.get_layer_names()
+    assert len(layer_names) > 0
+
+    x = torch.randn(4, 3, 64, 64)
+    layer_name = layer_names[-1]
+    x, feature_maps = model.get_feature_maps(x, layer_name)
+    assert len(feature_maps) == 1
+
 
 def test_non_hold(tmpdir: Path, dummy_dataset: Dataset):
 
@@ -130,12 +151,12 @@ def test_non_hold(tmpdir: Path, dummy_dataset: Dataset):
 
     name = "test_det"
 
-    hub = UltralyticsHub(
+    hub = UltralyticsHub.new(
         name=name,
         task="object_detection",
         model_type="yolov8",
         model_size="n",
-        classes=["1", "2"],
+        categories=["1", "2"],
         root_dir=tmpdir,
     )
     hub = UltralyticsHub.load(name=name, root_dir=tmpdir)

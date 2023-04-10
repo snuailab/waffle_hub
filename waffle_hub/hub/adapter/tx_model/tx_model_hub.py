@@ -61,7 +61,7 @@ class TxModelHub(BaseHub):
         task: str = None,
         model_type: str = None,
         model_size: str = None,
-        classes: Union[list[dict], list] = None,
+        categories: Union[list[dict], list] = None,
         root_dir: str = None,
         backend: str = None,
         version: str = None,
@@ -86,7 +86,7 @@ class TxModelHub(BaseHub):
             task=task,
             model_type=model_type,
             model_size=model_size,
-            classes=classes,
+            categories=categories,
             root_dir=root_dir,
         )
 
@@ -97,7 +97,7 @@ class TxModelHub(BaseHub):
         task: str = None,
         model_type: str = None,
         model_size: str = None,
-        classes: Union[list[dict], list] = None,
+        categories: Union[list[dict], list] = None,
         root_dir: str = None,
     ):
         """Create Tx Model Hub.
@@ -107,7 +107,7 @@ class TxModelHub(BaseHub):
             task (str, optional): Task Name. See UltralyticsHub.TASKS. Defaults to None.
             model_type (str, optional): Model Type. See UltralyticsHub.MODEL_TYPES. Defaults to None.
             model_size (str, optional): Model Size. See UltralyticsHub.MODEL_SIZES. Defaults to None.
-            classes (Union[list[dict], list]): class dictionary or list. [{"supercategory": "name"}, ] or ["name",].
+            categories (Union[list[dict], list]): class dictionary or list. [{"supercategory": "name"}, ] or ["name",].
             root_dir (str, optional): Root directory of hub repository. Defaults to None.
         """
         return cls(
@@ -115,7 +115,7 @@ class TxModelHub(BaseHub):
             task=task,
             model_type=model_type,
             model_size=model_size,
-            classes=classes,
+            categories=categories,
             root_dir=root_dir,
         )
 
@@ -125,7 +125,7 @@ class TxModelHub(BaseHub):
         if task == "object_detection":
             normalize = T.Normalize([0, 0, 0], [1, 1, 1], inplace=True)
 
-            def preprocess(x):
+            def preprocess(x, *args, **kwargs):
                 return normalize(x)
 
         return preprocess
@@ -134,7 +134,7 @@ class TxModelHub(BaseHub):
 
         if task == "object_detection":
 
-            def inner(x: torch.Tensor):
+            def inner(x: torch.Tensor, *args, **kwargs):
                 return x
 
         return inner
@@ -194,7 +194,7 @@ class TxModelHub(BaseHub):
         model_config = get_model_config(
             self.model_type,
             self.model_size,
-            [x["name"] for x in self.classes],
+            [x["name"] for x in self.categories],
             ctx.seed,
             ctx.letter_box,
             ctx.epochs,
@@ -241,13 +241,8 @@ class TxModelHub(BaseHub):
         io.save_json(self.get_metrics(), self.metric_file)
 
     # Inference Hook
-    def get_model(
-        self, image_size: Union[int, list] = None, parser: ResultParser = None
-    ):
+    def get_model(self):
         """Get model.
-        Args:
-            image_size (Union[int, list], optional): Image size. Defaults to None.
-            parser (ResultParser, optional): Result parser. Defaults to None.
         Returns:
             ModelWrapper: Model wrapper
         """
@@ -258,19 +253,18 @@ class TxModelHub(BaseHub):
         postprocess = self.get_postprocess(self.task)
 
         # get model
-        classes = [x["name"] for x in self.classes]
+        categories = [x["name"] for x in self.categories]
         cfg = io.load_json(self.artifact_dir / "model.json")
-        cfg["model"]["head"]["num_classes"] = len(classes)
+        cfg["model"]["head"]["num_categories"] = len(categories)
         cfg["ckpt"] = str(self.best_ckpt_file)
-        cfg["classes"] = classes
-        cfg["num_classes"] = (len(classes),)
-        model, classes = build_model(AttrDict(cfg), strict=True)
+        cfg["categories"] = categories
+        cfg["num_categories"] = (len(categories),)
+        model, categories = build_model(AttrDict(cfg), strict=True)
 
         model = ModelWrapper(
             model=model.eval(),
             preprocess=preprocess,
             postprocess=postprocess,
-            parser=parser if parser else None,
         )
 
         return model

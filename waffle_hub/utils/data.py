@@ -6,59 +6,7 @@ import numpy as np
 import torch
 from torchvision import transforms as T
 
-
-# TODO: draw utils..
-def draw_results(
-    image: Union[np.ndarray, str],
-    results: list[dict],
-    task: str,
-    names: list[str],
-):
-
-    if task == "classification":
-
-        def draw(image, results):
-            image = cv2.putText(
-                image,
-                f"{names[results[0].get('category_id')]}",
-                (10, 30),
-                2,
-                1.0,
-                (0, 0, 255),
-            )
-            return image
-
-    elif task == "object_detection":
-
-        def draw(image, results):
-            for result in results:
-                x1, y1, w, h = result["bbox"]
-                x2 = x1 + w
-                y2 = y1 + h
-                image = cv2.putText(
-                    image,
-                    f"{names[result.get('category_id')]}",
-                    (int(x1), int(y1) - 2),
-                    2,
-                    1.0,
-                    (0, 0, 255),
-                )
-                image = cv2.rectangle(
-                    image,
-                    (int(x1), int(y1)),
-                    (int(x2), int(y2)),
-                    (0, 0, 255),
-                    2,
-                )
-            return image
-
-    else:
-        raise NotImplementedError(f"{task} draw function not implemented")
-
-    if isinstance(image, str):
-        image = cv2.imread(image)
-
-    return draw(image, results)
+from waffle_hub.schema.data import ImageInfo
 
 
 def get_images(d, recursive: bool = True) -> list[str]:
@@ -74,10 +22,9 @@ def get_images(d, recursive: bool = True) -> list[str]:
     )
 
 
-# TODO: define image_info schema
 def resize_image(
     image: np.ndarray, image_size: list[int], letter_box: bool = False
-) -> list[np.ndarray, list[int], list[int], list[int], list[int]]:
+) -> list[np.ndarray, ImageInfo]:
     """Resize Image.
 
     Args:
@@ -86,7 +33,7 @@ def resize_image(
         letter_box (bool): letter box.
 
     Returns:
-        list: resized_image, (ori_width, ori_height), (new_width, new_height), (left_pad, top_pad)
+        list[np.ndarray, ImageInfo]: resized image, image info.
     """
 
     h, w = image.shape[:2]
@@ -118,13 +65,17 @@ def resize_image(
             image, top, bottom, left, right, None, value=(114, 114, 114)
         )
 
-        return image, (w, h), (w_, h_), (W, H), (left, top)
-
     else:
         w_, h_ = W, H
+        left, top = 0, 0
         image = cv2.resize(image, (w_, h_), interpolation=cv2.INTER_CUBIC)
 
-        return image, (w, h), (w_, h_), (W, H), (0, 0)
+    return image, ImageInfo(
+        ori_shape=(w, h),
+        new_shape=(w_, h_),
+        input_shape=(W, H),
+        pad=(left, top),
+    )
 
 
 def collate_fn(batch):
@@ -166,21 +117,13 @@ class ImageDataset:
 
         image = cv2.imread(image_path)
         image = cv2.cvtColor(image, cv2.COLOR_BGR2RGB)
-        (
-            image,
-            (ori_w, ori_h),
-            (new_w, new_h),
-            (input_w, input_h),
-            (left_pad, top_pad),
-        ) = resize_image(image, self.image_size, self.letter_box)
+        image, image_info = resize_image(
+            image, self.image_size, self.letter_box
+        )
 
-        return self.transform(image), {
-            "image_path": image_path,
-            "ori_shape": (ori_w, ori_h),
-            "new_shape": (new_w, new_h),
-            "input_shape": (input_w, input_h),
-            "pad": (left_pad, top_pad),
-        }
+        image_info.image_path = image_path
+
+        return self.transform(image), image_info
 
     def get_dataloader(self, batch_size: int, num_workers: int):
         return torch.utils.data.DataLoader(
