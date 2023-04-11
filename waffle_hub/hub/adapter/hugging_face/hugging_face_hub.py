@@ -9,27 +9,33 @@ BACKEND_VERSION = get_installed_backend_version(BACKEND_NAME)
 
 import os
 import warnings
-from pathlib import Path
-from typing import Union
+from dataclasses import dataclass, field
+from typing import Callable, Union
 
 import albumentations
 import numpy as np
-import torch
 from torchvision import transforms as T
 from transformers import (
     AutoImageProcessor,
     AutoModelForObjectDetection,
     Trainer,
     TrainingArguments,
+    pipeline,
 )
-from waffle_utils.file import io
 
-from datasets import load_dataset
-from waffle_hub.hub.base_hub import BaseHub, InferenceContext, TrainContext
-from waffle_hub.hub.model.wrapper import ModelWrapper, ResultParser
+from datasets import DatasetDict, load_from_disk
+from waffle_hub.hub.base_hub import BaseHub
+from waffle_hub.schema.configs import TrainConfig
 from waffle_hub.utils.callback import TrainCallback
 
-os.environ["CUDA_VISIBLE_DEVICES"] = "1"
+
+@dataclass
+class TrainInput:
+    train_data: DatasetDict = field(default_factory=DatasetDict)
+    image_processor: AutoImageProcessor = None
+    training_args: TrainingArguments = None
+    collate_fn: Callable = None
+    model: AutoModelForObjectDetection = None
 
 
 class HuggingFaceHub(BaseHub):
@@ -48,7 +54,7 @@ class HuggingFaceHub(BaseHub):
         task: str,
         model_type: str,
         model_size: str,
-        classes: Union[list[dict], list] = None,
+        categories: Union[list[dict], list] = None,
         root_dir: str = None,
         backend: str = None,
         version: str = None,
@@ -72,9 +78,11 @@ class HuggingFaceHub(BaseHub):
             task=task,
             model_type=model_type,
             model_size=model_size,
-            classes=classes,
+            categories=categories,
             root_dir=root_dir,
         )
+
+        self.train_input = TrainInput()
 
     @classmethod
     def new(
@@ -83,7 +91,7 @@ class HuggingFaceHub(BaseHub):
         task: str = None,
         model_type: str = None,
         model_size: str = None,
-        classes: Union[list[dict], list] = None,
+        categories: Union[list[dict], list] = None,
         root_dir: str = None,
     ):
 
@@ -92,7 +100,7 @@ class HuggingFaceHub(BaseHub):
             task=task,
             model_type=model_type,
             model_size=model_size,
-            classes=classes,
+            categories=categories,
             root_dir=root_dir,
         )
 
@@ -100,30 +108,28 @@ class HuggingFaceHub(BaseHub):
         # TODO: implement
         return []
 
-    def on_train_start(self, ctx: TrainContext):
-        # TODO: implement
-        self.dataset = load_dataset("cppe-5")
+    def on_train_start(self, cfg: TrainConfig):
+        # TODO: model choice
+
+        os.environ["CUDA_VISIBLE_DEVICES"] = cfg.device
+
+        cfg.pretrained_model = f"facebook/{self.model_type.lower()}-resnet-50"
+
+        dataset = load_from_disk(cfg.dataset_path)
+
         categories = (
-            self.dataset["train"].features["objects"].feature["category"].names
+            dataset["train"].features["objects"].feature["category"].names
         )
         id2label = {index: x for index, x in enumerate(categories, start=0)}
         label2id = {v: k for k, v in id2label.items()}
 
-        remove_idx = [590, 821, 822, 875, 876, 878, 879]
-        keep = [
-            i for i in range(len(self.dataset["train"])) if i not in remove_idx
-        ]
-        self.dataset["train"] = self.dataset["train"].select(keep)
-
-        ctx.pretrained_model = "facebook/detr-resnet-50"
-        self.image_processor = AutoImageProcessor.from_pretrained(
-            ctx.pretrained_model
+        image_processor = AutoImageProcessor.from_pretrained(
+            cfg.pretrained_model
         )
 
-        # temp
         transform = albumentations.Compose(
             [
-                albumentations.Resize(ctx.image_size, ctx.image_size),
+                albumentations.Resize(cfg.image_size, cfg.image_size),
                 albumentations.HorizontalFlip(p=1.0),
                 albumentations.RandomBrightnessContrast(p=1.0),
             ],
@@ -145,8 +151,6 @@ class HuggingFaceHub(BaseHub):
                 annotations.append(new_ann)
 
             return annotations
-
-        # transforming a batch
 
         def transform_aug_ann(examples):
             image_ids = examples["image_id"]
@@ -174,18 +178,17 @@ class HuggingFaceHub(BaseHub):
                 )
             ]
 
-            return self.image_processor(
+            return image_processor(
                 images=images, annotations=targets, return_tensors="pt"
             )
 
-        self.dataset["train"] = self.dataset["train"].with_transform(
-            transform_aug_ann
-        )
-        print(self.dataset["train"][15])
+        dataset["train"] = dataset["train"].with_transform(transform_aug_ann)
+
+        self.train_input.train_data = dataset
 
         def collate_fn(batch):
             pixel_values = [item["pixel_values"] for item in batch]
-            encoding = self.image_processor.pad_and_create_pixel_mask(
+            encoding = image_processor.pad_and_create_pixel_mask(
                 pixel_values, return_tensors="pt"
             )
             labels = [item["labels"] for item in batch]
@@ -195,37 +198,41 @@ class HuggingFaceHub(BaseHub):
             batch["labels"] = labels
             return batch
 
-        self.collate_fn = collate_fn
+        self.train_input.collate_fn = collate_fn
 
-        self.model = AutoModelForObjectDetection.from_pretrained(
-            ctx.pretrained_model,
-            id2label=id2label,
-            label2id=label2id,
-            ignore_mismatched_sizes=True,
-        )
+        if self.task == "object_detection":
+            self.train_input.model = (
+                AutoModelForObjectDetection.from_pretrained(
+                    cfg.pretrained_model,
+                    id2label=id2label,
+                    label2id=label2id,
+                    ignore_mismatched_sizes=True,
+                )
+            )
 
-        self.training_args = TrainingArguments(
-            output_dir=os.path.join(ctx.dataset_path, "training"),
-            per_device_train_batch_size=ctx.batch_size,
-            num_train_epochs=ctx.epochs,
+        self.train_input.training_args = TrainingArguments(
+            output_dir=str(self.artifact_dir),
+            per_device_train_batch_size=cfg.batch_size,
+            num_train_epochs=cfg.epochs,
             remove_unused_columns=False,
             push_to_hub=False,
         )
-        print("on train start")
 
-    def training(self, ctx: TrainContext, callback: TrainCallback):
-        # TODO: implement
-        print("train_loop")
+    def training(self, cfg: TrainConfig, callback: TrainCallback):
         trainer = Trainer(
-            model=self.model,
-            args=self.training_args,
-            data_collator=self.collate_fn,
-            train_dataset=self.dataset["train"],
-            tokenizer=self.image_processor,
+            model=self.train_input.model,
+            args=self.train_input.training_args,
+            data_collator=self.train_input.collate_fn,
+            train_dataset=self.train_input.train_data["train"],
+            tokenizer=self.train_input.image_processor,
         )
         trainer.train()
-        print("training")
+        trainer.save_model(str(self.artifact_dir / "weights"))
 
-    def on_train_end(self, ctx: TrainContext):
-        # TODO: implement
-        print("on train end")
+    def on_train_end(self, cfg: TrainConfig):
+        return super().on_train_end(cfg)
+
+    # Inference Hook
+    def get_model(self):
+        model = pipeline(model="")  # ????
+        return model
