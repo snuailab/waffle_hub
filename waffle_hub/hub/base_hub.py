@@ -3,15 +3,10 @@ Base Hub Class
 Do not use this Class directly.
 Use {Backend}Hub instead.
 """
-import contextlib
 import logging
-import os
-import sys
 import threading
 from abc import abstractmethod
-from dataclasses import asdict, dataclass
 from functools import cached_property
-from io import StringIO
 from pathlib import Path
 from typing import Union
 
@@ -22,64 +17,21 @@ from waffle_utils.file import io
 from waffle_utils.utils import type_validator
 
 from waffle_hub.hub.model.wrapper import get_parser
-from waffle_hub.schemas.configs import Model, Train
+from waffle_hub.schema.configs import (
+    ExportConfig,
+    InferenceConfig,
+    ModelConfig,
+    TrainConfig,
+)
 from waffle_hub.utils.callback import (
     ExportCallback,
     InferenceCallback,
     TrainCallback,
 )
-from waffle_hub.utils.image import ImageDataset, draw_results
+from waffle_hub.utils.data import ImageDataset
+from waffle_hub.utils.draw import draw_results
 
 logger = logging.getLogger(__name__)
-
-
-class ConfigContext:
-    def __enter__(self):
-        return self
-
-    def __exit__(self, exc_type, exc_value, exc_traceback):
-        return
-
-
-@dataclass
-class TrainContext(ConfigContext):
-    dataset_path: str
-    epochs: int
-    batch_size: int
-    image_size: int
-    letter_box: bool
-    pretrained_model: str
-    device: str
-    workers: int
-    seed: int
-    verbose: bool
-
-
-@dataclass
-class InferenceContext(ConfigContext):
-    source: str
-    batch_size: int
-    recursive: bool
-    image_size: int
-    letter_box: bool
-    confidence_threshold: float
-    iou_threshold: float
-    half: bool
-    workers: int
-    device: str
-    draw: bool
-
-    model = None
-    dataloader = None
-
-
-@dataclass
-class ExportContext(ConfigContext):
-    image_size: Union[int, list]
-    batch_size: int
-    input_name: list[str]
-    output_name: list[str]
-    opset_version: int
 
 
 class BaseHub:
@@ -118,14 +70,14 @@ class BaseHub:
         task: str = None,
         model_type: str = None,
         model_size: str = None,
-        classes: Union[list[dict], list] = None,
+        categories: Union[list[dict], list] = None,
         root_dir: str = None,
     ):
         self.name: str = name
         self.task: str = task
         self.model_type: str = model_type
         self.model_size: str = model_size
-        self.classes: list[dict] = classes
+        self.categories: list[dict] = categories
         self.root_dir: Path = Path(root_dir) if root_dir else None
 
         self.backend: str = backend
@@ -140,20 +92,16 @@ class BaseHub:
 
         try:
             # save model config
-            model_config = Model(
+            model_config = ModelConfig(
                 name=self.name,
                 backend=self.backend,
                 version=self.version,
                 task=self.task,
                 model_type=self.model_type,
                 model_size=self.model_size,
-                classes=self.classes,
+                categories=self.categories,
             )
-            io.save_yaml(
-                asdict(model_config),
-                self.model_config_file,
-                create_directory=True,
-            )
+            model_config.save_yaml(self.model_config_file)
         except Exception as e:
             raise e
 
@@ -292,15 +240,15 @@ class BaseHub:
         self.__version = v
 
     @property
-    def classes(self) -> list[dict]:
-        return self.__classes
+    def categories(self) -> list[dict]:
+        return self.__categories
 
-    @classes.setter
+    @categories.setter
     @type_validator(list)
-    def classes(self, v):
+    def categories(self, v):
         if isinstance(v[0], str):
             v = [{"supercategory": "object", "name": n} for n in v]
-        self.__classes = v
+        self.__categories = v
 
     @cached_property
     def hub_dir(self) -> Path:
@@ -381,71 +329,65 @@ class BaseHub:
             raise FileNotFoundError("Train first! hub.train(...).")
         return True
 
+    def get_train_config(self):
+        return TrainConfig.load(self.train_config_file)
+
+    def get_model_config(self):
+        return ModelConfig.load(self.model_config_file)
+
     # Train Hook
-    def before_train(self, ctx: TrainContext):
+    def before_train(self, cfg: TrainConfig):
         if self.artifact_dir.exists():
             raise FileExistsError(
                 f"{self.artifact_dir}\n"
                 "Train artifacts already exist. Remove artifact to re-train (hub.delete_artifact())."
             )
 
-    def on_train_start(self, ctx: TrainContext):
+    def on_train_start(self, cfg: TrainConfig):
         pass
 
-    def save_train_config(self, ctx: TrainContext):
-        io.save_yaml(
-            asdict(
-                Train(
-                    image_size=ctx.image_size,
-                    letter_box=ctx.letter_box,
-                    batch_size=ctx.batch_size,
-                    pretrained_model=ctx.pretrained_model,
-                    seed=ctx.seed,
-                )
-            ),
-            self.train_config_file,
-            create_directory=True,
-        )
+    def save_train_config(self, cfg: TrainConfig):
+        cfg.save_yaml(self.train_config_file)
 
-    def training(self, ctx: TrainContext):
+    def training(self, cfg: TrainConfig):
         pass
 
-    def on_train_end(self, ctx: TrainContext):
+    def on_train_end(self, cfg: TrainConfig):
         pass
 
-    def after_train(self, ctx: TrainContext):
+    def after_train(self, cfg: TrainConfig):
         pass
 
     def train(
         self,
         dataset_path: str,
-        epochs: int,
-        batch_size: int,
-        image_size: int,
-        letter_box: bool = False,
+        epochs: int = None,
+        batch_size: int = None,
+        image_size: Union[int, list[int]] = None,
+        learning_rate: float = None,
+        letter_box: bool = None,
         pretrained_model: str = None,
         device: str = "0",
         workers: int = 2,
         seed: int = 0,
         verbose: bool = True,
         hold: bool = True,
-    ) -> str:
+    ) -> TrainCallback:
         """Start Train
 
         Args:
-            dataset_path (str): Dataset Path. Recommend to use result of waffle_utils.dataset.Dataset.export.
-            epochs (int): total epochs
-            batch_size (int): batch size
-            image_size (int): image size
-            letter_box (bool): letter box preprocess. Defaults to False.
-            pretrained_model (str, optional): pretrained model file. Defaults to None.
-            device (str, optional): gpu device. Defaults to "0".
-            workers (int, optional): num workers. Defaults to 2.
+            dataset_path (str): dataset path
+            epochs (int, optional): number of epochs. None to use default. Defaults to None.
+            batch_size (int, optional): batch size. None to use default. Defaults to None.
+            image_size (Union[int, list[int]], optional): image size. None to use default. Defaults to None.
+            learning_rate (float, optional): learning rate. None to use default. Defaults to None.
+            letter_box (bool, optional): letter box. None to use default. Defaults to None.
+            pretrained_model (str, optional): pretrained model. None to use default. Defaults to None.
+            device (str, optional): device. "cpu" or "gpu_id". Defaults to "0".
+            workers (int, optional): number of workers. Defaults to 2.
             seed (int, optional): random seed. Defaults to 0.
             verbose (bool, optional): verbose. Defaults to True.
-            hold (bool, optional): hold or not.
-                If True then it holds until task finished.
-                If False then return Inferece Callback and run in background. Defaults to True.
+            hold (bool, optional): hold process. Defaults to True.
 
         Raises:
             FileExistsError: if trained artifact exists.
@@ -454,14 +396,15 @@ class BaseHub:
             e: something gone wrong with ultralytics
 
         Returns:
-            str: hub directory
+            TrainCallback: train callback
         """
 
-        ctx = TrainContext(
+        cfg = TrainConfig(
             dataset_path=dataset_path,
             epochs=epochs,
             batch_size=batch_size,
             image_size=image_size,
+            learning_rate=learning_rate,
             letter_box=letter_box,
             pretrained_model=pretrained_model,
             device=device,
@@ -469,19 +412,19 @@ class BaseHub:
             seed=seed,
             verbose=verbose,
         )
-        self.before_train(ctx)
-        self.on_train_start(ctx)
-        self.save_train_config(ctx)
+        self.before_train(cfg)
+        self.on_train_start(cfg)
+        self.save_train_config(cfg)
 
         def inner(callback: TrainCallback):
             try:
-                self.training(ctx, callback)
+                self.training(cfg, callback)
                 callback.best_ckpt_file = self.best_ckpt_file
                 callback.last_ckpt_file = self.last_ckpt_file
                 callback.metric_file = self.metric_file
                 callback.result_dir = self.hub_dir
-                self.on_train_end(ctx)
-                self.after_train(ctx)
+                self.on_train_end(cfg)
+                self.after_train(cfg)
                 callback.force_finish()
             except Exception as e:
                 if self.artifact_dir.exists():
@@ -489,7 +432,7 @@ class BaseHub:
                 callback.force_finish()
                 raise e
 
-        callback = TrainCallback(ctx.epochs, self.get_metrics)
+        callback = TrainCallback(cfg.epochs, self.get_metrics)
         if hold:
             inner(callback)
         else:
@@ -505,54 +448,56 @@ class BaseHub:
     def get_model(self):
         raise NotImplementedError
 
-    def before_inference(self, ctx: InferenceContext):
+    def before_inference(self, cfg: InferenceConfig):
         self.check_train_sanity()
 
         # overwrite training config
-        train_config = io.load_yaml(self.train_config_file)
-        if ctx.image_size is None:
-            ctx.image_size = train_config.get("image_size")
-        if ctx.letter_box is None:
-            ctx.letter_box = train_config.get("letter_box")
+        train_config = self.get_train_config()
+        if cfg.image_size is None:
+            cfg.image_size = train_config.image_size
+        if cfg.letter_box is None:
+            cfg.letter_box = train_config.letter_box
 
-    def on_inference_start(self, ctx: InferenceContext):
-        ctx.model = self.get_model(
-            ctx.image_size, get_parser(self.task)(**asdict(ctx))
-        )
-        ctx.dataloader = ImageDataset(
-            ctx.source, ctx.image_size, letter_box=ctx.letter_box
-        ).get_dataloader(ctx.batch_size, ctx.workers)
+    def on_inference_start(self, cfg: InferenceConfig):
+        pass
 
     def inferencing(
-        self, ctx: InferenceContext, callback: InferenceCallback
+        self, cfg: InferenceConfig, callback: InferenceCallback
     ) -> str:
-        model = ctx.model.to(ctx.device)
-        dataloader = ctx.dataloader
-        device = ctx.device
+        device = cfg.device
 
+        model = self.get_model().to(device)
+        dataloader = ImageDataset(
+            cfg.source, cfg.image_size, letter_box=cfg.letter_box
+        ).get_dataloader(cfg.batch_size, cfg.workers)
+
+        result_parser = get_parser(self.task)(**cfg.to_dict())
+
+        callback._total_steps = len(dataloader)
         for i, (images, image_infos) in tqdm.tqdm(
             enumerate(dataloader, start=1), total=len(dataloader)
         ):
-            result_batch = model(images.to(device), image_infos)
+            result_batch = model(images.to(device))
+            result_batch = result_parser(result_batch, image_infos)
             results = []
             for result, image_info in zip(result_batch, image_infos):
-                image_path = image_info.get("image_path")
+                image_path = image_info.image_path
 
-                relpath = Path(image_path).relative_to(ctx.source)
+                relpath = Path(image_path).relative_to(cfg.source)
+
                 io.save_json(
-                    result,
+                    [res.to_dict() for res in result],
                     self.inference_dir / relpath.with_suffix(".json"),
                     create_directory=True,
                 )
 
                 results.append(result)
 
-                if ctx.draw:
+                if cfg.draw:
                     draw = draw_results(
                         image_path,
                         result,
-                        task=self.task,
-                        names=[x["name"] for x in self.classes],
+                        names=[x["name"] for x in self.categories],
                     )
                     draw_path = self.draw_dir / relpath.with_suffix(".png")
                     io.make_directory(draw_path.parent)
@@ -560,17 +505,17 @@ class BaseHub:
 
             callback.update(i)
 
-    def on_inference_end(self, ctx: InferenceContext):
+    def on_inference_end(self, cfg: InferenceConfig):
         pass
 
-    def after_inference(self, ctx: InferenceContext):
+    def after_inference(self, cfg: InferenceConfig):
         pass
 
     def inference(
         self,
         source: str,
         recursive: bool = True,
-        image_size: int = None,
+        image_size: Union[int, list[int]] = None,
         letter_box: bool = None,
         batch_size: int = 4,
         confidence_threshold: float = 0.25,
@@ -580,34 +525,34 @@ class BaseHub:
         device: str = "0",
         draw: bool = False,
         hold: bool = True,
-    ) -> str:
+    ) -> InferenceCallback:
         """Start Inference
 
         Args:
-            source (str): dataset source. image file or image directory. TODO: video
-            recursive (bool, optional): get images from directory recursively. Defaults to True.
-            image_size (int, optional): inference image size. None for same with train_config (recommended).
-            letter_box (bool, optional): letter box preprocess. None for same with train_config (recommended).
+            source (str): source directory
+            recursive (bool, optional): recursive. Defaults to True.
+            image_size (Union[int, list[int]], optional): image size. None for using training config. Defaults to None.
+            letter_box (bool, optional): letter box. None for using training config. Defaults to None.
             batch_size (int, optional): batch size. Defaults to 4.
             confidence_threshold (float, optional): confidence threshold. Defaults to 0.25.
-            iou_threshold (float, optional): iou threshold. Defaults to 0.7.
-            half (bool, optional): fp16 inference. Defaults to False.
-            device (str, optional): gpu device. Defaults to "0".
-            draw (bool, optional): save draw or not. Defaults to False.
-            hold (bool, optional): hold or not.
-                If True then it holds until task finished.
-                If False then return Inferece Callback and run in background. Defaults to True.
+            iou_threshold (float, optional): iou threshold. Defaults to 0.5.
+            half (bool, optional): half. Defaults to False.
+            workers (int, optional): workers. Defaults to 2.
+            device (str, optional): device. "cpu" or "gpu_id". Defaults to "0".
+            draw (bool, optional): draw. Defaults to False.
+            hold (bool, optional): hold. Defaults to True.
+
 
         Raises:
             FileNotFoundError: if can not detect appropriate dataset.
             e: something gone wrong with ultralytics
 
         Returns:
-            str: inference result directory
+            InferenceCallback: inference callback
         """
         self.check_train_sanity()
 
-        ctx = InferenceContext(
+        cfg = InferenceConfig(
             source=source,
             batch_size=batch_size,
             recursive=recursive,
@@ -621,16 +566,16 @@ class BaseHub:
             draw=draw,
         )
 
-        self.before_inference(ctx)
-        self.on_inference_start(ctx)
+        self.before_inference(cfg)
+        self.on_inference_start(cfg)
 
         def inner(callback):
             try:
-                self.inferencing(ctx, callback)
+                self.inferencing(cfg, callback)
                 callback.inference_dir = self.inference_dir
-                callback.draw_dir = self.draw_dir if ctx.draw else None
-                self.on_inference_end(ctx)
-                self.after_inference(ctx)
+                callback.draw_dir = self.draw_dir if cfg.draw else None
+                self.on_inference_end(cfg)
+                self.after_inference(cfg)
                 callback.force_finish()
             except Exception as e:
                 if self.inference_dir.exists():
@@ -638,7 +583,7 @@ class BaseHub:
                 callback.force_finish()
                 raise e
 
-        callback = InferenceCallback(len(ctx.dataloader))
+        callback = InferenceCallback(0)
 
         if hold:
             inner(callback)
@@ -654,15 +599,15 @@ class BaseHub:
     # Export Hook
     def export(
         self,
-        image_size: int = None,
-        batch_size: int = 1,
+        image_size: Union[int, list[int]] = None,
+        batch_size: int = 16,
         opset_version: int = 11,
         hold: bool = True,
-    ) -> str:
+    ) -> ExportCallback:
         """Export Model
 
         Args:
-            image_size (int, optional): inference image size. None for same with train_config (recommended).
+            image_size (Union[int, list[int]], optional): inference image size. None for same with train_config (recommended).
             batch_size (int, optional): dynamic batch size. Defaults to 16.
             opset_version (int, optional): onnx opset version. Defaults to 11.
             hold (bool, optional): hold or not.
@@ -670,11 +615,11 @@ class BaseHub:
                 If False then return Inferece Callback and run in background. Defaults to True.
 
         Returns:
-            str: export onnx file path
+            ExportCallback: export callback
         """
         self.check_train_sanity()
 
-        train_config = Train(**io.load_yaml(self.train_config_file))
+        train_config = self.get_train_config()
 
         image_size = image_size if image_size else train_config.image_size
         image_size = (
@@ -683,7 +628,7 @@ class BaseHub:
             else image_size
         )
 
-        model = self.get_model(train_config.image_size)
+        model = self.get_model()
 
         input_name = ["inputs"]
         if self.task == "object_detection":
