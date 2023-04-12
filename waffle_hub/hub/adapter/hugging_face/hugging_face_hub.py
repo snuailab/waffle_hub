@@ -21,7 +21,9 @@ import tqdm
 from torchvision import transforms as T
 from transformers import (
     AutoImageProcessor,
+    AutoModelForImageClassification,
     AutoModelForObjectDetection,
+    DefaultDataCollator,
     Trainer,
     TrainerCallback,
     TrainingArguments,
@@ -31,7 +33,7 @@ from waffle_utils.file import io
 
 from datasets import DatasetDict, load_from_disk
 from waffle_hub.hub.base_hub import BaseHub
-from waffle_hub.hub.model.wrapper import ModelWrapper, get_parser
+from waffle_hub.hub.model.wrapper import ModelWrapper
 from waffle_hub.schema.configs import InferenceConfig, TrainConfig
 from waffle_hub.utils.callback import InferenceCallback, TrainCallback
 from waffle_hub.utils.data import ImageDataset
@@ -59,10 +61,11 @@ class HuggingFaceHub(BaseHub):
                 "base": "facebook/detr-resnet-50",
                 "large": "facebook/detr-resnet-101",
             },
-            "YOLO": {
-                "base": "mhyatt000/YOLOv5",
-                "large": "kadirnar/yolov8l-v8.0",
-            },
+        },
+        "classification": {
+            "ViT": {
+                "base": "google/vit-base-patch16-224",
+            }
         },
     }
 
@@ -154,9 +157,13 @@ class HuggingFaceHub(BaseHub):
 
         dataset = load_from_disk(cfg.dataset_path)
 
-        categories = (
-            dataset["train"].features["objects"].feature["category"].names
-        )
+        if self.task == "object_detection":
+            categories = (
+                dataset["train"].features["objects"].feature["category"].names
+            )
+        elif self.task == "classification":
+            categories = dataset["train"].features["label"].names
+
         id2label = {index: x for index, x in enumerate(categories, start=0)}
         label2id = {v: k for k, v in id2label.items()}
 
@@ -164,81 +171,78 @@ class HuggingFaceHub(BaseHub):
             cfg.pretrained_model
         )
 
-        transform = albumentations.Compose(
-            [
-                albumentations.Resize(cfg.image_size, cfg.image_size),
-                albumentations.HorizontalFlip(p=1.0),
-                albumentations.RandomBrightnessContrast(p=1.0),
-            ],
-            bbox_params=albumentations.BboxParams(
-                format="coco", label_fields=["category"]
-            ),
-        )
-
-        def formatted_anns(image_id, category, area, bbox):
-            annotations = []
-            for i in range(0, len(category)):
-                new_ann = {
-                    "image_id": image_id,
-                    "category_id": category[i],
-                    "isCrowd": 0,
-                    "area": area[i],
-                    "bbox": list(bbox[i]),
-                }
-                annotations.append(new_ann)
-
-            return annotations
-
-        def transform_aug_ann(examples):
-            image_ids = examples["image_id"]
-            images, bboxes, area, categories = [], [], [], []
-            for image, objects in zip(examples["image"], examples["objects"]):
-                image = np.array(image.convert("RGB"))[:, :, ::-1]
-                out = transform(
-                    image=image,
-                    bboxes=objects["bbox"],
-                    category=objects["category"],
-                )
-
-                area.append(objects["area"])
-                images.append(out["image"])
-                bboxes.append(out["bboxes"])
-                categories.append(out["category"])
-
-            targets = [
-                {
-                    "image_id": id_,
-                    "annotations": formatted_anns(id_, cat_, ar_, box_),
-                }
-                for id_, cat_, ar_, box_ in zip(
-                    image_ids, categories, area, bboxes
-                )
-            ]
-
-            return image_processor(
-                images=images, annotations=targets, return_tensors="pt"
-            )
-
-        dataset["train"] = dataset["train"].with_transform(transform_aug_ann)
-        dataset["val"] = dataset["val"].with_transform(transform_aug_ann)
-
-        self.train_input.train_data = dataset
-
-        def collate_fn(batch):
-            pixel_values = [item["pixel_values"] for item in batch]
-            encoding = image_processor.pad_and_create_pixel_mask(
-                pixel_values, return_tensors="pt"
-            )
-            labels = [item["labels"] for item in batch]
-            batch = {}
-            batch["pixel_values"] = encoding["pixel_values"]
-            batch["pixel_mask"] = encoding["pixel_mask"]
-            batch["labels"] = labels
-            return batch
-
-        self.train_input.collate_fn = collate_fn
-
         if self.task == "object_detection":
+            _transform = albumentations.Compose(
+                [
+                    albumentations.Resize(cfg.image_size, cfg.image_size),
+                    albumentations.HorizontalFlip(p=1.0),
+                    albumentations.RandomBrightnessContrast(p=1.0),
+                ],
+                bbox_params=albumentations.BboxParams(
+                    format="coco", label_fields=["category"]
+                ),
+            )
+
+            def formatted_anns(image_id, category, area, bbox):
+                annotations = []
+                for i in range(0, len(category)):
+                    new_ann = {
+                        "image_id": image_id,
+                        "category_id": category[i],
+                        "isCrowd": 0,
+                        "area": area[i],
+                        "bbox": list(bbox[i]),
+                    }
+                    annotations.append(new_ann)
+
+                return annotations
+
+            def transforms(examples):
+                image_ids = examples["image_id"]
+                images, bboxes, area, categories = [], [], [], []
+                for image, objects in zip(
+                    examples["image"], examples["objects"]
+                ):
+                    image = np.array(image.convert("RGB"))[:, :, ::-1]
+                    out = _transform(
+                        image=image,
+                        bboxes=objects["bbox"],
+                        category=objects["category"],
+                    )
+
+                    area.append(objects["area"])
+                    images.append(out["image"])
+                    bboxes.append(out["bboxes"])
+                    categories.append(out["category"])
+
+                targets = [
+                    {
+                        "image_id": id_,
+                        "annotations": formatted_anns(id_, cat_, ar_, box_),
+                    }
+                    for id_, cat_, ar_, box_ in zip(
+                        image_ids, categories, area, bboxes
+                    )
+                ]
+
+                return image_processor(
+                    images=images, annotations=targets, return_tensors="pt"
+                )
+
+            def collate_fn(batch):
+                pixel_values = [item["pixel_values"] for item in batch]
+                encoding = image_processor.pad_and_create_pixel_mask(
+                    pixel_values, return_tensors="pt"
+                )
+                labels = [item["labels"] for item in batch]
+                batch = {}
+                batch["pixel_values"] = encoding["pixel_values"]
+                batch["pixel_mask"] = encoding["pixel_mask"]
+                batch["labels"] = labels
+                return batch
+
+            self.train_input.collate_fn = collate_fn
+
             self.train_input.model = (
                 AutoModelForObjectDetection.from_pretrained(
                     cfg.pretrained_model,
@@ -247,6 +251,47 @@ class HuggingFaceHub(BaseHub):
                     ignore_mismatched_sizes=True,
                 )
             )
+
+        elif self.task == "classification":
+            normalize = T.Normalize(
+                mean=image_processor.image_mean, std=image_processor.image_std
+            )
+            size = (
+                image_processor.size["shortest_edge"]
+                if "shortest_edge" in image_processor.size
+                else (
+                    image_processor.size["height"],
+                    image_processor.size["width"],
+                )
+            )
+            _transforms = T.Compose(
+                [T.RandomResizedCrop(size), T.ToTensor(), normalize]
+            )
+
+            def transforms(examples):
+                examples["pixel_values"] = [
+                    _transforms(img.convert("RGB"))
+                    for img in examples["image"]
+                ]
+                del examples["image"]
+                return examples
+
+            self.train_input.collate_fn = DefaultDataCollator(
+                return_tensors="pt"
+            )
+
+            self.train_input.model = (
+                AutoModelForImageClassification.from_pretrained(
+                    cfg.pretrained_model,
+                    num_labels=len(id2label),
+                    ignore_mismatched_sizes=True,
+                )
+            )
+
+        dataset["train"] = dataset["train"].with_transform(transforms)
+        dataset["val"] = dataset["val"].with_transform(transforms)
+
+        self.train_input.train_data = dataset
 
         self.train_input.training_args = TrainingArguments(
             output_dir=str(self.artifact_dir),
@@ -319,7 +364,7 @@ class HuggingFaceHub(BaseHub):
         if task == "classification":
 
             def inner(x: torch.Tensor, *args, **kwargs):
-                return [x]
+                return [x.logits]
 
         elif task == "object_detection":
 
@@ -355,9 +400,14 @@ class HuggingFaceHub(BaseHub):
         postprocess = self.get_postprocess(self.task)
 
         # get model
-        model = AutoModelForObjectDetection.from_pretrained(
-            str(self.best_ckpt_dir),
-        )
+        if self.task == "object_detection":
+            model = AutoModelForObjectDetection.from_pretrained(
+                str(self.best_ckpt_dir),
+            )
+        elif self.task == "classification":
+            model = AutoModelForImageClassification.from_pretrained(
+                str(self.best_ckpt_dir),
+            )
 
         model = ModelWrapper(
             model=model.eval(),
