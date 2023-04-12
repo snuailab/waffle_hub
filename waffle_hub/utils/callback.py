@@ -47,6 +47,7 @@ class ThreadProgressCallback:
 
         self._thread = None
         self._finished = False
+        self._failed = False
         self._progress = 0
         self._start_time = time.time()
 
@@ -57,6 +58,14 @@ class ThreadProgressCallback:
     def is_finished(self) -> bool:
         """Check if the task has finished."""
         return self._finished
+
+    def is_failed(self) -> bool:
+        """Check if the task has failed."""
+        return self._failed
+
+    def set_failed(self):
+        """Set the task as failed."""
+        self._failed = True
 
     def get_remaining_time(self) -> float:
         """Get the remaining time of the task. (seconds)"""

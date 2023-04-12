@@ -88,6 +88,7 @@ Returns:
 | get_metrics() | list[list[dict]] | Get the metrics of the task. (list of list of dict) |
 | get_progress() | float | Get the progress of the task. (0 ~ 1) |
 | is_finished() | bool | Check if the task has finished. |
+| is_failed() | bool | Check if the task has failed. |
 | get_remaining_time() | float | Get the remaining time of the task. (seconds) |
 | update(step: int) | None | Update the progress of the task. (0 ~ total_steps) |
 | force_finish() | None | Force the task to end. |

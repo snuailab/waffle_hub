@@ -53,11 +53,12 @@ Returns:
 
 | Method | Return Type | Description |
 | --- | --- | --- |
-| get_progress | float | Get the progress of the task. (0 ~ 1) |
-| is_finished | bool | Check if the task has finished. |
-| get_remaining_time | float | Get the remaining time of the task. (seconds) |
-| update | None | Update the progress of the task. (0 ~ total_steps) |
-| force_finish | None | Force the task to end. |
-| register_thread | None | Register the thread that is running the task. |
-| start | None | Start the thread that is running the task. |
-| join | None | Wait for the thread that is running the task to end. |
+| get_progress() | float | Get the progress of the task. (0 ~ 1) |
+| is_finished() | bool | Check if the task has finished. |
+| is_failed() | bool | Check if the task has failed. |
+| get_remaining_time() | float | Get the remaining time of the task. (seconds) |
+| update(step: int) | None | Update the progress of the task. (0 ~ total_steps) |
+| force_finish() | None | Force the task to end. |
+| register_thread(thread: threading.Thread) | None | Register the thread that is running the task. |
+| start() | None | Start the thread that is running the task. |
+| join() | None | Wait for the thread that is running the task to end. |

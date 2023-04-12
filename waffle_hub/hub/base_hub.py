@@ -412,17 +412,17 @@ class BaseHub:
             seed=seed,
             verbose=verbose,
         )
-        self.before_train(cfg)
-        self.on_train_start(cfg)
-        self.save_train_config(cfg)
 
         def inner(callback: TrainCallback):
+            callback.best_ckpt_file = self.best_ckpt_file
+            callback.last_ckpt_file = self.last_ckpt_file
+            callback.metric_file = self.metric_file
+            callback.result_dir = self.hub_dir
             try:
+                self.before_train(cfg)
+                self.on_train_start(cfg)
+                self.save_train_config(cfg)
                 self.training(cfg, callback)
-                callback.best_ckpt_file = self.best_ckpt_file
-                callback.last_ckpt_file = self.last_ckpt_file
-                callback.metric_file = self.metric_file
-                callback.result_dir = self.hub_dir
                 self.on_train_end(cfg)
                 self.after_train(cfg)
                 callback.force_finish()
@@ -430,6 +430,7 @@ class BaseHub:
                 if self.artifact_dir.exists():
                     io.remove_directory(self.artifact_dir)
                 callback.force_finish()
+                callback.set_failed()
                 raise e
 
         callback = TrainCallback(cfg.epochs, self.get_metrics)
@@ -566,14 +567,13 @@ class BaseHub:
             draw=draw,
         )
 
-        self.before_inference(cfg)
-        self.on_inference_start(cfg)
-
         def inner(callback):
+            callback.inference_dir = self.inference_dir
+            callback.draw_dir = self.draw_dir if cfg.draw else None
             try:
+                self.before_inference(cfg)
+                self.on_inference_start(cfg)
                 self.inferencing(cfg, callback)
-                callback.inference_dir = self.inference_dir
-                callback.draw_dir = self.draw_dir if cfg.draw else None
                 self.on_inference_end(cfg)
                 self.after_inference(cfg)
                 callback.force_finish()
@@ -581,6 +581,7 @@ class BaseHub:
                 if self.inference_dir.exists():
                     io.remove_directory(self.inference_dir)
                 callback.force_finish()
+                callback.set_failed()
                 raise e
 
         callback = InferenceCallback(0)
@@ -597,6 +598,57 @@ class BaseHub:
         return callback
 
     # Export Hook
+    def before_export(self, cfg: ExportConfig):
+        self.check_train_sanity()
+
+        # overwrite training config
+        train_config = self.get_train_config()
+        if cfg.image_size is None:
+            cfg.image_size = train_config.image_size
+
+    def on_export_start(self, cfg: ExportConfig):
+        pass
+
+    def exporting(self, cfg: ExportConfig, callback: ExportCallback) -> str:
+        image_size = cfg.image_size
+        image_size = (
+            [image_size, image_size]
+            if isinstance(image_size, int)
+            else image_size
+        )
+
+        model = self.get_model()
+
+        input_name = ["inputs"]
+        if self.task == "object_detection":
+            output_names = ["bbox", "conf", "class_id"]
+        elif self.task == "classification":
+            output_names = ["predictions"]
+        else:
+            raise NotImplementedError(
+                f"{self.task} does not support export yet."
+            )
+
+        dummy_input = torch.randn(cfg.batch_size, 3, *image_size)
+
+        torch.onnx.export(
+            model,
+            dummy_input,
+            str(self.onnx_file),
+            input_names=input_name,
+            output_names=output_names,
+            opset_version=cfg.opset_version,
+            dynamic_axes={
+                name: {0: "batch_size"} for name in input_name + output_names
+            },
+        )
+
+    def on_export_end(self, cfg: ExportConfig):
+        pass
+
+    def after_export(self, cfg: ExportConfig):
+        pass
+
     def export(
         self,
         image_size: Union[int, list[int]] = None,
@@ -621,47 +673,26 @@ class BaseHub:
 
         train_config = self.get_train_config()
 
-        image_size = image_size if image_size else train_config.image_size
-        image_size = (
-            [image_size, image_size]
-            if isinstance(image_size, int)
-            else image_size
+        cfg = ExportConfig(
+            image_size=image_size,
+            batch_size=batch_size,
+            opset_version=opset_version,
         )
 
-        model = self.get_model()
-
-        input_name = ["inputs"]
-        if self.task == "object_detection":
-            output_names = ["bbox", "conf", "class_id"]
-        elif self.task == "classification":
-            output_names = ["predictions"]
-        else:
-            raise NotImplementedError(
-                f"{self.task} does not support export yet."
-            )
-
-        dummy_input = torch.randn(batch_size, 3, *image_size)
-
         def inner(callback):
+            callback.export_file = self.onnx_file
             try:
-                torch.onnx.export(
-                    model,
-                    dummy_input,
-                    str(self.onnx_file),
-                    input_names=input_name,
-                    output_names=output_names,
-                    opset_version=opset_version,
-                    dynamic_axes={
-                        name: {0: "batch_size"}
-                        for name in input_name + output_names
-                    },
-                )
-                callback.export_file = self.onnx_file
+                self.before_export(cfg)
+                self.on_export_start(cfg)
+                self.exporting(cfg, callback)
+                self.on_export_end(cfg)
+                self.after_export(cfg)
                 callback.force_finish()
             except Exception as e:
                 if self.onnx_file.exists():
                     io.remove_file(self.onnx_file)
                 callback.force_finish()
+                callback.set_failed()
                 raise e
 
         callback = ExportCallback(1)
