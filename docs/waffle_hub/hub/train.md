@@ -34,7 +34,7 @@ Returns:
     ``` python
     from waffle_hub.hub.adapter.ultralytics import UltralyticsHub
     
-    hub = UltralyticsHub.create("digit_detector")
+    hub = UltralyticsHub.new("digit_detector")
     train_callback = hub.train(
         dataset_path="mnist",
         epochs=None,
