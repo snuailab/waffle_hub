@@ -149,7 +149,7 @@ def test_non_hold(tmpdir: Path, dummy_dataset: Dataset):
 
     export_dir = dummy_dataset.export("yolo_detection")
 
-    name = "test_det"
+    name = "test_det_hold"
 
     hub = UltralyticsHub.new(
         name=name,
@@ -165,6 +165,25 @@ def test_non_hold(tmpdir: Path, dummy_dataset: Dataset):
         model_config_file=tmpdir / name / UltralyticsHub.MODEL_CONFIG_FILE,
         root_dir=tmpdir,
     )
+
+    # fail case
+    try:
+        train_callback: TrainCallback = hub.train(
+            dataset_path="dummy no data",
+            epochs=1,
+            batch_size=4,
+            image_size=32,
+            pretrained_model=None,
+            device="cpu",
+            hold=False,
+        )
+        while not train_callback.is_finished():
+            time.sleep(1)
+    except Exception:
+        pass
+    assert train_callback.is_failed()
+
+    # success case
     train_callback: TrainCallback = hub.train(
         dataset_path=export_dir,
         epochs=1,
@@ -177,6 +196,10 @@ def test_non_hold(tmpdir: Path, dummy_dataset: Dataset):
 
     while not train_callback.is_finished():
         time.sleep(1)
+    while not Path(train_callback.best_ckpt_file).exists():
+        time.sleep(1)
+
+    assert not train_callback.is_failed()
 
     assert train_callback.get_progress() == 1
     assert len(train_callback.get_metrics()) == 1
@@ -190,6 +213,10 @@ def test_non_hold(tmpdir: Path, dummy_dataset: Dataset):
     )
     while not inference_callback.is_finished():
         time.sleep(1)
+    while not Path(inference_callback.inference_dir).exists():
+        time.sleep(1)
+
+    assert not inference_callback.is_failed()
 
     assert inference_callback.get_progress() == 1
     assert Path(inference_callback.inference_dir).exists()
@@ -198,5 +225,9 @@ def test_non_hold(tmpdir: Path, dummy_dataset: Dataset):
 
     while not export_callback.is_finished():
         time.sleep(1)
+    while not Path(export_callback.export_file).exists():
+        time.sleep(1)
+
+    assert not export_callback.is_failed()
 
     assert Path(export_callback.export_file).exists()
