@@ -9,44 +9,29 @@ BACKEND_VERSION = get_installed_backend_version(BACKEND_NAME)
 
 import os
 import warnings
-from dataclasses import dataclass, field
-from pathlib import Path
-from typing import Callable, Union
+from typing import Union
 
-import albumentations
-import cv2
-import numpy as np
 import torch
-import tqdm
 from torchvision import transforms as T
 from transformers import (
     AutoImageProcessor,
     AutoModelForImageClassification,
     AutoModelForObjectDetection,
-    DefaultDataCollator,
     Trainer,
-    TrainerCallback,
     TrainingArguments,
-    pipeline,
 )
 from waffle_utils.file import io
 
-from datasets import DatasetDict, load_from_disk
+from datasets import load_from_disk
+from waffle_hub.hub.adapter.hugging_face.train_input_helper import (
+    ClassifierInputHelper,
+    ObjectDetectionInputHelper,
+    TrainInput,
+)
 from waffle_hub.hub.base_hub import BaseHub
 from waffle_hub.hub.model.wrapper import ModelWrapper
-from waffle_hub.schema.configs import InferenceConfig, TrainConfig
-from waffle_hub.utils.callback import InferenceCallback, TrainCallback
-from waffle_hub.utils.data import ImageDataset
-from waffle_hub.utils.draw import draw_results
-
-
-@dataclass
-class TrainInput:
-    train_data: DatasetDict = field(default_factory=DatasetDict)
-    image_processor: AutoImageProcessor = None
-    training_args: TrainingArguments = None
-    collate_fn: Callable = None
-    model: AutoModelForObjectDetection = None
+from waffle_hub.schema.configs import TrainConfig
+from waffle_hub.utils.callback import TrainCallback
 
 
 class HuggingFaceHub(BaseHub):
@@ -123,8 +108,8 @@ class HuggingFaceHub(BaseHub):
         self.pretrained_model: str = self.MODEL_TYPES[self.task][
             self.model_type
         ][self.model_size]
-        self.train_input = TrainInput()
         self.best_ckpt_dir = self.hub_dir / "weights" / "best_ckpt"
+        self.train_input = None
 
     @classmethod
     def new(
@@ -153,145 +138,29 @@ class HuggingFaceHub(BaseHub):
             if v is None:
                 setattr(cfg, k, self.DEFAULT_PARAMAS[self.task][k])
 
+        # setting
         os.environ["CUDA_VISIBLE_DEVICES"] = cfg.device
 
         dataset = load_from_disk(cfg.dataset_path)
 
-        if self.task == "object_detection":
-            categories = (
-                dataset["train"].features["objects"].feature["category"].names
+        if self.task == "classification":
+            helper = ClassifierInputHelper(cfg.pretrained_model)
+        elif self.task == "object_detection":
+            helper = ObjectDetectionInputHelper(
+                cfg.pretrained_model, cfg.image_size
             )
-        elif self.task == "classification":
-            categories = dataset["train"].features["label"].names
+        else:
+            raise NotImplementedError
 
-        id2label = {index: x for index, x in enumerate(categories, start=0)}
-        label2id = {v: k for k, v in id2label.items()}
+        self.train_input = helper.get_train_input()
 
-        image_processor = AutoImageProcessor.from_pretrained(
-            cfg.pretrained_model
-        )
+        categories = helper.get_categories(dataset["train"].features)
+        self.train_input.model = helper.get_model(categories)
 
-        if self.task == "object_detection":
-            _transform = albumentations.Compose(
-                [
-                    albumentations.Resize(cfg.image_size, cfg.image_size),
-                    albumentations.HorizontalFlip(p=1.0),
-                    albumentations.RandomBrightnessContrast(p=1.0),
-                ],
-                bbox_params=albumentations.BboxParams(
-                    format="coco", label_fields=["category"]
-                ),
-            )
-
-            def formatted_anns(image_id, category, area, bbox):
-                annotations = []
-                for i in range(0, len(category)):
-                    new_ann = {
-                        "image_id": image_id,
-                        "category_id": category[i],
-                        "isCrowd": 0,
-                        "area": area[i],
-                        "bbox": list(bbox[i]),
-                    }
-                    annotations.append(new_ann)
-
-                return annotations
-
-            def transforms(examples):
-                image_ids = examples["image_id"]
-                images, bboxes, area, categories = [], [], [], []
-                for image, objects in zip(
-                    examples["image"], examples["objects"]
-                ):
-                    image = np.array(image.convert("RGB"))[:, :, ::-1]
-                    out = _transform(
-                        image=image,
-                        bboxes=objects["bbox"],
-                        category=objects["category"],
-                    )
-
-                    area.append(objects["area"])
-                    images.append(out["image"])
-                    bboxes.append(out["bboxes"])
-                    categories.append(out["category"])
-
-                targets = [
-                    {
-                        "image_id": id_,
-                        "annotations": formatted_anns(id_, cat_, ar_, box_),
-                    }
-                    for id_, cat_, ar_, box_ in zip(
-                        image_ids, categories, area, bboxes
-                    )
-                ]
-
-                return image_processor(
-                    images=images, annotations=targets, return_tensors="pt"
-                )
-
-            def collate_fn(batch):
-                pixel_values = [item["pixel_values"] for item in batch]
-                encoding = image_processor.pad_and_create_pixel_mask(
-                    pixel_values, return_tensors="pt"
-                )
-                labels = [item["labels"] for item in batch]
-                batch = {}
-                batch["pixel_values"] = encoding["pixel_values"]
-                batch["pixel_mask"] = encoding["pixel_mask"]
-                batch["labels"] = labels
-                return batch
-
-            self.train_input.collate_fn = collate_fn
-
-            self.train_input.model = (
-                AutoModelForObjectDetection.from_pretrained(
-                    cfg.pretrained_model,
-                    id2label=id2label,
-                    label2id=label2id,
-                    ignore_mismatched_sizes=True,
-                )
-            )
-
-        elif self.task == "classification":
-            normalize = T.Normalize(
-                mean=image_processor.image_mean, std=image_processor.image_std
-            )
-            size = (
-                image_processor.size["shortest_edge"]
-                if "shortest_edge" in image_processor.size
-                else (
-                    image_processor.size["height"],
-                    image_processor.size["width"],
-                )
-            )
-            _transforms = T.Compose(
-                [T.RandomResizedCrop(size), T.ToTensor(), normalize]
-            )
-
-            def transforms(examples):
-                examples["pixel_values"] = [
-                    _transforms(img.convert("RGB"))
-                    for img in examples["image"]
-                ]
-                del examples["image"]
-                return examples
-
-            self.train_input.collate_fn = DefaultDataCollator(
-                return_tensors="pt"
-            )
-
-            self.train_input.model = (
-                AutoModelForImageClassification.from_pretrained(
-                    cfg.pretrained_model,
-                    num_labels=len(id2label),
-                    ignore_mismatched_sizes=True,
-                )
-            )
-
+        transforms = helper.get_transforms()
         dataset["train"] = dataset["train"].with_transform(transforms)
         dataset["val"] = dataset["val"].with_transform(transforms)
-
-        self.train_input.train_data = dataset
+        self.train_input.dataset = dataset
 
         self.train_input.training_args = TrainingArguments(
             output_dir=str(self.artifact_dir),
@@ -312,9 +181,9 @@ class HuggingFaceHub(BaseHub):
         trainer = Trainer(
             model=self.train_input.model,
             args=self.train_input.training_args,
-            data_collator=self.train_input.collate_fn,
-            train_dataset=self.train_input.train_data["train"],
-            eval_dataset=self.train_input.train_data["val"],
+            data_collator=self.train_input.collator,
+            train_dataset=self.train_input.dataset["train"],
+            eval_dataset=self.train_input.dataset["val"],
             tokenizer=self.train_input.image_processor,
         )
         trainer.train()
