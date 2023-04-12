@@ -26,7 +26,6 @@ from datasets import load_from_disk
 from waffle_hub.hub.adapter.hugging_face.train_input_helper import (
     ClassifierInputHelper,
     ObjectDetectionInputHelper,
-    TrainInput,
 )
 from waffle_hub.hub.base_hub import BaseHub
 from waffle_hub.hub.model.wrapper import ModelWrapper
@@ -258,10 +257,6 @@ class HuggingFaceHub(BaseHub):
         return inner
 
     def get_model(self):
-        """Get model.
-        Returns:
-            ModelWrapper: Model wrapper
-        """
         self.check_train_sanity()
 
         # get adapt functions
@@ -287,15 +282,8 @@ class HuggingFaceHub(BaseHub):
         return model
 
     def check_train_sanity(self) -> bool:
-        """Check if all essential files are exist.
-
-        Returns:
-            bool: True if all files are exist else False
-        """
         if not (
-            self.model_config_file.exists()
-            and self.best_ckpt_dir.exists()
-            # and self.last_ckpt_file.exists()
+            self.model_config_file.exists() and self.best_ckpt_dir.exists()
         ):
             raise FileNotFoundError("Train first! hub.train(...).")
         return True
