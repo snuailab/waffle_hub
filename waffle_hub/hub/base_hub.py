@@ -399,25 +399,7 @@ class BaseHub:
             TrainCallback: train callback
         """
 
-        cfg = TrainConfig(
-            dataset_path=dataset_path,
-            epochs=epochs,
-            batch_size=batch_size,
-            image_size=image_size,
-            learning_rate=learning_rate,
-            letter_box=letter_box,
-            pretrained_model=pretrained_model,
-            device=device,
-            workers=workers,
-            seed=seed,
-            verbose=verbose,
-        )
-
         def inner(callback: TrainCallback):
-            callback.best_ckpt_file = self.best_ckpt_file
-            callback.last_ckpt_file = self.last_ckpt_file
-            callback.metric_file = self.metric_file
-            callback.result_dir = self.hub_dir
             try:
                 self.before_train(cfg)
                 self.on_train_start(cfg)
@@ -433,7 +415,26 @@ class BaseHub:
                 callback.set_failed()
                 raise e
 
+        cfg = TrainConfig(
+            dataset_path=dataset_path,
+            epochs=epochs,
+            batch_size=batch_size,
+            image_size=image_size,
+            learning_rate=learning_rate,
+            letter_box=letter_box,
+            pretrained_model=pretrained_model,
+            device=device,
+            workers=workers,
+            seed=seed,
+            verbose=verbose,
+        )
+
         callback = TrainCallback(cfg.epochs, self.get_metrics)
+        callback.best_ckpt_file = self.best_ckpt_file
+        callback.last_ckpt_file = self.last_ckpt_file
+        callback.metric_file = self.metric_file
+        callback.result_dir = self.hub_dir
+
         if hold:
             inner(callback)
         else:
@@ -551,7 +552,21 @@ class BaseHub:
         Returns:
             InferenceCallback: inference callback
         """
-        self.check_train_sanity()
+
+        def inner(callback):
+            try:
+                self.before_inference(cfg)
+                self.on_inference_start(cfg)
+                self.inferencing(cfg, callback)
+                self.on_inference_end(cfg)
+                self.after_inference(cfg)
+                callback.force_finish()
+            except Exception as e:
+                if self.inference_dir.exists():
+                    io.remove_directory(self.inference_dir)
+                callback.force_finish()
+                callback.set_failed()
+                raise e
 
         cfg = InferenceConfig(
             source=source,
@@ -567,24 +582,9 @@ class BaseHub:
             draw=draw,
         )
 
-        def inner(callback):
-            callback.inference_dir = self.inference_dir
-            callback.draw_dir = self.draw_dir if cfg.draw else None
-            try:
-                self.before_inference(cfg)
-                self.on_inference_start(cfg)
-                self.inferencing(cfg, callback)
-                self.on_inference_end(cfg)
-                self.after_inference(cfg)
-                callback.force_finish()
-            except Exception as e:
-                if self.inference_dir.exists():
-                    io.remove_directory(self.inference_dir)
-                callback.force_finish()
-                callback.set_failed()
-                raise e
-
         callback = InferenceCallback(0)
+        callback.inference_dir = self.inference_dir
+        callback.draw_dir = self.draw_dir if cfg.draw else None
 
         if hold:
             inner(callback)
@@ -669,18 +669,8 @@ class BaseHub:
         Returns:
             ExportCallback: export callback
         """
-        self.check_train_sanity()
-
-        train_config = self.get_train_config()
-
-        cfg = ExportConfig(
-            image_size=image_size,
-            batch_size=batch_size,
-            opset_version=opset_version,
-        )
 
         def inner(callback):
-            callback.export_file = self.onnx_file
             try:
                 self.before_export(cfg)
                 self.on_export_start(cfg)
@@ -695,7 +685,14 @@ class BaseHub:
                 callback.set_failed()
                 raise e
 
+        cfg = ExportConfig(
+            image_size=image_size,
+            batch_size=batch_size,
+            opset_version=opset_version,
+        )
+
         callback = ExportCallback(1)
+        callback.export_file = self.onnx_file
 
         if hold:
             inner(callback)
