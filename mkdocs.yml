@@ -59,4 +59,5 @@ nav:
         - Wrapper: waffle_hub/model/wrapper.md
   - Experimental:
     - Model Serve: experimental/model_serve.md
+    - Auto Labeling: experimental/auto_labeling.md
   - Blogs: None
