@@ -3,6 +3,7 @@ from dataclasses import dataclass, field
 from typing import Callable, Union
 
 import albumentations
+import evaluate
 import numpy as np
 from torchvision import transforms as T
 from transformers import (
@@ -27,6 +28,7 @@ class TrainInput:
     training_args: TrainingArguments = None
     collator: Callable = None
     model: _BaseAutoModelClass = None
+    compute_metrics: Callable = None
 
 
 class TrainInputHelper(ABC):
@@ -106,6 +108,16 @@ class TrainInputHelper(ABC):
         """
         pass
 
+    def get_compute_metrics(self) -> Callable:
+        """
+        Returns a function that computes metrics.
+
+        Returns:
+            Callable: The function that computes metrics.
+
+        """
+        return None
+
     def get_train_input(self) -> TrainInput:
         """
         Returns a TrainInput object containing all necessary input data for training.
@@ -117,6 +129,7 @@ class TrainInputHelper(ABC):
         train_input = TrainInput()
         train_input.image_processor = self.image_processor
         train_input.collator = self.get_collator()
+        train_input.compute_metrics = self.get_compute_metrics()
         return train_input
 
 
@@ -165,6 +178,16 @@ class ClassifierInputHelper(TrainInputHelper):
     def get_categories(self, features: Features) -> list:
         return features["label"].names
 
+    def get_compute_metrics(self) -> Callable:
+        metric = evaluate.load("accuracy")
+
+        def compute_metrics(eval_pred: np.ndarray) -> dict:
+            logits, labels = eval_pred
+            predictions = np.argmax(logits, axis=1)
+            return metric.compute(predictions=predictions, references=labels)
+
+        return compute_metrics
+
 
 class ObjectDetectionInputHelper(TrainInputHelper):
     def __init__(
@@ -201,7 +224,7 @@ class ObjectDetectionInputHelper(TrainInputHelper):
 
             return annotations
 
-        def transforms(examples: dict) -> AutoImageProcessor:
+        def transforms(examples: dict) -> dict:
             image_ids = examples["image_id"]
             images, bboxes, area, categories = [], [], [], []
             for image, objects in zip(examples["image"], examples["objects"]):

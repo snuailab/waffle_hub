@@ -9,7 +9,8 @@ BACKEND_VERSION = get_installed_backend_version(BACKEND_NAME)
 
 import os
 import warnings
-from typing import Union
+from copy import deepcopy
+from typing import Callable, Union
 
 import torch
 from torchvision import transforms as T
@@ -18,8 +19,10 @@ from transformers import (
     AutoModelForImageClassification,
     AutoModelForObjectDetection,
     Trainer,
+    TrainerCallback,
     TrainingArguments,
 )
+from transformers.utils import ModelOutput
 from waffle_utils.file import io
 
 from datasets import load_from_disk
@@ -31,6 +34,25 @@ from waffle_hub.hub.base_hub import BaseHub
 from waffle_hub.hub.model.wrapper import ModelWrapper
 from waffle_hub.schema.configs import TrainConfig
 from waffle_hub.utils.callback import TrainCallback
+
+
+class CustomCallback(TrainerCallback):
+    """
+    This class is necessary to obtain logs for the training.
+    """
+
+    def __init__(self, trainer) -> None:
+        super().__init__()
+        self._trainer = trainer
+
+    def on_epoch_end(self, args, state, control, **kwargs):
+        if control.should_evaluate:
+            control_copy = deepcopy(control)
+            self._trainer.evaluate(
+                eval_dataset=self._trainer.train_dataset,
+                metric_key_prefix="train",
+            )
+            return control_copy
 
 
 class HuggingFaceHub(BaseHub):
@@ -144,6 +166,7 @@ class HuggingFaceHub(BaseHub):
 
         if self.task == "classification":
             helper = ClassifierInputHelper(cfg.pretrained_model)
+
         elif self.task == "object_detection":
             helper = ObjectDetectionInputHelper(
                 cfg.pretrained_model, cfg.image_size
@@ -184,7 +207,9 @@ class HuggingFaceHub(BaseHub):
             train_dataset=self.train_input.dataset["train"],
             eval_dataset=self.train_input.dataset["val"],
             tokenizer=self.train_input.image_processor,
+            compute_metrics=self.train_input.compute_metrics,
         )
+        trainer.add_callback(CustomCallback(trainer))
         trainer.train()
         trainer.save_model(str(self.artifact_dir / "weights"))
         self.train_log = trainer.state.log_history
@@ -193,16 +218,16 @@ class HuggingFaceHub(BaseHub):
         metrics = []
 
         for epoch in range(
-            0, len(self.train_log) - 1, 2
+            0, len(self.train_log) - 1, 3
         ):  # last is runtime info
-            train_log, eval_log = (
-                self.train_log[epoch],
-                self.train_log[epoch + 1],
-            )
-            epoch_metrics = []
 
-            train_log.update(eval_log)
-            for key, value in train_log.items():
+            current_epoch_log = self.train_log[epoch]
+
+            current_epoch_log.update(self.train_log[epoch + 1])
+            current_epoch_log.update(self.train_log[epoch + 2])
+
+            epoch_metrics = []
+            for key, value in current_epoch_log.items():
                 epoch_metrics.append({"tag": key, "value": value})
             metrics.append(epoch_metrics)
 
@@ -216,7 +241,7 @@ class HuggingFaceHub(BaseHub):
         )
         io.save_json(self.get_metrics(), self.metric_file)
 
-    def get_preprocess(self, task, pretrained_model: str):
+    def get_preprocess(self, task, pretrained_model: str) -> Callable:
         image_processer = AutoImageProcessor.from_pretrained(pretrained_model)
 
         normalize = T.Normalize(
@@ -228,15 +253,15 @@ class HuggingFaceHub(BaseHub):
 
         return preprocess
 
-    def get_postprocess(self, task):
+    def get_postprocess(self, task: str) -> Callable:
         if task == "classification":
 
-            def inner(x: torch.Tensor, *args, **kwargs):
+            def inner(x: ModelOutput, *args, **kwargs) -> torch.Tensor:
                 return [x.logits]
 
         elif task == "object_detection":
 
-            def inner(x: torch.Tensor, *args, **kwargs):
+            def inner(x: ModelOutput, *args, **kwargs) -> torch.Tensor:
 
                 confidences, category_ids = torch.max(
                     x.logits[:, :, :-1], dim=-1
@@ -256,7 +281,7 @@ class HuggingFaceHub(BaseHub):
 
         return inner
 
-    def get_model(self):
+    def get_model(self) -> ModelWrapper:
         self.check_train_sanity()
 
         # get adapt functions
