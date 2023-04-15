@@ -16,6 +16,7 @@ import tqdm
 from waffle_utils.file import io
 from waffle_utils.utils import type_validator
 
+from waffle_hub import TaskType
 from waffle_hub.hub.model.wrapper import get_parser
 from waffle_hub.schema.configs import (
     ExportConfig,
@@ -67,7 +68,7 @@ class BaseHub:
         name: str,
         backend: str = None,
         version: str = None,
-        task: str = None,
+        task: Union[str, TaskType] = None,
         model_type: str = None,
         model_size: str = None,
         categories: Union[list[dict], list] = None,
@@ -183,8 +184,8 @@ class BaseHub:
         return self.__task
 
     @task.setter
-    @type_validator(str)
     def task(self, v):
+        v = str(v).lower()  # TODO: MODEL_TYPES should be enum
         if v not in self.MODEL_TYPES:
             raise ValueError(
                 f"Task {v} is not supported. Choose one of {self.MODEL_TYPES}"
@@ -337,11 +338,7 @@ class BaseHub:
 
     # Train Hook
     def before_train(self, cfg: TrainConfig):
-        if self.artifact_dir.exists():
-            raise FileExistsError(
-                f"{self.artifact_dir}\n"
-                "Train artifacts already exist. Remove artifact to re-train (hub.delete_artifact())."
-            )
+        pass
 
     def on_train_start(self, cfg: TrainConfig):
         pass
@@ -398,6 +395,12 @@ class BaseHub:
         Returns:
             TrainCallback: train callback
         """
+        
+        if self.artifact_dir.exists():
+            raise FileExistsError(
+                f"{self.artifact_dir}\n"
+                "Train artifacts already exist. Remove artifact to re-train (hub.delete_artifact())."
+            )
 
         def inner(callback: TrainCallback):
             try:
@@ -451,8 +454,6 @@ class BaseHub:
         raise NotImplementedError
 
     def before_inference(self, cfg: InferenceConfig):
-        self.check_train_sanity()
-
         # overwrite training config
         train_config = self.get_train_config()
         if cfg.image_size is None:
@@ -552,6 +553,7 @@ class BaseHub:
         Returns:
             InferenceCallback: inference callback
         """
+        self.check_train_sanity()
 
         def inner(callback):
             try:
@@ -599,7 +601,6 @@ class BaseHub:
 
     # Export Hook
     def before_export(self, cfg: ExportConfig):
-        self.check_train_sanity()
 
         # overwrite training config
         train_config = self.get_train_config()
@@ -669,6 +670,7 @@ class BaseHub:
         Returns:
             ExportCallback: export callback
         """
+        self.check_train_sanity()
 
         def inner(callback):
             try:

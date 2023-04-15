@@ -13,11 +13,8 @@ from typing import Union
 import torch
 from torchvision.ops import batched_nms
 
-from waffle_hub.schema.data import (
-    ClassificationResult,
-    ImageInfo,
-    ObjectDetectionResult,
-)
+from waffle_hub.schema.data import ImageInfo
+from waffle_hub.schema.fields import Annotation
 
 
 class PreprocessFunction:
@@ -42,7 +39,7 @@ class ClassificationResultParser(ResultParser):
         image_infos: list[ImageInfo] = None,
         *args,
         **kwargs
-    ) -> list[ClassificationResult]:
+    ) -> list[Annotation]:
         parseds = []
 
         results = results[0]  # TODO: multi label
@@ -54,8 +51,8 @@ class ClassificationResultParser(ResultParser):
             parsed = []
             for class_id, score in result:
                 parsed.append(
-                    ClassificationResult(
-                        category_id=int(class_id), score=float(score)
+                    Annotation.classification(
+                        category_id=int(class_id) + 1, score=float(score)
                     )
                 )
             parseds.append(parsed)
@@ -79,7 +76,7 @@ class ObjectDetectionResultParser(ResultParser):
         image_infos: list[ImageInfo],
         *args,
         **kwargs
-    ) -> list[ObjectDetectionResult]:
+    ) -> list[Annotation]:
         parseds = []
 
         bboxes_batch, confs_batch, class_ids_batch = results
@@ -116,10 +113,10 @@ class ObjectDetectionResultParser(ResultParser):
                 y2 = min(float((y2 * H - top_pad) / new_h * ori_h), ori_h)
 
                 parsed.append(
-                    ObjectDetectionResult(
+                    Annotation.object_detection(
+                        category_id=int(class_id) + 1,
                         bbox=[x1, y1, x2 - x1, y2 - y1],
                         area=float((x2 - x1) * (y2 - y1)),
-                        category_id=int(class_id),
                         score=float(conf),
                     )
                 )
