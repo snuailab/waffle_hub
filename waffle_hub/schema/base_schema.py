@@ -1,4 +1,5 @@
 from dataclasses import asdict, dataclass
+from pathlib import Path
 
 from waffle_utils.file import io
 
@@ -22,5 +23,9 @@ class BaseSchema:
 
     @classmethod
     def load(cls, load_path):
-        config = io.load_yaml(load_path)
+        load_path = Path(load_path)
+        if load_path.suffix == ".json":
+            config = io.load_json(load_path)
+        elif load_path.suffix == ".yaml":
+            config = io.load_yaml(load_path)
         return cls(**config)

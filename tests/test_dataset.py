@@ -107,7 +107,7 @@ def test_category():
 def test_dataset(tmpdir):
 
     dataset: Dataset = Dataset.new(
-        name="test", task=TaskType.OBJECT_DETECTION, root_dir=tmpdir
+        name="test_new", task=TaskType.OBJECT_DETECTION, root_dir=tmpdir
     )
     assert Path(dataset.dataset_dir).exists()
 
@@ -118,10 +118,20 @@ def test_dataset(tmpdir):
 def test_dataset(coco_path, tmpdir):
 
     ds = Dataset.from_coco(
-        name="test",
+        name="from_coco",
         task=TaskType.OBJECT_DETECTION,
         coco_file=coco_path / "coco.json",
         coco_root_dir=coco_path / "images",
+        root_dir=tmpdir,
+    )
+    assert ds.dataset_info_file.exists()
+
+    ds = Dataset.load("from_coco", root_dir=tmpdir)
+
+    ds = Dataset.clone(
+        src_name="from_coco",
+        name="clone_coco",
+        src_root_dir=tmpdir,
         root_dir=tmpdir,
     )
 
