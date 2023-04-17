@@ -10,8 +10,12 @@ from waffle_utils.file import io
 from waffle_utils.utils import type_validator
 
 from waffle_hub import DataType, TaskType
-from waffle_hub.schema import Image, Annotation, Category, DatasetInfo
-from waffle_hub.dataset.adapter import export_yolo, export_coco
+from waffle_hub.dataset.adapter import (
+    export_coco,
+    export_huggingface,
+    export_yolo,
+)
+from waffle_hub.schema import Annotation, Category, DatasetInfo, Image
 
 logger = logging.getLogger(__name__)
 
@@ -622,9 +626,11 @@ class Dataset:
                 export_dir = export_yolo(self, export_dir)
             elif data_type == DataType.COCO:
                 export_dir = export_coco(self, export_dir)
+            elif data_type == DataType.HUGGINGFACE:
+                export_dir = export_huggingface(self, export_dir)
             else:
                 raise ValueError(f"Invalid data_type: {data_type}")
-            
+
             return export_dir
         except Exception as e:
             io.remove_directory(export_dir)

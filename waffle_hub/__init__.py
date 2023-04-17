@@ -1,8 +1,8 @@
 __version__ = "0.1.7"
 
+import enum
 import importlib
 import warnings
-import enum
 from collections import OrderedDict
 
 from tabulate import tabulate
@@ -96,14 +96,16 @@ def get_available_backends() -> str:
 
     return table
 
+
 class CustomEnumMeta(enum.EnumMeta):
     def __contains__(cls, item):
         if isinstance(item, str):
             return item.upper() in cls._member_names_
         return super().__contains__(item)
-    
+
     def __upper__(self):
         return self.name.upper()
+
 
 class BaseEnum(enum.Enum, metaclass=CustomEnumMeta):
     """Base class for Enum
@@ -144,6 +146,8 @@ class DataType(BaseEnum):
 
     COCO = enum.auto()
     TX_MODEL = COCO
+
+    HUGGINGFACE = enum.auto()
 
 
 class TaskType(BaseEnum):
