@@ -165,7 +165,9 @@ class HuggingFaceHub(BaseHub):
         dataset = load_from_disk(cfg.dataset_path)
 
         if self.task == "classification":
-            helper = ClassifierInputHelper(cfg.pretrained_model)
+            helper = ClassifierInputHelper(
+                cfg.pretrained_model, cfg.image_size
+            )
 
         elif self.task == "object_detection":
             helper = ObjectDetectionInputHelper(
@@ -186,11 +188,11 @@ class HuggingFaceHub(BaseHub):
             )
         )
         if size != cfg.image_size:
-            cfg.image_size = size
             warnings.warn(
                 f"pretrained model's image size is {size}, but you set {cfg.image_size}."
             )
             warnings.warn(f"change image size to {size}.")
+            cfg.image_size = size
 
         categories = helper.get_categories(dataset["train"].features)
         self.train_input.model = helper.get_model(categories)

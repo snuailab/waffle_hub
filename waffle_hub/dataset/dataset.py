@@ -374,7 +374,7 @@ class Dataset:
         Args:
             name (str): Dataset name.
             dataset_dir (str): Hugging Face dataset directory.
-            task (str): Task name. Task must be one of ["classification", "object_detection"]
+            task (str): Task name.
             root_dir (str, optional): Dataset root directory. Defaults to None.
 
         Raises:
@@ -384,11 +384,7 @@ class Dataset:
         Returns:
             Dataset: Dataset Class
         """
-        ds = cls(name, root_dir)
-        if ds.initialized():
-            raise FileExistsError(
-                f"{ds.dataset_dir} already exists. try another name."
-            )
+        ds = Dataset.new(name, task, root_dir)
         ds.initialize()
 
         dataset = load_from_disk(dataset_dir)
