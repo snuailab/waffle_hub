@@ -2,17 +2,18 @@ from pathlib import Path
 from typing import Union
 
 import PIL.Image
+from datasets.features.image import Image as ImageFeature
 
 from datasets import (
     ClassLabel,
     Dataset,
     DatasetDict,
     Features,
-    Image,
     Sequence,
     Value,
 )
 from waffle_hub import TaskType
+from waffle_hub.schema.fields import Image
 
 
 def _export_huggingface_classification(
@@ -89,7 +90,7 @@ def _export_huggingface_detection(
     """
     features = Features(
         {
-            "image": Image(),
+            "image": ImageFeature(),
             "image_id": Value("int32"),
             "width": Value("int32"),
             "height": Value("int32"),
