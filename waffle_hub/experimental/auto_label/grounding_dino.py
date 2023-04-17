@@ -19,7 +19,8 @@ initialize_logger("logs/auto_label.log")
 
 from waffle_hub.utils.data import ImageDataset
 from waffle_hub.utils.draw import draw_results
-from waffle_hub.schema.data import ImageInfo, ObjectDetectionResult
+from waffle_hub.schema.data import ImageInfo
+from waffle_hub.schema.fields import Annotation
 
 
 def parse_results(bboxes: torch.Tensor, confs: list[float], labels: list[str], image_info: ImageInfo, class2id: dict):
@@ -48,7 +49,7 @@ def parse_results(bboxes: torch.Tensor, confs: list[float], labels: list[str], i
         y2 = min(float((y2 * H - top_pad) / new_h * ori_h), ori_h)
 
         parsed.append(
-            ObjectDetectionResult(
+            Annotation.object_detection(
                 bbox=[x1, y1, x2 - x1, y2 - y1],
                 area=float((x2 - x1) * (y2 - y1)),
                 category_id=class2id[label],

@@ -1,7 +1,16 @@
 from dataclasses import dataclass
-from typing import Union
 
 from waffle_hub.schema.base_schema import BaseSchema
+from waffle_utils.log import datetime_now
+
+@dataclass
+class DatasetInfo(BaseSchema):
+    name: str
+    task: str
+    created: str = None
+
+    def __post_init__(self):
+        self.created = self.created or datetime_now()
 
 
 @dataclass
@@ -23,37 +32,3 @@ class ImageInfo(BaseSchema):
     input_shape: list[int]
     pad: list[int]
     image_path: str = None
-
-
-@dataclass
-class ClassificationResult(BaseSchema):
-    """Classification Result
-
-    category_id: Category ID
-    score: Score
-
-    Returns:
-        ClassificationResult: ClassificationResult
-    """
-
-    category_id: int
-    score: float
-
-
-@dataclass
-class ObjectDetectionResult(BaseSchema):
-    """Object Detection Result
-
-    category_id: Category ID
-    score: Score
-    bbox: Box (Left, Top, Width, Height)
-    area: Area
-
-    Returns:
-        ObjectDetectionResult: ObjectDetectionResult
-    """
-
-    category_id: int
-    score: float
-    bbox: list[float]
-    area: float
