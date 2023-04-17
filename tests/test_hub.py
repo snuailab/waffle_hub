@@ -3,9 +3,9 @@ from pathlib import Path
 
 import pytest
 import torch
-from waffle_utils.dataset import Dataset
-from waffle_utils.file import io, network
 
+from waffle_hub import TaskType
+from waffle_hub.dataset import Dataset
 from waffle_hub.hub.adapter.ultralytics import UltralyticsHub
 from waffle_hub.utils.callback import (
     ExportCallback,
@@ -15,36 +15,46 @@ from waffle_hub.utils.callback import (
 
 
 @pytest.fixture
-def dummy_dataset(tmpdir: Path):
-    url = "https://raw.githubusercontent.com/snuailab/assets/main/waffle/sample_dataset/mnist.zip"
-
-    dummy_zip_file = tmpdir / "mnist.zip"
-    dummy_extract_dir = tmpdir / "extract"
-    dummy_coco_root_dir = tmpdir / "extract/images"
-    dummy_coco_file = tmpdir / "extract/coco.json"
-
-    network.get_file_from_url(url, dummy_zip_file, create_directory=True)
-    io.unzip(dummy_zip_file, dummy_extract_dir, create_directory=True)
-
-    ds = Dataset.from_coco(
-        "mnist", dummy_coco_file, Path(dummy_coco_root_dir), root_dir=tmpdir
+def object_detection_dataset(coco_path: Path, tmpdir: Path):
+    dataset: Dataset = Dataset.from_coco(
+        name="od",
+        task=TaskType.OBJECT_DETECTION,
+        coco_file=coco_path / "coco.json",
+        coco_root_dir=coco_path / "images",
+        root_dir=tmpdir,
     )
-    ds.split(0.8)
-    return ds
+    dataset.split(0.8)
+
+    return dataset
 
 
-def test_ultralytics_object_detection(tmpdir: Path, dummy_dataset: Dataset):
+@pytest.fixture
+def classification_dataset(coco_path: Path, tmpdir: Path):
+    dataset: Dataset = Dataset.from_coco(
+        name="cls",
+        task=TaskType.CLASSIFICATION,
+        coco_file=coco_path / "coco.json",
+        coco_root_dir=coco_path / "images",
+        root_dir=tmpdir,
+    )
+    dataset.split(0.8)
 
-    export_dir = dummy_dataset.export("yolo_detection")
+    return dataset
+
+
+def test_ultralytics_object_detection(
+    object_detection_dataset: Dataset, tmpdir: Path
+):
+
+    export_dir = object_detection_dataset.export("yolo")
 
     name = "test_det"
-
     hub = UltralyticsHub.new(
         name=name,
-        task="object_detection",
+        task=TaskType.OBJECT_DETECTION,
         model_type="yolov8",
         model_size="n",
-        categories=["1", "2"],
+        categories=object_detection_dataset.category_names,
         root_dir=tmpdir,
     )
     hub = UltralyticsHub.load(name=name, root_dir=tmpdir)
@@ -70,6 +80,7 @@ def test_ultralytics_object_detection(tmpdir: Path, dummy_dataset: Dataset):
 
     inference_callback: InferenceCallback = hub.inference(
         source=export_dir,
+        draw=True,
         device="cpu",
     )
     assert inference_callback.get_progress() == 1
@@ -89,18 +100,19 @@ def test_ultralytics_object_detection(tmpdir: Path, dummy_dataset: Dataset):
     assert len(feature_maps) == 1
 
 
-def test_ultralytics_classification(tmpdir: Path, dummy_dataset: Dataset):
+def test_ultralytics_classification(
+    classification_dataset: Dataset, tmpdir: Path
+):
 
-    export_dir = dummy_dataset.export("yolo_classification")
+    export_dir = classification_dataset.export("yolo")
 
     name = "test_cls"
-
     hub = UltralyticsHub.new(
         name=name,
-        task="classification",
+        task=TaskType.CLASSIFICATION,
         model_type="yolov8",
         model_size="n",
-        categories=["1", "2"],
+        categories=classification_dataset.category_names,
         root_dir=tmpdir,
     )
     hub = UltralyticsHub.load(name=name, root_dir=tmpdir)
@@ -126,6 +138,7 @@ def test_ultralytics_classification(tmpdir: Path, dummy_dataset: Dataset):
 
     inference_callback: InferenceCallback = hub.inference(
         source=export_dir,
+        draw=True,
         device="cpu",
     )
     assert inference_callback.get_progress() == 1
@@ -145,18 +158,18 @@ def test_ultralytics_classification(tmpdir: Path, dummy_dataset: Dataset):
     assert len(feature_maps) == 1
 
 
-def test_non_hold(tmpdir: Path, dummy_dataset: Dataset):
+def test_non_hold(classification_dataset: Dataset, tmpdir: Path):
 
-    export_dir = dummy_dataset.export("yolo_detection")
+    export_dir = classification_dataset.export("yolo")
 
-    name = "test_det"
+    name = "test_hold"
 
     hub = UltralyticsHub.new(
         name=name,
-        task="object_detection",
+        task=TaskType.CLASSIFICATION,
         model_type="yolov8",
         model_size="n",
-        categories=["1", "2"],
+        categories=classification_dataset.category_names,
         root_dir=tmpdir,
     )
     hub = UltralyticsHub.load(name=name, root_dir=tmpdir)
@@ -165,6 +178,25 @@ def test_non_hold(tmpdir: Path, dummy_dataset: Dataset):
         model_config_file=tmpdir / name / UltralyticsHub.MODEL_CONFIG_FILE,
         root_dir=tmpdir,
     )
+
+    # fail case
+    try:
+        train_callback: TrainCallback = hub.train(
+            dataset_path="dummy no data",
+            epochs=1,
+            batch_size=4,
+            image_size=32,
+            pretrained_model=None,
+            device="cpu",
+            hold=False,
+        )
+        while not train_callback.is_finished():
+            time.sleep(1)
+    except Exception:
+        pass
+    assert train_callback.is_failed()
+
+    # success case
     train_callback: TrainCallback = hub.train(
         dataset_path=export_dir,
         epochs=1,
@@ -177,6 +209,10 @@ def test_non_hold(tmpdir: Path, dummy_dataset: Dataset):
 
     while not train_callback.is_finished():
         time.sleep(1)
+    while not Path(train_callback.best_ckpt_file).exists():
+        time.sleep(1)
+
+    assert not train_callback.is_failed()
 
     assert train_callback.get_progress() == 1
     assert len(train_callback.get_metrics()) == 1
@@ -190,6 +226,10 @@ def test_non_hold(tmpdir: Path, dummy_dataset: Dataset):
     )
     while not inference_callback.is_finished():
         time.sleep(1)
+    while not Path(inference_callback.inference_dir).exists():
+        time.sleep(1)
+
+    assert not inference_callback.is_failed()
 
     assert inference_callback.get_progress() == 1
     assert Path(inference_callback.inference_dir).exists()
@@ -198,5 +238,9 @@ def test_non_hold(tmpdir: Path, dummy_dataset: Dataset):
 
     while not export_callback.is_finished():
         time.sleep(1)
+    while not Path(export_callback.export_file).exists():
+        time.sleep(1)
+
+    assert not export_callback.is_failed()
 
     assert Path(export_callback.export_file).exists()
