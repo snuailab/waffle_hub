@@ -15,3 +15,5 @@ torchvision==0.14.1
 # waffle dependencies
 waffle-utils==0.2.3
 ultralytics==8.0.72
+datasets==2.11.0
+transformets==4.27.4
