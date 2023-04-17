@@ -186,6 +186,7 @@ def test_huggingface_object_detection(
         image_size=800,
         pretrained_model=None,
         device="cpu",
+        workers=0,
     )
     assert train_callback.get_progress() == 1
     assert len(train_callback.get_metrics()) == 1
@@ -240,6 +241,7 @@ def test_huggingface_classification(
         batch_size=1,
         image_size=224,
         device="cpu",
+        workers=0,
     )
     assert train_callback.get_progress() == 1
     assert len(train_callback.get_metrics()) == 1
