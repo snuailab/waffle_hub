@@ -182,7 +182,7 @@ def test_huggingface_object_detection(
     train_callback: TrainCallback = hub.train(
         dataset_path=export_dir,
         epochs=1,
-        batch_size=4,
+        batch_size=1,
         image_size=800,
         pretrained_model=None,
         device="cpu",
@@ -237,7 +237,7 @@ def test_huggingface_classification(
     train_callback: TrainCallback = hub.train(
         dataset_path=export_dir,
         epochs=1,
-        batch_size=4,
+        batch_size=1,
         image_size=224,
         device="cpu",
     )
