@@ -9,6 +9,8 @@ from typing import Union
 from waffle_utils.file import io
 from waffle_utils.utils import type_validator
 
+from datasets import Dataset as HFDataset
+from datasets import DatasetDict, load_from_disk
 from waffle_hub import DataType, TaskType
 from waffle_hub.dataset.adapter import (
     export_coco,
@@ -343,6 +345,130 @@ class Dataset:
 
         # copy raw images
         io.copy_files_to_directory(coco_root_dir, ds.raw_image_dir)
+
+        return ds
+
+    @classmethod
+    def from_huggingface(
+        cls,
+        name: str,
+        task: str,
+        dataset_dir: str,
+        root_dir=None,
+    ) -> "Dataset":
+        """Import Dataset from huggingface datasets.
+
+        Args:
+            name (str): Dataset name.
+            dataset_dir (str): Hugging Face dataset directory.
+            task (str): Task name. Task must be one of ["classification", "object_detection"]
+            root_dir (str, optional): Dataset root directory. Defaults to None.
+
+        Raises:
+            FileExistsError: if dataset name already exists
+            ValueError: if dataset is not Dataset or DatasetDict
+
+        Returns:
+            Dataset: Dataset Class
+        """
+        ds = cls(name, root_dir)
+        if ds.initialized():
+            raise FileExistsError(
+                f"{ds.dataset_dir} already exists. try another name."
+            )
+        ds.initialize()
+
+        dataset = load_from_disk(dataset_dir)
+
+        if isinstance(dataset, DatasetDict):
+            is_splited = True
+        elif isinstance(dataset, HFDataset):
+            is_splited = False
+        else:
+            raise ValueError("dataset should be Dataset or DatasetDict")
+
+        def _import(dataset: HFDataset, task: str):
+            if task == "object_detection":
+                for data in dataset:
+                    data["image"].save(
+                        f"{ds.raw_image_dir}/{data['image_id']}.jpg"
+                    )
+                    image = Image(
+                        image_id=data["image_id"],
+                        file_name=f"{data['image_id']}.jpg",
+                        width=data["width"],
+                        height=data["height"],
+                    )
+                    ds.add_images([image])
+
+                    annotation_ids = data["objects"]["id"]
+                    areas = data["objects"]["area"]
+                    category_ids = data["objects"]["category"]
+                    bboxes = data["objects"]["bbox"]
+
+                    for annotation_id, area, category_id, bbox in zip(
+                        annotation_ids, areas, category_ids, bboxes
+                    ):
+                        annotation = Annotation(
+                            annotation_id=annotation_id,
+                            image_id=image.image_id,
+                            category_id=category_id + 1,
+                            area=area,
+                            bbox=bbox,
+                        )
+                        ds.add_annotations([annotation])
+
+                categories = (
+                    dataset.features["objects"].feature["category"].names
+                )
+                for category_id, category_name in enumerate(categories):
+                    category = Category(
+                        category_id=category_id + 1,
+                        supercategory="object",
+                        name=category_name,
+                    )
+                    ds.add_categories([category])
+
+            elif task == "classification":
+                for data in dataset:
+                    data["image"].save(
+                        f"{ds.raw_image_dir}/{data['image_id']}.jpg"
+                    )
+                    image = Image(
+                        image_id=data["image_id"],
+                        file_name=f"{data['image_id']}.jpg",
+                        width=data["width"],
+                        height=data["height"],
+                    )
+                    ds.add_images([image])
+
+                    annotation = Annotation(
+                        annotation_id=data["image_id"],
+                        image_id=image.image_id,
+                        category_id=data["label"] + 1,
+                    )
+                    ds.add_annotations([annotation])
+
+                categories = dataset.features["label"].names
+                for category_id, category_name in enumerate(categories):
+                    category = Category(
+                        category_id=category_id + 1,
+                        supercategory="object",
+                        name=category_name,
+                    )
+                    ds.add_categories([category])
+            else:
+                raise ValueError(
+                    "task should be one of ['classification', 'object_detection']"
+                )
+
+        if is_splited:
+            for set_type, set in dataset.items():
+                image_ids = set["image_id"]
+                io.save_json(image_ids, ds.set_dir / f"{set_type}.json", True)
+                _import(set, task)
+        else:
+            _import(dataset, task)
 
         return ds
 

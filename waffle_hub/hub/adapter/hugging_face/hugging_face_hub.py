@@ -176,6 +176,22 @@ class HuggingFaceHub(BaseHub):
 
         self.train_input = helper.get_train_input()
 
+        size = helper.get_image_processor(cfg.pretrained_model).size
+        size = (
+            size["shortest_edge"]
+            if "shortest_edge" in size
+            else (
+                size["height"],
+                size["width"],
+            )
+        )
+        if size != cfg.image_size:
+            cfg.image_size = size
+            warnings.warn(
+                f"pretrained model's image size is {size}, but you set {cfg.image_size}."
+            )
+            warnings.warn(f"change image size to {size}.")
+
         categories = helper.get_categories(dataset["train"].features)
         self.train_input.model = helper.get_model(categories)
 
