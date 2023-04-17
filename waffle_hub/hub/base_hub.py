@@ -418,6 +418,22 @@ class BaseHub:
                 callback.set_failed()
                 raise e
 
+        def inner(callback: TrainCallback):
+            try:
+                self.before_train(cfg)
+                self.on_train_start(cfg)
+                self.save_train_config(cfg)
+                self.training(cfg, callback)
+                self.on_train_end(cfg)
+                self.after_train(cfg)
+                callback.force_finish()
+            except Exception as e:
+                if self.artifact_dir.exists():
+                    io.remove_directory(self.artifact_dir)
+                callback.force_finish()
+                callback.set_failed()
+                raise e
+
         cfg = TrainConfig(
             dataset_path=dataset_path,
             epochs=epochs,
@@ -553,7 +569,21 @@ class BaseHub:
         Returns:
             InferenceCallback: inference callback
         """
-        self.check_train_sanity()
+
+        def inner(callback):
+            try:
+                self.before_inference(cfg)
+                self.on_inference_start(cfg)
+                self.inferencing(cfg, callback)
+                self.on_inference_end(cfg)
+                self.after_inference(cfg)
+                callback.force_finish()
+            except Exception as e:
+                if self.inference_dir.exists():
+                    io.remove_directory(self.inference_dir)
+                callback.force_finish()
+                callback.set_failed()
+                raise e
 
         def inner(callback):
             try:
