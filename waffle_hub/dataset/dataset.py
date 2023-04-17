@@ -7,6 +7,7 @@ from pathlib import Path
 from typing import Union
 
 from waffle_utils.file import io
+from waffle_utils.log import datetime_now
 from waffle_utils.utils import type_validator
 
 from datasets import Dataset as HFDataset
@@ -43,10 +44,13 @@ class Dataset:
         self,
         name: str,
         task: Union[str, TaskType],
+        created: str = None,
         root_dir: str = None,
     ):
         self.name = name
         self.task = task
+        self.created = created
+
         self.root_dir = (
             Path(root_dir) if root_dir else Dataset.DEFAULT_DATASET_ROOT_DIR
         )
@@ -73,6 +77,14 @@ class Dataset:
                 f"Available task types: {list(TaskType)}"
             )
         self.__task = str(v).upper()
+
+    @property
+    def created(self):
+        return self.__created
+
+    @created.setter
+    def created(self, v):
+        self.__created = v or datetime_now()
 
     @property
     def root_dir(self):
@@ -218,7 +230,7 @@ class Dataset:
         Returns:
             Dataset: Dataset Class
         """
-        ds = cls(name, task, root_dir)
+        ds = cls(name=name, task=task, root_dir=root_dir)
         if ds.initialized():
             raise FileExistsError(
                 f'{ds.dataset_dir} already exists. try another name or Dataset.load("{name}")'
@@ -279,14 +291,15 @@ class Dataset:
         Returns:
             Dataset: Dataset Class
         """
-        dataset_info_file = (
-            Path(root_dir) / name / Dataset.DATASET_INFO_FILE_NAME
+        root_dir = (
+            Path(root_dir) if root_dir else Dataset.DEFAULT_DATASET_ROOT_DIR
         )
+        dataset_info_file = root_dir / name / Dataset.DATASET_INFO_FILE_NAME
         if not dataset_info_file.exists():
             raise FileNotFoundError(
                 f"{dataset_info_file} has not been created."
             )
-        dataset_info = DatasetInfo.from_yaml(dataset_info_file)
+        dataset_info = DatasetInfo.load(dataset_info_file)
         return cls(**dataset_info.to_dict(), root_dir=root_dir)
 
     @classmethod
@@ -484,8 +497,7 @@ class Dataset:
         # create dataset_info.yaml
         io.save_yaml(
             DatasetInfo(
-                name=self.name,
-                task=self.task,
+                name=self.name, task=self.task, created=self.created
             ).to_dict(),
             self.dataset_info_file,
         )
