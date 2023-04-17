@@ -150,5 +150,15 @@ def test_dataset(coco_path, tmpdir):
     train_ids, val_ids, test_ids, unlabeled_ids = ds.get_split_ids()
     assert len(train_ids) + len(val_ids) + len(test_ids) == len(ds.images)
 
+    ds.split(0.99999999999999, 0.0)
+    train_ids, val_ids, test_ids, unlabeled_ids = ds.get_split_ids()
+    assert len(val_ids) == 1 and len(test_ids) == 1
+
+    with pytest.raises(ValueError):
+        ds.split(0.0, 0.2)
+
+    with pytest.raises(ValueError):
+        ds.split(0.9, 0.2)
+
     ds.export("coco")
     ds.export("yolo")

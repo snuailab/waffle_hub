@@ -544,6 +544,12 @@ class Dataset:
             seed (int, optional): random seed. Defaults to 0.
         """
 
+        if train_ratio <= 0.0 or train_ratio >= 1.0:
+            raise ValueError(
+                "train_ratio must be between 0.0 and 1.0\n"
+                f"given train_ratio: {train_ratio}"
+            )
+
         if val_ratio == 0.0 and test_ratio == 0.0:
             val_ratio = 1 - train_ratio
 
@@ -557,8 +563,15 @@ class Dataset:
         random.seed(seed)
         random.shuffle(image_ids)
 
-        train_num = int(len(image_ids) * train_ratio)
-        val_num = int(len(image_ids) * val_ratio)
+        image_num = len(image_ids)
+        if image_num <= 2:
+            raise ValueError(
+                "image_num must be greater than 2\n"
+                f"given image_num: {image_num}"
+            )
+
+        train_num = int(image_num * train_ratio)
+        val_num = int(image_num * val_ratio)
 
         if test_ratio == 0.0:
             train_ids = image_ids[:train_num]
@@ -568,6 +581,10 @@ class Dataset:
             train_ids = image_ids[:train_num]
             val_ids = image_ids[train_num : train_num + val_num]
             test_ids = image_ids[train_num + val_num :]
+
+        logger.info(
+            f"train num: {len(train_ids)}  val num: {len(val_ids)}  test num: {len(test_ids)}"
+        )
 
         io.save_json(
             train_ids,
