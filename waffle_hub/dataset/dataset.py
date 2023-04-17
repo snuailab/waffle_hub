@@ -544,52 +544,51 @@ class Dataset:
             seed (int, optional): random seed. Defaults to 0.
         """
 
-        if val_ratio == 0.0:
+        if val_ratio == 0.0 and test_ratio == 0.0:
             val_ratio = 1 - train_ratio
 
-        total_ratio = train_ratio + val_ratio + test_ratio
-        train_ratio = train_ratio / total_ratio
-        val_ratio = val_ratio / total_ratio
-        test_ratio = test_ratio / total_ratio
+        if train_ratio + val_ratio + test_ratio != 1.0:
+            raise ValueError(
+                "train_ratio + val_ratio + test_ratio must be 1.0\n"
+                f"given train_ratio: {train_ratio}, val_ratio: {val_ratio}, test_ratio: {test_ratio}"
+            )
 
-        images: list[Image] = self.get_images(labeled=True)
-
-        num_images = len(images)
-
+        image_ids = list(self.images.keys())
         random.seed(seed)
-        random.shuffle(images)
+        random.shuffle(image_ids)
 
-        train_num = round(num_images * train_ratio)
-        val_num = round(num_images * val_ratio)
-        test_num = round(num_images * test_ratio)
-        logger.info(f"train: {train_num}, val: {val_num}, test: {test_num}")
+        train_num = int(len(image_ids) * train_ratio)
+        val_num = int(len(image_ids) * val_ratio)
 
-        train_images = images[:train_num]
-        val_images = images[train_num : train_num + val_num]
-        test_images = (
-            images[train_num + val_num :] if test_num > 0 else val_images
-        )
+        if test_ratio == 0.0:
+            train_ids = image_ids[:train_num]
+            val_ids = image_ids[train_num:]
+            test_ids = val_ids
+        else:
+            train_ids = image_ids[:train_num]
+            val_ids = image_ids[train_num : train_num + val_num]
+            test_ids = image_ids[train_num + val_num :]
 
         io.save_json(
-            list(map(lambda x: x.image_id, train_images)),
+            train_ids,
             self.train_set_file,
             create_directory=True,
         )
         io.save_json(
-            list(map(lambda x: x.image_id, val_images)),
+            val_ids,
             self.val_set_file,
             create_directory=True,
         )
         io.save_json(
-            list(map(lambda x: x.image_id, test_images)),
+            test_ids,
             self.test_set_file,
             create_directory=True,
         )
 
-        unlabeled_images: list[Image] = self.get_images(labeled=False)
+        unlabeled_ids = list(self.unlabeled_images.keys())
 
         io.save_json(
-            list(map(lambda x: x.image_id, unlabeled_images)),
+            unlabeled_ids,
             self.unlabeled_set_file,
             create_directory=True,
         )

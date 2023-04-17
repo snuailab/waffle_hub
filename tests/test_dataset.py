@@ -139,5 +139,16 @@ def test_dataset(coco_path, tmpdir):
         ds.export("coco")
 
     ds.split(0.8)
+    train_ids, val_ids, test_ids, unlabeled_ids = ds.get_split_ids()
+    assert len(train_ids) + len(val_ids) == len(ds.images)
+
+    ds.split(0.445446, 0.554554)
+    train_ids, val_ids, test_ids, unlabeled_ids = ds.get_split_ids()
+    assert len(train_ids) + len(val_ids) == len(ds.images)
+
+    ds.split(0.4, 0.4, 0.2)
+    train_ids, val_ids, test_ids, unlabeled_ids = ds.get_split_ids()
+    assert len(train_ids) + len(val_ids) + len(test_ids) == len(ds.images)
+
     ds.export("coco")
     ds.export("yolo")
