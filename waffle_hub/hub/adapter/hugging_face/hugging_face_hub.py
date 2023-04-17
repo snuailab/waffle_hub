@@ -178,6 +178,7 @@ class HuggingFaceHub(BaseHub):
 
         self.train_input = helper.get_train_input()
 
+        # Due to performance issues, we are enforcing a fixed image size.
         size = helper.get_image_processor(cfg.pretrained_model).size
         size = (
             size["shortest_edge"]

@@ -147,6 +147,8 @@ class ClassifierInputHelper(TrainInputHelper):
             mean=self.image_processor.image_mean,
             std=self.image_processor.image_std,
         )
+
+        # Due to performance issues, we are enforcing a fixed image size.
         size = (
             self.image_processor.size["shortest_edge"]
             if "shortest_edge" in self.image_processor.size
@@ -205,7 +207,7 @@ class ObjectDetectionInputHelper(TrainInputHelper):
         super().__init__(pretrained_model, image_size)
 
     def get_transforms(self) -> Callable:
-
+        # Due to performance issues, we are enforcing a fixed image size.
         size = (
             self.image_processor.size["shortest_edge"]
             if "shortest_edge" in self.image_processor.size
