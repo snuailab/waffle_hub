@@ -36,8 +36,11 @@ class TrainInputHelper(ABC):
     This class is designed to assist with passing arguments to the Hugging Face's Trainer function.
     """
 
-    def __init__(self, pretrained_model: str) -> None:
+    def __init__(
+        self, pretrained_model: str, image_size: Union[int, list[int]]
+    ) -> None:
         self.pretrained_model = pretrained_model
+        self.image_size = image_size
 
         self.image_processor: AutoImageProcessor = self.get_image_processor(
             self.pretrained_model
@@ -134,8 +137,10 @@ class TrainInputHelper(ABC):
 
 
 class ClassifierInputHelper(TrainInputHelper):
-    def __init__(self, pretrained_model: str) -> None:
-        super().__init__(pretrained_model)
+    def __init__(
+        self, pretrained_model: str, image_size: Union[int, list[int]]
+    ) -> None:
+        super().__init__(pretrained_model, image_size)
 
     def get_transforms(self) -> Callable:
         normalize = T.Normalize(
@@ -193,13 +198,22 @@ class ObjectDetectionInputHelper(TrainInputHelper):
     def __init__(
         self, pretrained_model: str, image_size: Union[int, list[int]]
     ) -> None:
-        super().__init__(pretrained_model)
-        self.image_size = image_size
+        super().__init__(pretrained_model, image_size)
 
     def get_transforms(self) -> Callable:
+
+        size = (
+            self.image_processor.size["shortest_edge"]
+            if "shortest_edge" in self.image_processor.size
+            else (
+                self.image_processor.size["height"],
+                self.image_processor.size["width"],
+            )
+        )
+
         _transforms = albumentations.Compose(
             [
-                albumentations.Resize(self.image_size, self.image_size),
+                albumentations.Resize(size, size),
                 albumentations.HorizontalFlip(p=1.0),
                 albumentations.RandomBrightnessContrast(p=1.0),
             ],
