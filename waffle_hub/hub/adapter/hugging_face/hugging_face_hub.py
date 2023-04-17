@@ -160,7 +160,8 @@ class HuggingFaceHub(BaseHub):
                 setattr(cfg, k, self.DEFAULT_PARAMAS[self.task][k])
 
         # setting
-        os.environ["CUDA_VISIBLE_DEVICES"] = cfg.device
+        if cfg.device != "cpu":
+            os.environ["CUDA_VISIBLE_DEVICES"] = cfg.device
 
         dataset = load_from_disk(cfg.dataset_path)
 
