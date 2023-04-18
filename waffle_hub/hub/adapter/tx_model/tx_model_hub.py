@@ -146,14 +146,29 @@ class TxModelHub(BaseHub):
 
         if task == "object_detection":
 
-            def inner(x: torch.Tensor, *args, **kwargs):
-                return x
+            def inner(
+                x: torch.Tensor, image_size: tuple[int, int], *args, **kwargs
+            ):
+                cxcywh = x[0]
+                scores = x[1]
+                class_ids = x[2]
+
+                cx, cy, w, h = torch.unbind(cxcywh, dim=-1)
+                x1 = cx - w / 2
+                y1 = cy - h / 2
+                x2 = cx + w / 2
+                y2 = cy + h / 2
+                xyxy = torch.stack([x1, y1, x2, y2], dim=-1)
+
+                xyxy[:, :, ::2] /= image_size[0]
+                xyxy[:, :, 1::2] /= image_size[1]
+
+                return xyxy, scores, class_ids
 
         elif task == "classification":
 
             def inner(x: torch.Tensor, *args, **kwargs):
                 x = [t.squeeze() for t in x]
-
                 return x
 
         return inner
@@ -276,10 +291,9 @@ class TxModelHub(BaseHub):
         # get model
         categories = [x["name"] for x in self.categories]
         cfg = io.load_json(self.artifact_dir / "model.json")
-        cfg["model"]["head"]["num_classes"] = len(categories)
         cfg["ckpt"] = str(self.best_ckpt_file)
-        cfg["categories"] = categories
-        cfg["classes"] = categories
+        cfg["model"]["head"]["num_classes"] = len(categories)
+        cfg["num_classes"] = len(categories)
         model, categories = build_model(AttrDict(cfg), strict=True)
 
         model = ModelWrapper(
