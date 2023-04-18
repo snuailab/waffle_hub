@@ -152,6 +152,8 @@ class TxModelHub(BaseHub):
         elif task == "classification":
 
             def inner(x: torch.Tensor, *args, **kwargs):
+                x = [t.squeeze() for t in x]
+
                 return x
 
         return inner
