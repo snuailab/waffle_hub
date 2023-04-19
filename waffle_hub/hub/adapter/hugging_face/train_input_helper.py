@@ -174,10 +174,6 @@ class ClassifierInputHelper(TrainInputHelper):
                 _transforms(img.convert("RGB")) for img in examples["image"]
             ]
             del examples["image"]
-            if "image_id" in examples.keys():
-                del examples["image_id"]
-                del examples["width"]
-                del examples["height"]
             return examples
 
         return transforms
