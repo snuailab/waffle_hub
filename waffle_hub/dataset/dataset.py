@@ -6,8 +6,10 @@ from functools import cached_property
 from pathlib import Path
 from typing import Union
 
+import cv2
 import PIL.Image
 from waffle_utils.file import io
+from waffle_utils.file.search import get_files, get_image_files
 from waffle_utils.log import datetime_now
 from waffle_utils.utils import type_validator
 
@@ -359,6 +361,114 @@ class Dataset:
 
         # copy raw images
         io.copy_files_to_directory(coco_root_dir, ds.raw_image_dir)
+
+        return ds
+
+    @classmethod
+    def from_yolo(
+        cls,
+        name: str,
+        task: str,
+        yaml_path: str,
+        root_dir: str = None,
+    ) -> "Dataset":
+        """Import Dataset from yolo format.
+
+        Args:
+            name (str): Dataset name.
+            task (str): Dataset task.
+            yaml_path (str): Yolo yaml file path.
+            root_dir (str, optional): Dataset root directory. Defaults to None.
+        """
+
+        ds = Dataset.new(name, task, root_dir)
+        ds.initialize()
+
+        def _import(set_dir, task, image_ids):
+            if task == "object_detection":
+                image_dir = set_dir / "images"
+                label_dir = set_dir / "labels"
+
+                if not image_dir.exists():
+                    warnings.warn(f"{image_dir} does not exist.")
+                    return
+                if not label_dir.exists():
+                    warnings.warn(f"{label_dir} does not exist.")
+                    return
+
+                annotation_num = 0
+                for image_id, image_path, label_path in zip(
+                    image_ids,
+                    get_image_files(image_dir),
+                    get_files(label_dir, "txt"),
+                ):
+                    # image
+                    img = cv2.imread(str(image_path))
+                    height, width, _ = img.shape
+                    image = Image(
+                        image_id=image_id,
+                        file_name=f"{image_id}{image_path.suffix}",
+                        width=width,
+                        height=height,
+                    )
+                    ds.add_images([image])
+
+                    # annotation
+                    txt = io.load_txt(label_path)
+                    for i, t in enumerate(txt, start=1):
+                        category_id, x, y, w, h = list(map(float, t.split()))
+                        category_id = int(category_id) + 1
+                        x *= width
+                        y *= height
+                        w *= width
+                        h *= height
+
+                        x -= w / 2
+                        y -= h / 2
+
+                        x, y, w, h = int(x), int(y), int(w), int(h)
+                        annotation = Annotation(
+                            annotation_id=annotation_num + i,
+                            image_id=image_id,
+                            category_id=category_id,
+                            bbox=[x, y, w, h],
+                            task=task,
+                        )
+                        ds.add_annotations([annotation])
+                    annotation_num += len(txt)
+
+                # raw
+                image_paths = get_image_files(image_dir)
+                for image_id, src in zip(image_ids, image_paths):
+                    dst = ds.raw_image_dir / f"{image_id}{src.suffix}"
+                    io.copy_file(src, dst)
+
+            elif task == "classification":
+                pass
+
+            else:
+                raise NotImplementedError(f"{task} is not implemented.")
+
+        info = io.load_yaml(yaml_path)
+        yolo_root_dir = Path(info["path"])
+
+        # categories
+        for category_id, category_name in info["names"].items():
+            ds.add_categories([Category(category_id + 1, category_name, task)])
+
+        start_num = 1
+        for set_type in ["train", "val", "test"]:
+            if set_type not in info.keys():
+                continue
+
+            # sets
+            set_dir = Path(yolo_root_dir) / set_type
+            image_dir = set_dir / "images"
+            image_num = len(get_image_files(image_dir))
+            image_ids = list(range(start_num, image_num + start_num))
+            start_num += image_num
+            io.save_json(image_ids, ds.set_dir / f"{set_type}.json", True)
+            _import(set_dir, task, image_ids)
 
         return ds
 
