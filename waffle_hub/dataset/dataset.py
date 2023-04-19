@@ -6,12 +6,19 @@ from functools import cached_property
 from pathlib import Path
 from typing import Union
 
+import PIL.Image
 from waffle_utils.file import io
 from waffle_utils.log import datetime_now
 from waffle_utils.utils import type_validator
 
+from datasets import Dataset as HFDataset
+from datasets import DatasetDict, load_from_disk
 from waffle_hub import DataType, TaskType
-from waffle_hub.dataset.adapter import export_coco, export_yolo
+from waffle_hub.dataset.adapter import (
+    export_coco,
+    export_huggingface,
+    export_yolo,
+)
 from waffle_hub.schema import Annotation, Category, DatasetInfo, Image
 
 logger = logging.getLogger(__name__)
@@ -355,6 +362,130 @@ class Dataset:
 
         return ds
 
+    @classmethod
+    def from_huggingface(
+        cls,
+        name: str,
+        task: str,
+        dataset_dir: str,
+        root_dir=None,
+    ) -> "Dataset":
+        """Import Dataset from huggingface datasets.
+
+        Args:
+            name (str): Dataset name.
+            dataset_dir (str): Hugging Face dataset directory.
+            task (str): Task name.
+            root_dir (str, optional): Dataset root directory. Defaults to None.
+
+        Raises:
+            FileExistsError: if dataset name already exists
+            ValueError: if dataset is not Dataset or DatasetDict
+
+        Returns:
+            Dataset: Dataset Class
+        """
+        ds = Dataset.new(name, task, root_dir)
+        ds.initialize()
+
+        dataset = load_from_disk(dataset_dir)
+
+        if isinstance(dataset, DatasetDict):
+            is_splited = True
+        elif isinstance(dataset, HFDataset):
+            is_splited = False
+        else:
+            raise ValueError("dataset should be Dataset or DatasetDict")
+
+        def _import(dataset: HFDataset, task: str, image_ids: list[int]):
+            if task == "object_detection":
+                for data in enumerate(dataset):
+                    data["image"].save(
+                        f"{ds.raw_image_dir}/{data['image_id']}.jpg"
+                    )
+                    image = Image(
+                        image_id=data["image_id"],
+                        file_name=f"{data['image_id']}.jpg",
+                        width=data["width"],
+                        height=data["height"],
+                    )
+                    ds.add_images([image])
+
+                    annotation_ids = data["objects"]["id"]
+                    areas = data["objects"]["area"]
+                    category_ids = data["objects"]["category"]
+                    bboxes = data["objects"]["bbox"]
+
+                    for annotation_id, area, category_id, bbox in zip(
+                        annotation_ids, areas, category_ids, bboxes
+                    ):
+                        annotation = Annotation(
+                            annotation_id=annotation_id,
+                            image_id=image.image_id,
+                            category_id=category_id + 1,
+                            area=area,
+                            bbox=bbox,
+                        )
+                        ds.add_annotations([annotation])
+
+                categories = (
+                    dataset.features["objects"].feature["category"].names
+                )
+                for category_id, category_name in enumerate(categories):
+                    category = Category(
+                        category_id=category_id + 1,
+                        supercategory="object",
+                        name=category_name,
+                    )
+                    ds.add_categories([category])
+
+            elif task == "classification":
+                for image_id, data in zip(image_ids, dataset):
+                    image_save_path = f"{ds.raw_image_dir}/{image_id}.jpg"
+                    data["image"].save(image_save_path)
+                    pil_image = PIL.Image.open(image_save_path)
+                    width, height = pil_image.size
+                    image = Image(
+                        image_id=image_id,
+                        file_name=f"{image_id}.jpg",
+                        width=width,
+                        height=height,
+                    )
+                    ds.add_images([image])
+
+                    annotation = Annotation(
+                        annotation_id=image_id,
+                        image_id=image.image_id,
+                        category_id=data["label"] + 1,
+                    )
+                    ds.add_annotations([annotation])
+
+                categories = dataset.features["label"].names
+                for category_id, category_name in enumerate(categories):
+                    category = Category(
+                        category_id=category_id + 1,
+                        supercategory="object",
+                        name=category_name,
+                    )
+                    ds.add_categories([category])
+            else:
+                raise ValueError(
+                    "task should be one of ['classification', 'object_detection']"
+                )
+
+        if is_splited:
+            start_num = 1
+            for set_type, set in dataset.items():
+                image_ids = list(range(start_num, set.num_rows + start_num))
+                start_num += set.num_rows
+                io.save_json(image_ids, ds.set_dir / f"{set_type}.json", True)
+                _import(set, task, image_ids)
+        else:
+            image_ids = list(range(1, dataset.num_rows + 1))
+            _import(dataset, task, image_ids)
+
+        return ds
+
     def initialize(self):
         """Initialize Dataset.
         It creates necessary directories under {dataset_root_dir}/{dataset_name}.
@@ -650,6 +781,8 @@ class Dataset:
                 export_dir = export_yolo(self, export_dir)
             elif data_type == DataType.COCO:
                 export_dir = export_coco(self, export_dir)
+            elif data_type == DataType.HUGGINGFACE:
+                export_dir = export_huggingface(self, export_dir)
             else:
                 raise ValueError(f"Invalid data_type: {data_type}")
 

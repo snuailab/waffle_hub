@@ -6,12 +6,15 @@ import torch
 
 from waffle_hub import TaskType
 from waffle_hub.dataset import Dataset
+from waffle_hub.hub.adapter.hugging_face import HuggingFaceHub
 from waffle_hub.hub.adapter.ultralytics import UltralyticsHub
 from waffle_hub.utils.callback import (
     ExportCallback,
     InferenceCallback,
     TrainCallback,
 )
+
+# from waffle_hub.hub.adapter.tx_model import TxModelHub
 
 
 @pytest.fixture
@@ -156,6 +159,237 @@ def test_ultralytics_classification(
     layer_name = layer_names[-1]
     x, feature_maps = model.get_feature_maps(x, layer_name)
     assert len(feature_maps) == 1
+
+
+def test_huggingface_object_detection(
+    object_detection_dataset: Dataset, tmpdir: Path
+):
+    export_dir = object_detection_dataset.export("huggingface")
+
+    name = "test_det"
+    hub = HuggingFaceHub.new(
+        name=name,
+        task=TaskType.OBJECT_DETECTION,
+        model_type="DETR",
+        model_size="base",
+        categories=object_detection_dataset.category_names,
+        root_dir=tmpdir,
+    )
+    hub = HuggingFaceHub.load(name=name, root_dir=tmpdir)
+    hub: HuggingFaceHub = HuggingFaceHub.from_model_config(
+        name=name,
+        model_config_file=tmpdir / name / HuggingFaceHub.MODEL_CONFIG_FILE,
+        root_dir=tmpdir,
+    )
+    train_callback: TrainCallback = hub.train(
+        dataset_path=export_dir,
+        epochs=1,
+        batch_size=1,
+        image_size=4,
+        pretrained_model=None,
+        device="cpu",
+        workers=0,
+    )
+    assert train_callback.get_progress() == 1
+    assert len(train_callback.get_metrics()) == 1
+    assert Path(train_callback.metric_file).exists()
+    assert Path(train_callback.result_dir).exists()
+
+    inference_callback: InferenceCallback = hub.inference(
+        source=object_detection_dataset.raw_image_dir,
+        draw=True,
+        device="cpu",
+        batch_size=1,
+    )
+
+    assert inference_callback.get_progress() == 1
+    assert Path(inference_callback.inference_dir).exists()
+
+    export_callback: ExportCallback = hub.export()
+    assert Path(export_callback.export_file).exists()
+
+    model = hub.get_model()
+
+    layer_names = model.get_layer_names()
+    assert len(layer_names) > 0
+
+    x = torch.randn(4, 3, 4, 4)
+    layer_name = layer_names[-1]
+    x, feature_maps = model.get_feature_maps(x, layer_name)
+    assert len(feature_maps) == 1
+
+
+def test_huggingface_classification(
+    classification_dataset: Dataset, tmpdir: Path
+):
+    export_dir = classification_dataset.export("huggingface")
+
+    name = "test_cls"
+    hub = HuggingFaceHub.new(
+        name=name,
+        task=TaskType.CLASSIFICATION,
+        model_type="ViT",
+        model_size="base",
+        categories=classification_dataset.category_names,
+        root_dir=tmpdir,
+    )
+    hub = HuggingFaceHub.load(name=name, root_dir=tmpdir)
+    hub: HuggingFaceHub = HuggingFaceHub.from_model_config(
+        name=name,
+        model_config_file=tmpdir / name / HuggingFaceHub.MODEL_CONFIG_FILE,
+        root_dir=tmpdir,
+    )
+    train_callback: TrainCallback = hub.train(
+        dataset_path=export_dir,
+        epochs=1,
+        batch_size=1,
+        image_size=224,
+        device="cpu",
+        workers=0,
+    )
+    assert train_callback.get_progress() == 1
+    assert len(train_callback.get_metrics()) == 1
+    assert Path(train_callback.metric_file).exists()
+    assert Path(train_callback.result_dir).exists()
+
+    inference_callback: InferenceCallback = hub.inference(
+        source=classification_dataset.raw_image_dir,
+        draw=True,
+        device="cpu",
+        image_size=224,
+        batch_size=1,
+    )
+    assert inference_callback.get_progress() == 1
+    assert Path(inference_callback.inference_dir).exists()
+
+    export_callback: ExportCallback = hub.export()
+    assert Path(export_callback.export_file).exists()
+
+    model = hub.get_model()
+
+    layer_names = model.get_layer_names()
+    assert len(layer_names) > 0
+    x = torch.randn(4, 3, 224, 224)
+
+    layer_name = layer_names[-1]
+    x, feature_maps = model.get_feature_maps(x, layer_name)
+    assert len(feature_maps) == 1
+
+
+# def test_tx_model_object_detection(
+#     object_detection_dataset: Dataset, tmpdir: Path
+# ):
+
+#     export_dir = object_detection_dataset.export("coco")
+
+#     name = "test_det"
+#     hub = TxModelHub.new(
+#         name=name,
+#         task=TaskType.OBJECT_DETECTION,
+#         model_type="YOLOv5",
+#         model_size="s",
+#         categories=object_detection_dataset.category_names,
+#         root_dir=tmpdir,
+#     )
+#     hub = TxModelHub.load(name=name, root_dir=tmpdir)
+#     hub: TxModelHub = TxModelHub.from_model_config(
+#         name=name,
+#         model_config_file=tmpdir / name / TxModelHub.MODEL_CONFIG_FILE,
+#         root_dir=tmpdir,
+#     )
+
+#     train_callback: TrainCallback = hub.train(
+#         dataset_path=export_dir,
+#         epochs=1,
+#         batch_size=8,
+#         image_size=32,
+#         pretrained_model=None,
+#         device="cpu",
+#     )
+#     assert train_callback.get_progress() == 1
+#     assert len(train_callback.get_metrics()) == 1
+#     assert Path(train_callback.best_ckpt_file).exists()
+#     assert Path(train_callback.last_ckpt_file).exists()
+
+#     inference_callback: InferenceCallback = hub.inference(
+#         source=export_dir,
+#         draw=True,
+#         device="cpu",
+#     )
+
+#     assert inference_callback.get_progress() == 1
+#     assert Path(inference_callback.inference_dir).exists()
+
+#     export_callback: ExportCallback = hub.export()
+#     assert Path(export_callback.export_file).exists()
+
+#     model = hub.get_model()
+
+#     layer_names = model.get_layer_names()
+#     assert len(layer_names) > 0
+
+#     x = torch.randn(4, 3, 64, 64)
+#     layer_name = layer_names[-1]
+#     x, feature_maps = model.get_feature_maps(x, layer_name)
+#     assert len(feature_maps) == 1
+
+
+# def test_tx_model_classification(
+#     classification_dataset: Dataset, tmpdir: Path
+# ):
+
+#     export_dir = classification_dataset.export("coco")
+
+#     name = "test_cls"
+#     hub = TxModelHub.new(
+#         name=name,
+#         task=TaskType.CLASSIFICATION,
+#         model_type="Classifier",
+#         model_size="s",
+#         categories=classification_dataset.category_names,
+#         root_dir=tmpdir,
+#     )
+#     hub = TxModelHub.load(name=name, root_dir=tmpdir)
+#     hub: TxModelHub = TxModelHub.from_model_config(
+#         name=name,
+#         model_config_file=tmpdir / name / TxModelHub.MODEL_CONFIG_FILE,
+#         root_dir=tmpdir,
+#     )
+#     train_callback: TrainCallback = hub.train(
+#         dataset_path=export_dir,
+#         epochs=1,
+#         batch_size=4,
+#         image_size=32,
+#         pretrained_model=None,
+#         device="cpu",
+#     )
+#     assert train_callback.get_progress() == 1
+#     assert len(train_callback.get_metrics()) == 1
+#     assert Path(train_callback.best_ckpt_file).exists()
+#     assert Path(train_callback.last_ckpt_file).exists()
+#     assert Path(train_callback.metric_file).exists()
+#     assert Path(train_callback.result_dir).exists()
+
+#     inference_callback: InferenceCallback = hub.inference(
+#         source=export_dir,
+#         draw=True,
+#         device="cpu",
+#     )
+#     assert inference_callback.get_progress() == 1
+#     assert Path(inference_callback.inference_dir).exists()
+
+#     export_callback: ExportCallback = hub.export()
+#     assert Path(export_callback.export_file).exists()
+
+#     model = hub.get_model()
+
+#     layer_names = model.get_layer_names()
+#     assert len(layer_names) > 0
+
+#     x = torch.randn(4, 3, 64, 64)
+#     layer_name = layer_names[-1]
+#     x, feature_maps = model.get_feature_maps(x, layer_name)
+#     assert len(feature_maps) == 1
 
 
 def test_non_hold(classification_dataset: Dataset, tmpdir: Path):
