@@ -147,16 +147,9 @@ class TxModelHub(BaseHub):
         if task == "object_detection":
 
             def inner(x: torch.Tensor, *args, **kwargs):
-                cxcywh = x[0]
+                xyxy = x[0]
                 scores = x[1]
                 class_ids = x[2]
-
-                cx, cy, w, h = torch.unbind(cxcywh, dim=-1)
-                x1 = cx - w / 2
-                y1 = cy - h / 2
-                x2 = cx + w / 2
-                y2 = cy + h / 2
-                xyxy = torch.stack([x1, y1, x2, y2], dim=-1)
 
                 return xyxy, scores, class_ids
 
