@@ -218,6 +218,7 @@ class TxModelHub(BaseHub):
             self.model_size,
             [x["name"] for x in self.categories],
             cfg.seed,
+            cfg.learning_rate,
             cfg.letter_box,
             cfg.epochs,
         )
