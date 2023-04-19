@@ -87,34 +87,6 @@ class TrainInputHelper(ABC):
         """
         pass
 
-    @abstractmethod
-    def get_model(self, categories: list) -> _BaseAutoModelClass:
-        """
-        Returns an instance of a pre-trained model.
-
-        Args:
-            categories (int): The number of output categories the model will predict.
-
-        Returns:
-            PreTrainedModel: The pre-trained model.
-
-        """
-        pass
-
-    @abstractmethod
-    def get_categories(self, features: Features) -> list:
-        """
-        Returns the number of categories for a given dataset.
-
-        Args:
-            features (Features): The dataset features.
-
-        Returns:
-            int: The number of categories.
-
-        """
-        pass
-
     def get_compute_metrics(self) -> Callable:
         """
         Returns a function that computes metrics.
@@ -180,17 +152,6 @@ class ClassifierInputHelper(TrainInputHelper):
 
     def get_collator(self) -> Callable:
         return DefaultDataCollator(return_tensors="pt")
-
-    def get_model(self, categories: list) -> _BaseAutoModelClass:
-        id2label = {index: x for index, x in enumerate(categories, start=0)}
-        return AutoModelForImageClassification.from_pretrained(
-            self.pretrained_model,
-            num_labels=len(id2label),
-            ignore_mismatched_sizes=True,
-        )
-
-    def get_categories(self, features: Features) -> list:
-        return features["label"].names
 
     def get_compute_metrics(self) -> Callable:
         metric = evaluate.load("accuracy")
@@ -298,17 +259,3 @@ class ObjectDetectionInputHelper(TrainInputHelper):
             return new_batch
 
         return collate_fn
-
-    def get_model(self, categories) -> _BaseAutoModelClass:
-        id2label = {index: x for index, x in enumerate(categories, start=0)}
-        label2id = {x: index for index, x in enumerate(categories, start=0)}
-        model = AutoModelForObjectDetection.from_pretrained(
-            self.pretrained_model,
-            id2label=id2label,
-            label2id=label2id,
-            ignore_mismatched_sizes=True,
-        )
-        return model
-
-    def get_categories(self, features: Features) -> list:
-        return features["objects"].feature["category"].names

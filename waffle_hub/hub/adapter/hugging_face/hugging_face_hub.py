@@ -78,7 +78,7 @@ class HuggingFaceHub(BaseHub):
     DEFAULT_PARAMAS = {
         "object_detection": {
             "epochs": 50,
-            "image_size": [640, 640],
+            "image_size": [800, 800],
             "learning_rate": 5e-05,
             "letter_box": True,  # TODO: implement letter_box
             "batch_size": 16,
@@ -171,18 +171,43 @@ class HuggingFaceHub(BaseHub):
             helper = ClassifierInputHelper(
                 cfg.pretrained_model, cfg.image_size
             )
+            self.train_input = helper.get_train_input()
+            categories = dataset["train"].features["label"].names
+            id2label = {
+                index: x for index, x in enumerate(categories, start=0)
+            }
+            self.train_input.model = (
+                AutoModelForImageClassification.from_pretrained(
+                    self.pretrained_model,
+                    num_labels=len(id2label),
+                    ignore_mismatched_sizes=True,
+                )
+            )
 
         elif self.task == "object_detection":
             helper = ObjectDetectionInputHelper(
                 cfg.pretrained_model, cfg.image_size
             )
+            self.train_input = helper.get_train_input()
+            categories = (
+                dataset["train"].features["objects"].feature["category"].names
+            )
+            id2label = {
+                index: x for index, x in enumerate(categories, start=0)
+            }
+            label2id = {
+                x: index for index, x in enumerate(categories, start=0)
+            }
+            self.train_input.model = (
+                AutoModelForObjectDetection.from_pretrained(
+                    self.pretrained_model,
+                    id2label=id2label,
+                    label2id=label2id,
+                    ignore_mismatched_sizes=True,
+                )
+            )
         else:
             raise NotImplementedError
-
-        self.train_input = helper.get_train_input()
-
-        categories = helper.get_categories(dataset["train"].features)
-        self.train_input.model = helper.get_model(categories)
 
         transforms = helper.get_transforms()
         dataset["train"] = dataset["train"].with_transform(transforms)
@@ -268,8 +293,10 @@ class HuggingFaceHub(BaseHub):
 
             def inner(x: ModelOutput, *args, **kwargs) -> torch.Tensor:
 
+                if x.logits.shape[-1] != len(self.categories):
+                    x.logits = x.logits[:, :, :-1]  # remove background
                 confidences, category_ids = torch.max(
-                    x.logits[:, :, :-1], dim=-1
+                    x.logits[:, :, :], dim=-1
                 )
                 cxcywh = x.pred_boxes[:, :, :4]
                 cx, cy, w, h = torch.unbind(cxcywh, dim=-1)
