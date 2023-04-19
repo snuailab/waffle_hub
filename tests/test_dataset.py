@@ -162,3 +162,4 @@ def test_dataset(coco_path, tmpdir):
 
     ds.export("coco")
     ds.export("yolo")
+    ds.export("huggingface")

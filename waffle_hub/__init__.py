@@ -1,8 +1,8 @@
 __version__ = "0.1.8"
 
+import enum
 import importlib
 import warnings
-import enum
 from collections import OrderedDict
 
 from tabulate import tabulate
@@ -32,7 +32,11 @@ except ModuleNotFoundError as e:
 
 # backend supports
 _backends = OrderedDict(
-    {"ultralytics": ["8.0.72"], "autocare_tx_model": ["0.2.0"]}
+    {
+        "ultralytics": ["8.0.72"],
+        "autocare_tx_model": ["0.2.0"],
+        "transformers": ["4.27.4"],
+    }
 )
 
 
@@ -92,14 +96,16 @@ def get_available_backends() -> str:
 
     return table
 
+
 class CustomEnumMeta(enum.EnumMeta):
     def __contains__(cls, item):
         if isinstance(item, str):
             return item.upper() in cls._member_names_
         return super().__contains__(item)
-    
+
     def __upper__(self):
         return self.name.upper()
+
 
 class BaseEnum(enum.Enum, metaclass=CustomEnumMeta):
     """Base class for Enum
@@ -140,6 +146,8 @@ class DataType(BaseEnum):
 
     COCO = enum.auto()
     TX_MODEL = COCO
+
+    HUGGINGFACE = enum.auto()
 
 
 class TaskType(BaseEnum):
