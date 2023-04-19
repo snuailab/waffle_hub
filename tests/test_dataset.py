@@ -139,6 +139,27 @@ def test_dataset(coco_path, tmpdir):
         ds.export("coco")
 
     ds.split(0.8)
+    train_ids, val_ids, test_ids, unlabeled_ids = ds.get_split_ids()
+    assert len(train_ids) + len(val_ids) == len(ds.images)
+
+    ds.split(0.445446, 0.554554)
+    train_ids, val_ids, test_ids, unlabeled_ids = ds.get_split_ids()
+    assert len(train_ids) + len(val_ids) == len(ds.images)
+
+    ds.split(0.4, 0.4, 0.2)
+    train_ids, val_ids, test_ids, unlabeled_ids = ds.get_split_ids()
+    assert len(train_ids) + len(val_ids) + len(test_ids) == len(ds.images)
+
+    ds.split(0.99999999999999, 0.0)
+    train_ids, val_ids, test_ids, unlabeled_ids = ds.get_split_ids()
+    assert len(val_ids) == 1 and len(test_ids) == 1
+
+    with pytest.raises(ValueError):
+        ds.split(0.0, 0.2)
+
+    with pytest.raises(ValueError):
+        ds.split(0.9, 0.2)
+
     ds.export("coco")
     ds.export("yolo")
     ds.export("huggingface")
