@@ -3,6 +3,7 @@ def get_model_config(
     model_size: str,
     categories: list[str],
     seed: int,
+    learning_rate: float,
     letter_box: bool,
     epochs: int,
 ):
@@ -42,7 +43,7 @@ def get_model_config(
             },
             "optim": {
                 "name": "SGD",
-                "lr": 0.001,
+                "lr": learning_rate,
                 "momentum": 0.937,
                 "weight_decay": 0.0005,
             },
@@ -87,7 +88,7 @@ def get_model_config(
             },
             "optim": {
                 "name": "SGD",
-                "lr": 0.01,
+                "lr": learning_rate,
                 "momentum": 0.9,
                 "weight_decay": 0.0001,
             },
