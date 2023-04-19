@@ -1,3 +1,4 @@
+import warnings
 from abc import ABC, abstractmethod
 from dataclasses import dataclass, field
 from typing import Callable, Union
@@ -41,6 +42,9 @@ class TrainInputHelper(ABC):
     ) -> None:
         self.pretrained_model = pretrained_model
         self.image_size = image_size
+
+        if isinstance(image_size, int):
+            self.image_size = (image_size, image_size)
 
         self.image_processor: AutoImageProcessor = self.get_image_processor(
             self.pretrained_model
@@ -148,7 +152,6 @@ class ClassifierInputHelper(TrainInputHelper):
             std=self.image_processor.image_std,
         )
 
-        # Due to performance issues, we are enforcing a fixed image size.
         size = (
             self.image_processor.size["shortest_edge"]
             if "shortest_edge" in self.image_processor.size
@@ -157,6 +160,10 @@ class ClassifierInputHelper(TrainInputHelper):
                 self.image_processor.size["width"],
             )
         )
+        if size != self.image_size:
+            raise ValueError(
+                f"pretrained model's image size is {size}, but you set {self.image_size}."
+            )
 
         _transforms = T.Compose(
             [T.RandomResizedCrop(size), T.ToTensor(), normalize]
@@ -207,7 +214,6 @@ class ObjectDetectionInputHelper(TrainInputHelper):
         super().__init__(pretrained_model, image_size)
 
     def get_transforms(self) -> Callable:
-        # Due to performance issues, we are enforcing a fixed image size.
         size = (
             self.image_processor.size["shortest_edge"]
             if "shortest_edge" in self.image_processor.size
@@ -216,6 +222,11 @@ class ObjectDetectionInputHelper(TrainInputHelper):
                 self.image_processor.size["width"],
             )
         )
+
+        if size != self.image_size:
+            warnings.warn(
+                f"pretrained model's image size is {size}, but you set {self.image_size}."
+            )
 
         _transforms = albumentations.Compose(
             [

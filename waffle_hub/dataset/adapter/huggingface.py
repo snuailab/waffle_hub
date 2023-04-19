@@ -36,9 +36,6 @@ def _export_huggingface_classification(
     features = Features(
         {
             "image": ImageFeature(),
-            "image_id": Value("int32"),
-            "width": Value("int32"),
-            "height": Value("int32"),
             "label": ClassLabel(names=self.category_names),
         }
     )
@@ -49,9 +46,6 @@ def _export_huggingface_classification(
             image_path = self.raw_image_dir / image.file_name
             yield {
                 "image": PIL.Image.open(image_path).convert("RGB"),
-                "image_id": image.image_id,
-                "width": image.width,
-                "height": image.height,
                 "label": self.category_names[annotation.category_id - 1],
             }
 

@@ -6,6 +6,7 @@ from functools import cached_property
 from pathlib import Path
 from typing import Union
 
+import PIL.Image
 from waffle_utils.file import io
 from waffle_utils.log import datetime_now
 from waffle_utils.utils import type_validator
@@ -396,9 +397,9 @@ class Dataset:
         else:
             raise ValueError("dataset should be Dataset or DatasetDict")
 
-        def _import(dataset: HFDataset, task: str):
+        def _import(dataset: HFDataset, task: str, image_ids: list[int]):
             if task == "object_detection":
-                for data in dataset:
+                for data in enumerate(dataset):
                     data["image"].save(
                         f"{ds.raw_image_dir}/{data['image_id']}.jpg"
                     )
@@ -439,20 +440,21 @@ class Dataset:
                     ds.add_categories([category])
 
             elif task == "classification":
-                for data in dataset:
-                    data["image"].save(
-                        f"{ds.raw_image_dir}/{data['image_id']}.jpg"
-                    )
+                for image_id, data in zip(image_ids, dataset):
+                    image_save_path = f"{ds.raw_image_dir}/{image_id}.jpg"
+                    data["image"].save(image_save_path)
+                    pil_image = PIL.Image.open(image_save_path)
+                    width, height = pil_image.size
                     image = Image(
-                        image_id=data["image_id"],
-                        file_name=f"{data['image_id']}.jpg",
-                        width=data["width"],
-                        height=data["height"],
+                        image_id=image_id,
+                        file_name=f"{image_id}.jpg",
+                        width=width,
+                        height=height,
                     )
                     ds.add_images([image])
 
                     annotation = Annotation(
-                        annotation_id=data["image_id"],
+                        annotation_id=image_id,
                         image_id=image.image_id,
                         category_id=data["label"] + 1,
                     )
@@ -472,12 +474,15 @@ class Dataset:
                 )
 
         if is_splited:
+            start_num = 1
             for set_type, set in dataset.items():
-                image_ids = set["image_id"]
+                image_ids = list(range(start_num, set.num_rows + start_num))
+                start_num += set.num_rows
                 io.save_json(image_ids, ds.set_dir / f"{set_type}.json", True)
-                _import(set, task)
+                _import(set, task, image_ids)
         else:
-            _import(dataset, task)
+            image_ids = list(range(1, dataset.num_rows + 1))
+            _import(dataset, task, image_ids)
 
         return ds
 

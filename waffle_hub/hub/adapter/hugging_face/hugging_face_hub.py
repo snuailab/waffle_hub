@@ -162,6 +162,8 @@ class HuggingFaceHub(BaseHub):
         # setting
         if cfg.device != "cpu":
             os.environ["CUDA_VISIBLE_DEVICES"] = cfg.device
+        else:
+            os.environ["CUDA_VISIBLE_DEVICES"] = "-1"
 
         dataset = load_from_disk(cfg.dataset_path)
 
@@ -178,23 +180,6 @@ class HuggingFaceHub(BaseHub):
             raise NotImplementedError
 
         self.train_input = helper.get_train_input()
-
-        # Due to performance issues, we are enforcing a fixed image size.
-        size = helper.get_image_processor(cfg.pretrained_model).size
-        size = (
-            size["shortest_edge"]
-            if "shortest_edge" in size
-            else (
-                size["height"],
-                size["width"],
-            )
-        )
-        if size != cfg.image_size:
-            warnings.warn(
-                f"pretrained model's image size is {size}, but you set {cfg.image_size}."
-            )
-            warnings.warn(f"change image size to {size}.")
-            cfg.image_size = size
 
         categories = helper.get_categories(dataset["train"].features)
         self.train_input.model = helper.get_model(categories)

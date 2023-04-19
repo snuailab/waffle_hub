@@ -183,7 +183,7 @@ def test_huggingface_object_detection(
         dataset_path=export_dir,
         epochs=1,
         batch_size=1,
-        image_size=800,
+        image_size=4,
         pretrained_model=None,
         device="cpu",
         workers=0,
@@ -197,6 +197,7 @@ def test_huggingface_object_detection(
         source=object_detection_dataset.raw_image_dir,
         draw=True,
         device="cpu",
+        batch_size=1,
     )
     assert inference_callback.get_progress() == 1
     assert Path(inference_callback.inference_dir).exists()
@@ -253,6 +254,7 @@ def test_huggingface_classification(
         draw=True,
         device="cpu",
         image_size=224,
+        batch_size=1,
     )
     assert inference_callback.get_progress() == 1
     assert Path(inference_callback.inference_dir).exists()
