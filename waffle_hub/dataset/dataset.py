@@ -445,7 +445,10 @@ class Dataset:
                 ds.add_images([image])
 
                 # annotation
-                txt = io.load_txt(label_path)
+                with open(
+                    label_path
+                ) as f:  # TODO: use load_txt of waffle_utils after implementing
+                    txt = f.readlines()
                 for i, t in enumerate(txt, start=1):
                     category_id, x, y, w, h = list(map(float, t.split()))
                     category_id = int(category_id) + 1
