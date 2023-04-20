@@ -13,8 +13,12 @@ torchaudio==0.13.1
 torchvision==0.14.1
 
 # waffle dependencies
-waffle-utils==0.2.3
+waffle-utils>=0.3.0
+
+# ultralytics
 ultralytics==8.0.72
+
+# huggingface
 datasets==2.11.0
 transformers==4.27.4
 albumentations==1.3.0
