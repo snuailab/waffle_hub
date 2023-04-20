@@ -170,8 +170,8 @@ def test_huggingface_object_detection(
     hub = HuggingFaceHub.new(
         name=name,
         task=TaskType.OBJECT_DETECTION,
-        model_type="DETR",
-        model_size="base",
+        model_type="YOLOS",
+        model_size="small",
         categories=object_detection_dataset.category_names,
         root_dir=tmpdir,
     )
@@ -184,8 +184,8 @@ def test_huggingface_object_detection(
     train_callback: TrainCallback = hub.train(
         dataset_path=export_dir,
         epochs=1,
-        batch_size=1,
-        image_size=4,
+        batch_size=8,
+        image_size=16,
         pretrained_model=None,
         device="cpu",
         workers=0,
@@ -199,7 +199,8 @@ def test_huggingface_object_detection(
         source=object_detection_dataset.raw_image_dir,
         draw=True,
         device="cpu",
-        batch_size=1,
+        batch_size=8,
+        image_size=16,
     )
 
     assert inference_callback.get_progress() == 1

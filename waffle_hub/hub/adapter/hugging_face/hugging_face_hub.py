@@ -67,6 +67,9 @@ class HuggingFaceHub(BaseHub):
                 "base": "facebook/detr-resnet-50",
                 "large": "facebook/detr-resnet-101",
             },
+            "YOLOS": {
+                "small": "hustvl/yolos-tiny",
+            },
         },
         "classification": {
             "ViT": {
