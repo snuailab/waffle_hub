@@ -171,7 +171,7 @@ def test_huggingface_object_detection(
         name=name,
         task=TaskType.OBJECT_DETECTION,
         model_type="YOLOS",
-        model_size="small",
+        model_size="tiny",
         categories=object_detection_dataset.category_names,
         root_dir=tmpdir,
     )
@@ -227,7 +227,7 @@ def test_huggingface_classification(
         name=name,
         task=TaskType.CLASSIFICATION,
         model_type="ViT",
-        model_size="small",
+        model_size="tiny",
         categories=classification_dataset.category_names,
         root_dir=tmpdir,
     )
