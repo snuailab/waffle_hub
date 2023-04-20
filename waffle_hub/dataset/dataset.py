@@ -385,6 +385,18 @@ class Dataset:
         ds.initialize()
 
         def _import_classification(set_dir: Path, image_ids: list[int]):
+            # categories
+            for category_id, category_name in info["names"].items():
+                ds.add_categories(
+                    [
+                        Category.classification(
+                            category_id=category_id + 1,
+                            name=category_name,
+                        )
+                    ]
+                )
+            name2id = {v: k for k, v in info["names"].items()}
+
             for image_id, image_path in zip(
                 image_ids, get_image_files(set_dir)
             ):
@@ -416,7 +428,7 @@ class Dataset:
                 dst = ds.raw_image_dir / f"{image_id}{image_path.suffix}"
                 io.copy_file(image_path, dst)
 
-        def _import_detection(set_dir: Path, image_ids: list[int]):
+        def _import_object_detection(set_dir: Path, image_ids: list[int]):
             image_dir = set_dir / "images"
             label_dir = set_dir / "labels"
 
@@ -426,6 +438,17 @@ class Dataset:
             if not label_dir.exists():
                 warnings.warn(f"{label_dir} does not exist.")
                 return
+
+            # categories
+            for category_id, category_name in info["names"].items():
+                ds.add_categories(
+                    [
+                        Category.object_detection(
+                            category_id=category_id + 1,
+                            name=category_name,
+                        )
+                    ]
+                )
 
             annotation_num = 0
             for image_id, image_path, label_path in zip(
@@ -476,7 +499,7 @@ class Dataset:
                 io.copy_file(image_path, dst)
 
         if task == "object_detection":
-            _import = _import_detection
+            _import = _import_object_detection
         elif task == "classification":
             _import = _import_classification
         else:
@@ -484,19 +507,6 @@ class Dataset:
 
         info = io.load_yaml(yaml_path)
         yolo_root_dir = Path(info["path"])
-
-        # categories
-        for category_id, category_name in info["names"].items():
-            ds.add_categories(
-                [
-                    Category.new(
-                        category_id=category_id + 1,
-                        name=category_name,
-                        task=task,
-                    )
-                ]
-            )
-        name2id = {v: k for k, v in info["names"].items()}
 
         current_image_id = 1
         for set_type in ["train", "val", "test"]:
