@@ -164,6 +164,42 @@ class TrainCallback(ThreadProgressCallback):
         return self._progress
 
 
+class EvaluateCallback(ThreadProgressCallback):
+    def __init__(self, total_steps: int):
+        super().__init__(total_steps)
+
+        self._inference_dir: str = None
+        self._draw_dir: str = None
+        self._evaluate_file: str = None
+
+    @property
+    def inference_dir(self) -> str:
+        """Get the path of the result directory."""
+        return self._inference_dir
+
+    @inference_dir.setter
+    def inference_dir(self, path: str):
+        self._inference_dir = path
+
+    @property
+    def draw_dir(self) -> str:
+        """Get the path of the visualize directory."""
+        return self._draw_dir
+
+    @draw_dir.setter
+    def draw_dir(self, path: str):
+        self._draw_dir = path
+
+    @property
+    def evaluate_file(self) -> str:
+        """Get the path of the evaluate file."""
+        return self._evaluate_file
+
+    @evaluate_file.setter
+    def evaluate_file(self, path: str):
+        self._evaluate_file = path
+
+
 class InferenceCallback(ThreadProgressCallback):
     def __init__(self, total_steps: int):
         super().__init__(total_steps)

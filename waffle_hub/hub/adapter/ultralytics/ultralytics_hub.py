@@ -319,7 +319,3 @@ class UltralyticsHub(BaseHub):
         )
 
         return model
-
-    # Evaluate Hook
-    def evaluating(self):
-        raise NotImplementedError

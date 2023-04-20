@@ -5,7 +5,7 @@ Use {Backend}Hub instead.
 """
 import logging
 import threading
-from abc import abstractmethod
+import warnings
 from functools import cached_property
 from pathlib import Path
 from typing import Union
@@ -17,20 +17,24 @@ from waffle_utils.file import io
 from waffle_utils.utils import type_validator
 
 from waffle_hub import TaskType
+from waffle_hub.dataset import Dataset
 from waffle_hub.hub.model.wrapper import get_parser
 from waffle_hub.schema.configs import (
+    EvaluateConfig,
     ExportConfig,
     InferenceConfig,
     ModelConfig,
     TrainConfig,
 )
 from waffle_hub.utils.callback import (
+    EvaluateCallback,
     ExportCallback,
     InferenceCallback,
     TrainCallback,
 )
-from waffle_hub.utils.data import ImageDataset
+from waffle_hub.utils.data import ImageDataset, LabeledDataset
 from waffle_hub.utils.draw import draw_results
+from waffle_hub.utils.evaluate import evaluate_function
 
 logger = logging.getLogger(__name__)
 
@@ -45,7 +49,6 @@ class BaseHub:
     ARTIFACT_DIR = Path("artifacts")
 
     INFERENCE_DIR = Path("inferences")
-    EVALUATION_DIR = Path("evaluations")
     EXPORT_DIR = Path("exports")
 
     DRAW_DIR = Path("draws")
@@ -59,6 +62,7 @@ class BaseHub:
     LAST_CKPT_FILE = "weights/last_ckpt.pt"
     BEST_CKPT_FILE = "weights/best_ckpt.pt"  # TODO: best metric?
     METRIC_FILE = "metrics.json"
+    EVALUATE_FILE = "evaluate.json"
 
     # export results
     ONNX_FILE = "weights/model.onnx"
@@ -267,9 +271,9 @@ class BaseHub:
         return self.hub_dir / BaseHub.INFERENCE_DIR
 
     @cached_property
-    def evaluation_dir(self) -> Path:
+    def evaluate_dir(self) -> Path:
         """Evaluation Results Directory"""
-        return self.hub_dir / BaseHub.EVALUATION_DIR
+        return self.hub_dir / BaseHub.EVALUATE_FILE
 
     @cached_property
     def export_dir(self) -> Path:
@@ -311,6 +315,11 @@ class BaseHub:
         """Metric Csv File"""
         return self.hub_dir / BaseHub.METRIC_FILE
 
+    @cached_property
+    def evaluate_file(self) -> Path:
+        """Evaluate Json File"""
+        return self.hub_dir / BaseHub.EVALUATE_FILE
+
     # common functions
     def delete_artifact(self):
         """Delete Artifact Directory. It can be trained again."""
@@ -330,11 +339,32 @@ class BaseHub:
             raise FileNotFoundError("Train first! hub.train(...).")
         return True
 
-    def get_train_config(self):
+    def get_train_config(self) -> TrainConfig:
         return TrainConfig.load(self.train_config_file)
 
-    def get_model_config(self):
+    def get_model_config(self) -> ModelConfig:
         return ModelConfig.load(self.model_config_file)
+
+    def get_metrics(self) -> list[dict]:
+        """Get metrics per epoch from metric file.
+
+        Returns:
+            list[dict]: metrics per epoch
+        """
+        if not self.metric_file.exists():
+            warnings.warn("Metric file is not exist. Train first!")
+            return []
+        return io.load_json(self.metric_file)
+
+    def get_evaluate_result(self) -> dict:
+        """Get evaluate result from evaluate file.
+
+        Returns:
+            dict: evaluate result
+        """
+        if not self.evaluate_file.exists():
+            return {}
+        return io.load_json(self.evaluate_file)
 
     # Train Hook
     def before_train(self, cfg: TrainConfig):
@@ -449,10 +479,174 @@ class BaseHub:
 
         return callback
 
-    # Inference Hook
+    # Evaluation Hook
     def get_model(self):
         raise NotImplementedError
 
+    def before_evaluate(self, cfg: EvaluateConfig):
+        # overwrite training config
+        train_config = self.get_train_config()
+        if cfg.image_size is None:
+            cfg.image_size = train_config.image_size
+        if cfg.letter_box is None:
+            cfg.letter_box = train_config.letter_box
+
+    def on_evaluate_start(self, cfg: EvaluateConfig):
+        pass
+
+    def evaluating(
+        self, cfg: EvaluateConfig, callback: EvaluateCallback
+    ) -> str:
+        device = cfg.device
+
+        model = self.get_model().to(device)
+
+        dataset = Dataset.load(cfg.dataset_name, cfg.dataset_root_dir)
+        dataloader = LabeledDataset(
+            dataset,
+            cfg.image_size,
+            letter_box=cfg.letter_box,
+            set_name=cfg.set_name,
+        ).get_dataloader(cfg.batch_size, cfg.workers)
+
+        result_parser = get_parser(self.task)(**cfg.to_dict())
+
+        callback._total_steps = len(dataloader)
+
+        preds = []
+        labels = []
+        for i, (images, image_infos, annotations) in tqdm.tqdm(
+            enumerate(dataloader, start=1), total=len(dataloader)
+        ):
+            result_batch = model(images.to(device))
+            result_batch = result_parser(result_batch, image_infos)
+
+            preds.extend(result_batch)
+            labels.extend(annotations)
+
+            results = []
+            for result, image_info in zip(result_batch, image_infos):
+                image_path = image_info.image_path
+
+                relpath = Path(image_path).relative_to(dataset.raw_image_dir)
+
+                io.save_json(
+                    [res.to_dict() for res in result],
+                    self.inference_dir / relpath.with_suffix(".json"),
+                    create_directory=True,
+                )
+
+                results.append(result)
+
+                if cfg.draw:
+                    draw = draw_results(
+                        image_path,
+                        result,
+                        names=[x["name"] for x in self.categories],
+                    )
+                    draw_path = self.draw_dir / relpath.with_suffix(".png")
+                    io.make_directory(draw_path.parent)
+                    cv2.imwrite(str(draw_path), draw)
+
+            callback.update(i)
+
+        metrics = evaluate_function(
+            preds, labels, self.task, len(self.categories)
+        )
+        io.save_json(metrics.to_dict(), self.evaluate_file)
+
+    def on_evaluate_end(self, cfg: EvaluateConfig):
+        pass
+
+    def after_evaluate(self, cfg: EvaluateConfig):
+        pass
+
+    def evaluate(
+        self,
+        dataset_name: str,
+        set_name: str = "test",
+        batch_size: int = 4,
+        image_size: Union[int, list[int]] = None,
+        letter_box: bool = None,
+        confidence_threshold: float = 0.25,
+        iou_threshold: float = 0.5,
+        half: bool = False,
+        workers: int = 2,
+        device: str = "0",
+        draw: bool = False,
+        dataset_root_dir: str = None,
+        hold: bool = True,
+    ) -> EvaluateCallback:
+        """Start Evaluate
+
+        Args:
+            dataset_name (str): waffle dataset name.
+            batch_size (int, optional): batch size. Defaults to 4.
+            image_size (Union[int, list[int]], optional): image size. Defaults to None.
+            letter_box (bool, optional): letter box. Defaults to None.
+            confidence_threshold (float, optional): confidence threshold. Defaults to 0.25.
+            iou_threshold (float, optional): iou threshold. Defaults to 0.5.
+            half (bool, optional): half. Defaults to False.
+            workers (int, optional): workers. Defaults to 2.
+            device (str, optional): device. Defaults to "0".
+            draw (bool, optional): draw. Defaults to False.
+            dataset_root_dir (str, optional): dataset root dir. Defaults to None.
+            hold (bool, optional): hold. Defaults to True.
+
+        Raises:
+            FileNotFoundError: if can not detect appropriate dataset.
+            e: something gone wrong with ultralytics
+
+        Returns:
+            EvaluateCallback: evaluate callback
+        """
+
+        def inner(callback):
+            try:
+                self.before_evaluate(cfg)
+                self.on_evaluate_start(cfg)
+                self.evaluating(cfg, callback)
+                self.on_evaluate_end(cfg)
+                self.after_evaluate(cfg)
+                callback.force_finish()
+            except Exception as e:
+                if self.evaluate_dir.exists():
+                    io.remove_directory(self.evaluate_dir)
+                callback.force_finish()
+                callback.set_failed()
+                raise e
+
+        cfg = EvaluateConfig(
+            dataset_name=dataset_name,
+            set_name=set_name,
+            batch_size=batch_size,
+            image_size=image_size,
+            letter_box=letter_box,
+            confidence_threshold=confidence_threshold,
+            iou_threshold=iou_threshold,
+            half=half,
+            workers=workers,
+            device="cpu" if device == "cpu" else f"cuda:{device}",
+            draw=draw,
+            dataset_root_dir=dataset_root_dir,
+        )
+
+        callback = EvaluateCallback(0)
+        callback.evaluate_file = self.evaluate_file
+        callback.draw_dir = self.draw_dir if cfg.draw else None
+
+        if hold:
+            inner(callback)
+        else:
+            thread = threading.Thread(
+                target=inner, args=(callback,), daemon=True
+            )
+            callback.register_thread(thread)
+            callback.start()
+
+        return callback
+
+    # inference hooks
     def before_inference(self, cfg: InferenceConfig):
         # overwrite training config
         train_config = self.get_train_config()
@@ -705,7 +899,3 @@ class BaseHub:
             callback.start()
 
         return callback
-
-    @abstractmethod
-    def evaluate(self):
-        raise NotImplementedError
