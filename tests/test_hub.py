@@ -186,7 +186,6 @@ def test_huggingface_object_detection(
         epochs=1,
         batch_size=8,
         image_size=16,
-        pretrained_model=None,
         device="cpu",
         workers=0,
     )
@@ -199,8 +198,6 @@ def test_huggingface_object_detection(
         source=object_detection_dataset.raw_image_dir,
         draw=True,
         device="cpu",
-        batch_size=8,
-        image_size=16,
     )
 
     assert inference_callback.get_progress() == 1
@@ -214,7 +211,7 @@ def test_huggingface_object_detection(
     layer_names = model.get_layer_names()
     assert len(layer_names) > 0
 
-    x = torch.randn(4, 3, 4, 4)
+    x = torch.randn(4, 3, 16, 16)
     layer_name = layer_names[-1]
     x, feature_maps = model.get_feature_maps(x, layer_name)
     assert len(feature_maps) == 1
