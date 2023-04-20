@@ -395,7 +395,7 @@ class Dataset:
                 # image
                 img = cv2.imread(str(image_path))
                 height, width, _ = img.shape
-                image = Image(
+                image = Image.new(
                     image_id=image_id,
                     file_name=f"{image_id}{image_path.suffix}",
                     width=width,
@@ -404,7 +404,7 @@ class Dataset:
                 ds.add_images([image])
 
                 # annotation
-                annotation = Annotation(
+                annotation = Annotation.new(
                     annotation_id=image_id,
                     image_id=image_id,
                     category_id=category_id,
@@ -436,7 +436,7 @@ class Dataset:
                 # image
                 img = cv2.imread(str(image_path))
                 height, width, _ = img.shape
-                image = Image(
+                image = Image.new(
                     image_id=image_id,
                     file_name=f"{image_id}{image_path.suffix}",
                     width=width,
@@ -458,7 +458,7 @@ class Dataset:
                     y -= h / 2
 
                     x, y, w, h = int(x), int(y), int(w), int(h)
-                    annotation = Annotation(
+                    annotation = Annotation.new(
                         annotation_id=annotation_num + i,
                         image_id=image_id,
                         category_id=category_id,
@@ -484,7 +484,15 @@ class Dataset:
 
         # categories
         for category_id, category_name in info["names"].items():
-            ds.add_categories([Category(category_id + 1, category_name, task)])
+            ds.add_categories(
+                [
+                    Category.new(
+                        category_id=category_id + 1,
+                        name=category_name,
+                        task=task,
+                    )
+                ]
+            )
         name2id = {v: k for k, v in info["names"].items()}
 
         current_image_id = 1
@@ -544,11 +552,11 @@ class Dataset:
 
         def _import(dataset: HFDataset, task: str, image_ids: list[int]):
             if task == "object_detection":
-                for data in enumerate(dataset):
+                for data in dataset:
                     data["image"].save(
                         f"{ds.raw_image_dir}/{data['image_id']}.jpg"
                     )
-                    image = Image(
+                    image = Image.new(
                         image_id=data["image_id"],
                         file_name=f"{data['image_id']}.jpg",
                         width=data["width"],
@@ -564,7 +572,7 @@ class Dataset:
                     for annotation_id, area, category_id, bbox in zip(
                         annotation_ids, areas, category_ids, bboxes
                     ):
-                        annotation = Annotation(
+                        annotation = Annotation.new(
                             annotation_id=annotation_id,
                             image_id=image.image_id,
                             category_id=category_id + 1,
@@ -577,7 +585,7 @@ class Dataset:
                     dataset.features["objects"].feature["category"].names
                 )
                 for category_id, category_name in enumerate(categories):
-                    category = Category(
+                    category = Category.new(
                         category_id=category_id + 1,
                         supercategory="object",
                         name=category_name,
@@ -590,7 +598,7 @@ class Dataset:
                     data["image"].save(image_save_path)
                     pil_image = PIL.Image.open(image_save_path)
                     width, height = pil_image.size
-                    image = Image(
+                    image = Image.new(
                         image_id=image_id,
                         file_name=f"{image_id}.jpg",
                         width=width,
@@ -598,7 +606,7 @@ class Dataset:
                     )
                     ds.add_images([image])
 
-                    annotation = Annotation(
+                    annotation = Annotation.new(
                         annotation_id=image_id,
                         image_id=image.image_id,
                         category_id=data["label"] + 1,
@@ -607,7 +615,7 @@ class Dataset:
 
                 categories = dataset.features["label"].names
                 for category_id, category_name in enumerate(categories):
-                    category = Category(
+                    category = Category.new(
                         category_id=category_id + 1,
                         supercategory="object",
                         name=category_name,
