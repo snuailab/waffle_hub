@@ -5,6 +5,7 @@ import pytest
 from waffle_hub import TaskType
 from waffle_hub.dataset import Dataset
 from waffle_hub.schema.fields import Annotation, Category, Image
+from waffle_hub.utils.data import ImageDataset, LabeledDataset
 
 
 def test_annotation():
@@ -163,3 +164,36 @@ def test_dataset(coco_path, tmpdir):
     ds.export("coco")
     ds.export("yolo")
     ds.export("huggingface")
+
+
+def test_dataloader(coco_path, tmpdir):
+
+    image_dataset = ImageDataset(coco_path / "images", 224)
+    assert len(image_dataset) == 100
+    image_dataloader = image_dataset.get_dataloader(
+        batch_size=32, num_workers=0
+    )
+    assert len(image_dataloader) == 4
+
+    ds = Dataset.from_coco(
+        name="from_coco",
+        task=TaskType.OBJECT_DETECTION,
+        coco_file=coco_path / "coco.json",
+        coco_root_dir=coco_path / "images",
+        root_dir=tmpdir,
+    )
+    assert ds.dataset_info_file.exists()
+
+    labeled_dataset = LabeledDataset(ds, 224)
+    assert len(labeled_dataset) == 100
+    labeled_dataloader = image_dataset.get_dataloader(
+        batch_size=32, num_workers=0
+    )
+    assert len(labeled_dataloader) == 4
+
+    ds.split(0.8)
+    labeled_dataset = LabeledDataset(ds, 224, set_name="train")
+    assert len(labeled_dataset) == 80
+
+    image, image_info, annotations = labeled_dataset[0]
+    assert "bbox" in annotations
