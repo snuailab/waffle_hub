@@ -73,6 +73,7 @@ def test_ultralytics_object_detection(
         image_size=32,
         pretrained_model=None,
         device="cpu",
+        workers=0,
     )
     assert train_callback.get_progress() == 1
     assert len(train_callback.get_metrics()) == 1
@@ -82,9 +83,7 @@ def test_ultralytics_object_detection(
     assert Path(train_callback.result_dir).exists()
 
     inference_callback: InferenceCallback = hub.inference(
-        source=export_dir,
-        draw=True,
-        device="cpu",
+        source=export_dir, draw=True, device="cpu", workers=0
     )
     assert inference_callback.get_progress() == 1
     assert Path(inference_callback.inference_dir).exists()
@@ -131,6 +130,7 @@ def test_ultralytics_classification(
         image_size=32,
         pretrained_model=None,
         device="cpu",
+        workers=0,
     )
     assert train_callback.get_progress() == 1
     assert len(train_callback.get_metrics()) == 1
@@ -140,9 +140,7 @@ def test_ultralytics_classification(
     assert Path(train_callback.result_dir).exists()
 
     inference_callback: InferenceCallback = hub.inference(
-        source=export_dir,
-        draw=True,
-        device="cpu",
+        source=export_dir, draw=True, device="cpu", workers=0
     )
     assert inference_callback.get_progress() == 1
     assert Path(inference_callback.inference_dir).exists()
@@ -200,6 +198,7 @@ def test_huggingface_object_detection(
         draw=True,
         device="cpu",
         batch_size=1,
+        workers=0,
     )
 
     assert inference_callback.get_progress() == 1
@@ -258,6 +257,7 @@ def test_huggingface_classification(
         device="cpu",
         image_size=224,
         batch_size=1,
+        workers=0,
     )
     assert inference_callback.get_progress() == 1
     assert Path(inference_callback.inference_dir).exists()
@@ -423,6 +423,7 @@ def test_non_hold(classification_dataset: Dataset, tmpdir: Path):
             pretrained_model=None,
             device="cpu",
             hold=False,
+            workers=0,
         )
         while not train_callback.is_finished():
             time.sleep(1)
@@ -439,6 +440,7 @@ def test_non_hold(classification_dataset: Dataset, tmpdir: Path):
         pretrained_model=None,
         device="cpu",
         hold=False,
+        workers=0,
     )
 
     while not train_callback.is_finished():
@@ -456,7 +458,7 @@ def test_non_hold(classification_dataset: Dataset, tmpdir: Path):
     assert Path(train_callback.result_dir).exists()
 
     inference_callback: InferenceCallback = hub.inference(
-        source=export_dir, device="cpu", hold=False
+        source=export_dir, device="cpu", hold=False, workers=0
     )
     while not inference_callback.is_finished():
         time.sleep(1)
