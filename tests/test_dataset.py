@@ -116,7 +116,7 @@ def test_dataset(tmpdir):
     assert not Path(dataset.dataset_dir).exists()
 
 
-def test_dataset(coco_path, tmpdir):
+def test_dataset_coco(coco_path, tmpdir):
 
     ds = Dataset.from_coco(
         name="from_coco",
@@ -162,7 +162,99 @@ def test_dataset(coco_path, tmpdir):
         ds.split(0.9, 0.2)
 
     ds.export("coco")
+
+
+def test_dataset_yolo(yolo_path, tmpdir):
+
+    ds = Dataset.from_yolo(
+        name="from_yolo",
+        task=TaskType.OBJECT_DETECTION,
+        yaml_path=yolo_path / "data.yaml",
+        root_dir=tmpdir,
+    )
+    assert ds.dataset_info_file.exists()
+
+    ds = Dataset.load("from_yolo", root_dir=tmpdir)
+
+    ds = Dataset.clone(
+        src_name="from_yolo",
+        name="clone_yolo",
+        src_root_dir=tmpdir,
+        root_dir=tmpdir,
+    )
+
+    with pytest.raises(FileNotFoundError):
+        ds.export("yolo")
+
+    ds.split(0.8)
+    train_ids, val_ids, test_ids, unlabeled_ids = ds.get_split_ids()
+    assert len(train_ids) + len(val_ids) == len(ds.images)
+
+    ds.split(0.445446, 0.554554)
+    train_ids, val_ids, test_ids, unlabeled_ids = ds.get_split_ids()
+    assert len(train_ids) + len(val_ids) == len(ds.images)
+
+    ds.split(0.4, 0.4, 0.2)
+    train_ids, val_ids, test_ids, unlabeled_ids = ds.get_split_ids()
+    assert len(train_ids) + len(val_ids) + len(test_ids) == len(ds.images)
+
+    ds.split(0.99999999999999, 0.0)
+    train_ids, val_ids, test_ids, unlabeled_ids = ds.get_split_ids()
+    assert len(val_ids) == 1 and len(test_ids) == 1
+
+    with pytest.raises(ValueError):
+        ds.split(0.0, 0.2)
+
+    with pytest.raises(ValueError):
+        ds.split(0.9, 0.2)
+
     ds.export("yolo")
+
+
+def test_dataset_huggingface(huggingface_path, tmpdir):
+
+    ds = Dataset.from_huggingface(
+        name="from_huggingface",
+        task=TaskType.OBJECT_DETECTION,
+        dataset_dir=huggingface_path,
+        root_dir=tmpdir,
+    )
+    assert ds.dataset_info_file.exists()
+
+    ds = Dataset.load("from_huggingface", root_dir=tmpdir)
+
+    ds = Dataset.clone(
+        src_name="from_huggingface",
+        name="clone_huggingface",
+        src_root_dir=tmpdir,
+        root_dir=tmpdir,
+    )
+
+    with pytest.raises(FileNotFoundError):
+        ds.export("huggingface")
+
+    ds.split(0.8)
+    train_ids, val_ids, test_ids, unlabeled_ids = ds.get_split_ids()
+    assert len(train_ids) + len(val_ids) == len(ds.images)
+
+    ds.split(0.445446, 0.554554)
+    train_ids, val_ids, test_ids, unlabeled_ids = ds.get_split_ids()
+    assert len(train_ids) + len(val_ids) == len(ds.images)
+
+    ds.split(0.4, 0.4, 0.2)
+    train_ids, val_ids, test_ids, unlabeled_ids = ds.get_split_ids()
+    assert len(train_ids) + len(val_ids) + len(test_ids) == len(ds.images)
+
+    ds.split(0.99999999999999, 0.0)
+    train_ids, val_ids, test_ids, unlabeled_ids = ds.get_split_ids()
+    assert len(val_ids) == 1 and len(test_ids) == 1
+
+    with pytest.raises(ValueError):
+        ds.split(0.0, 0.2)
+
+    with pytest.raises(ValueError):
+        ds.split(0.9, 0.2)
+
     ds.export("huggingface")
 
 
