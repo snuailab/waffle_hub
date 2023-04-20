@@ -6,6 +6,7 @@ from typing import Callable, Union
 import albumentations
 import evaluate
 import numpy as np
+import torch
 from torchvision import transforms as T
 from transformers import (
     AutoImageProcessor,
@@ -247,15 +248,11 @@ class ObjectDetectionInputHelper(TrainInputHelper):
     def get_collator(self) -> Callable:
         def collate_fn(batch: list[dict]) -> dict:
             pixel_values = [item["pixel_values"] for item in batch]
-            encoding = self.image_processor.pad_and_create_pixel_mask(
-                pixel_values, return_tensors="pt"
-            )
             labels = [item["labels"] for item in batch]
 
-            new_batch = {}
-            new_batch["pixel_values"] = encoding["pixel_values"]
-            new_batch["pixel_mask"] = encoding["pixel_mask"]
-            new_batch["labels"] = labels
-            return new_batch
+            return {
+                "pixel_values": torch.stack(pixel_values),
+                "labels": labels,
+            }
 
         return collate_fn

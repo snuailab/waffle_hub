@@ -168,8 +168,8 @@ def test_huggingface_object_detection(
     hub = HuggingFaceHub.new(
         name=name,
         task=TaskType.OBJECT_DETECTION,
-        model_type="DETR",
-        model_size="base",
+        model_type="YOLOS",
+        model_size="tiny",
         categories=object_detection_dataset.category_names,
         root_dir=tmpdir,
     )
@@ -182,9 +182,8 @@ def test_huggingface_object_detection(
     train_callback: TrainCallback = hub.train(
         dataset_path=export_dir,
         epochs=1,
-        batch_size=1,
-        image_size=4,
-        pretrained_model=None,
+        batch_size=8,
+        image_size=16,
         device="cpu",
         workers=0,
     )
@@ -212,7 +211,7 @@ def test_huggingface_object_detection(
     layer_names = model.get_layer_names()
     assert len(layer_names) > 0
 
-    x = torch.randn(4, 3, 4, 4)
+    x = torch.randn(4, 3, 16, 16)
     layer_name = layer_names[-1]
     x, feature_maps = model.get_feature_maps(x, layer_name)
     assert len(feature_maps) == 1
@@ -228,7 +227,7 @@ def test_huggingface_classification(
         name=name,
         task=TaskType.CLASSIFICATION,
         model_type="ViT",
-        model_size="base",
+        model_size="tiny",
         categories=classification_dataset.category_names,
         root_dir=tmpdir,
     )
@@ -241,7 +240,7 @@ def test_huggingface_classification(
     train_callback: TrainCallback = hub.train(
         dataset_path=export_dir,
         epochs=1,
-        batch_size=1,
+        batch_size=8,
         image_size=224,
         device="cpu",
         workers=0,
@@ -256,7 +255,7 @@ def test_huggingface_classification(
         draw=True,
         device="cpu",
         image_size=224,
-        batch_size=1,
+        batch_size=8,
         workers=0,
     )
     assert inference_callback.get_progress() == 1
