@@ -227,7 +227,7 @@ def test_huggingface_classification(
         name=name,
         task=TaskType.CLASSIFICATION,
         model_type="ViT",
-        model_size="base",
+        model_size="small",
         categories=classification_dataset.category_names,
         root_dir=tmpdir,
     )
@@ -240,7 +240,7 @@ def test_huggingface_classification(
     train_callback: TrainCallback = hub.train(
         dataset_path=export_dir,
         epochs=1,
-        batch_size=1,
+        batch_size=8,
         image_size=224,
         device="cpu",
         workers=0,
@@ -255,7 +255,7 @@ def test_huggingface_classification(
         draw=True,
         device="cpu",
         image_size=224,
-        batch_size=1,
+        batch_size=8,
     )
     assert inference_callback.get_progress() == 1
     assert Path(inference_callback.inference_dir).exists()

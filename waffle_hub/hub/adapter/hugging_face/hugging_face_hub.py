@@ -73,6 +73,7 @@ class HuggingFaceHub(BaseHub):
         },
         "classification": {
             "ViT": {
+                "small": "WinKawaks/vit-tiny-patch16-224",
                 "base": "google/vit-base-patch16-224",
             }
         },
