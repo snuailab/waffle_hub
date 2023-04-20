@@ -384,70 +384,100 @@ class Dataset:
         ds = Dataset.new(name, task, root_dir)
         ds.initialize()
 
-        def _import(set_dir, task, image_ids):
-            if task == "object_detection":
-                image_dir = set_dir / "images"
-                label_dir = set_dir / "labels"
+        def _import_classification(set_dir: Path, image_ids: list[int]):
+            for image_id, image_path in zip(
+                image_ids, get_image_files(set_dir)
+            ):
+                category_name_index = image_path.parts.index(set_dir.stem) + 1
+                category_name = image_path.parts[category_name_index]
+                category_id = name2id[category_name] + 1
 
-                if not image_dir.exists():
-                    warnings.warn(f"{image_dir} does not exist.")
-                    return
-                if not label_dir.exists():
-                    warnings.warn(f"{label_dir} does not exist.")
-                    return
+                # image
+                img = cv2.imread(str(image_path))
+                height, width, _ = img.shape
+                image = Image(
+                    image_id=image_id,
+                    file_name=f"{image_id}{image_path.suffix}",
+                    width=width,
+                    height=height,
+                )
+                ds.add_images([image])
 
-                annotation_num = 0
-                for image_id, image_path, label_path in zip(
-                    image_ids,
-                    get_image_files(image_dir),
-                    get_files(label_dir, "txt"),
-                ):
-                    # image
-                    img = cv2.imread(str(image_path))
-                    height, width, _ = img.shape
-                    image = Image(
-                        image_id=image_id,
-                        file_name=f"{image_id}{image_path.suffix}",
-                        width=width,
-                        height=height,
-                    )
-                    ds.add_images([image])
-
-                    # annotation
-                    txt = io.load_txt(label_path)
-                    for i, t in enumerate(txt, start=1):
-                        category_id, x, y, w, h = list(map(float, t.split()))
-                        category_id = int(category_id) + 1
-                        x *= width
-                        y *= height
-                        w *= width
-                        h *= height
-
-                        x -= w / 2
-                        y -= h / 2
-
-                        x, y, w, h = int(x), int(y), int(w), int(h)
-                        annotation = Annotation(
-                            annotation_id=annotation_num + i,
-                            image_id=image_id,
-                            category_id=category_id,
-                            bbox=[x, y, w, h],
-                            task=task,
-                        )
-                        ds.add_annotations([annotation])
-                    annotation_num += len(txt)
+                # annotation
+                annotation = Annotation(
+                    annotation_id=image_id,
+                    image_id=image_id,
+                    category_id=category_id,
+                    task=task,
+                )
+                ds.add_annotations([annotation])
 
                 # raw
-                image_paths = get_image_files(image_dir)
-                for image_id, src in zip(image_ids, image_paths):
-                    dst = ds.raw_image_dir / f"{image_id}{src.suffix}"
-                    io.copy_file(src, dst)
+                dst = ds.raw_image_dir / f"{image_id}{image_path.suffix}"
+                io.copy_file(image_path, dst)
 
-            elif task == "classification":
-                pass
+        def _import_detection(set_dir: Path, image_ids: list[int]):
+            image_dir = set_dir / "images"
+            label_dir = set_dir / "labels"
 
-            else:
-                raise NotImplementedError(f"{task} is not implemented.")
+            if not image_dir.exists():
+                warnings.warn(f"{image_dir} does not exist.")
+                return
+            if not label_dir.exists():
+                warnings.warn(f"{label_dir} does not exist.")
+                return
+
+            annotation_num = 0
+            for image_id, image_path, label_path in zip(
+                image_ids,
+                get_image_files(image_dir),
+                get_files(label_dir, "txt"),
+            ):
+                # image
+                img = cv2.imread(str(image_path))
+                height, width, _ = img.shape
+                image = Image(
+                    image_id=image_id,
+                    file_name=f"{image_id}{image_path.suffix}",
+                    width=width,
+                    height=height,
+                )
+                ds.add_images([image])
+
+                # annotation
+                txt = io.load_txt(label_path)
+                for i, t in enumerate(txt, start=1):
+                    category_id, x, y, w, h = list(map(float, t.split()))
+                    category_id = int(category_id) + 1
+                    x *= width
+                    y *= height
+                    w *= width
+                    h *= height
+
+                    x -= w / 2
+                    y -= h / 2
+
+                    x, y, w, h = int(x), int(y), int(w), int(h)
+                    annotation = Annotation(
+                        annotation_id=annotation_num + i,
+                        image_id=image_id,
+                        category_id=category_id,
+                        bbox=[x, y, w, h],
+                        task=task,
+                    )
+                    ds.add_annotations([annotation])
+                annotation_num += len(txt)
+
+                # raw
+                dst = ds.raw_image_dir / f"{image_id}{image_path.suffix}"
+                io.copy_file(image_path, dst)
+
+        if task == "object_detection":
+            _import = _import_detection
+        elif task == "classification":
+            _import = _import_classification
+        else:
+            raise ValueError(f"Unsupported task: {task}")
 
         info = io.load_yaml(yaml_path)
         yolo_root_dir = Path(info["path"])
@@ -455,20 +485,25 @@ class Dataset:
         # categories
         for category_id, category_name in info["names"].items():
             ds.add_categories([Category(category_id + 1, category_name, task)])
+        name2id = {v: k for k, v in info["names"].items()}
 
-        start_num = 1
+        current_image_id = 1
         for set_type in ["train", "val", "test"]:
             if set_type not in info.keys():
                 continue
 
             # sets
             set_dir = Path(yolo_root_dir) / set_type
-            image_dir = set_dir / "images"
-            image_num = len(get_image_files(image_dir))
-            image_ids = list(range(start_num, image_num + start_num))
-            start_num += image_num
+            image_num = len(get_image_files(set_dir))
+            image_ids = list(
+                range(current_image_id, image_num + current_image_id)
+            )
+
             io.save_json(image_ids, ds.set_dir / f"{set_type}.json", True)
-            _import(set_dir, task, image_ids)
+            current_image_id += image_num
+
+            # import other field
+            _import(set_dir, image_ids)
 
         return ds
 
