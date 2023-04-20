@@ -5,8 +5,11 @@ import cv2
 import numpy as np
 import torch
 from torchvision import transforms as T
+from waffle_utils.file import io
 
+from waffle_hub.dataset import Dataset
 from waffle_hub.schema.data import ImageInfo
+from waffle_hub.schema.fields import Annotation, Category, Image
 
 
 def get_images(d, recursive: bool = True) -> list[str]:
@@ -78,9 +81,23 @@ def resize_image(
     )
 
 
-def collate_fn(batch):
-    images, infos = list(zip(*batch))
-    return torch.stack(images, dim=0), infos
+def get_image_transform(
+    image_size: Union[int, list[int]], letter_box: bool = False
+):
+
+    if isinstance(image_size, int):
+        image_size = [image_size, image_size]
+
+    def transform(
+        image: Union[np.ndarray, str]
+    ) -> tuple[torch.Tensor, ImageInfo]:
+        if isinstance(image, str):
+            image = cv2.imread(image)
+        image = cv2.cvtColor(image, cv2.COLOR_BGR2RGB)
+        image, image_info = resize_image(image, image_size, letter_box)
+        return T.ToTensor()(image), image_info
+
+    return transform
 
 
 class ImageDataset:
@@ -96,18 +113,7 @@ class ImageDataset:
         else:
             self.image_paths = get_images(self.image_dir)
 
-        self.image_size = (
-            image_size
-            if isinstance(image_size, list)
-            else [image_size, image_size]
-        )
-        self.letter_box = letter_box
-
-        self.transform = T.Compose(
-            [
-                T.ToTensor(),
-            ]
-        )
+        self.transform = get_image_transform(image_size, letter_box)
 
     def __len__(self):
         return len(self.image_paths)
@@ -115,22 +121,89 @@ class ImageDataset:
     def __getitem__(self, idx):
         image_path = self.image_paths[idx]
 
-        image = cv2.imread(image_path)
-        image = cv2.cvtColor(image, cv2.COLOR_BGR2RGB)
-        image, image_info = resize_image(
-            image, self.image_size, self.letter_box
-        )
-
+        image, image_info = self.transform(image_path)
         image_info.image_path = image_path
 
-        return self.transform(image), image_info
+        return image, image_info
 
-    def get_dataloader(self, batch_size: int, num_workers: int):
+    def collate_fn(self, batch):
+        images, infos = list(zip(*batch))
+        return torch.stack(images, dim=0), infos
+
+    def get_dataloader(self, batch_size: int = 4, num_workers: int = 0):
         return torch.utils.data.DataLoader(
             self,
             batch_size,
             num_workers=num_workers,
-            collate_fn=collate_fn,
+            collate_fn=self.collate_fn,
+            shuffle=False,
+            drop_last=False,
+        )
+
+
+class LabeledDataset:
+    def __init__(
+        self,
+        dataset: Dataset,
+        image_size: Union[int, list[int]],
+        letter_box: bool = False,
+        set_name: str = None,
+    ):
+        self.dataset = dataset
+        self.image_dir = dataset.raw_image_dir
+        self.set_name = set_name
+
+        if self.set_name == "train":
+            set_file = self.dataset.train_set_file
+        elif self.set_name == "val":
+            set_file = self.dataset.val_set_file
+        elif self.set_name == "test":
+            set_file = self.dataset.test_set_file
+        else:
+            set_file = None
+
+        self.images: list[Image] = self.dataset.get_images(
+            io.load_json(set_file) if set_file else None
+        )
+        self.image_to_annotations: dict[int, list[Annotation]] = {
+            image.image_id: self.dataset.get_annotations(image.image_id)
+            for image in self.images
+        }
+
+        self.transform = get_image_transform(image_size, letter_box)
+
+    def __len__(self):
+        return len(self.images)
+
+    def __getitem__(self, idx):
+        image = self.images[idx]
+        image_path = str(self.image_dir / image.file_name)
+        annotations: list[Annotation] = self.image_to_annotations[
+            image.image_id
+        ]
+        annotations: list[dict] = [a.to_dict() for a in annotations]
+
+        # collate list[dict] to dict[list]
+        annotations = {
+            k: torch.Tensor([dic[k] for dic in annotations])
+            for k in annotations[0]
+        }
+
+        image, image_info = self.transform(image_path)
+        image_info.image_path = image_path
+
+        return image, image_info, annotations
+
+    def collate_fn(self, batch):
+        images, infos, annotations = list(zip(*batch))
+        return torch.stack(images, dim=0), infos, annotations
+
+    def get_dataloader(self, batch_size: int = 4, num_workers: int = 0):
+        return torch.utils.data.DataLoader(
+            self,
+            batch_size,
+            num_workers=num_workers,
+            collate_fn=self.collate_fn,
             shuffle=False,
             drop_last=False,
         )
