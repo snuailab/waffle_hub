@@ -73,6 +73,7 @@ def test_ultralytics_object_detection(
         image_size=32,
         pretrained_model=None,
         device="cpu",
+        workers=0,
     )
     assert train_callback.get_progress() == 1
     assert len(train_callback.get_metrics()) == 1
@@ -82,9 +83,7 @@ def test_ultralytics_object_detection(
     assert Path(train_callback.result_dir).exists()
 
     inference_callback: InferenceCallback = hub.inference(
-        source=export_dir,
-        draw=True,
-        device="cpu",
+        source=export_dir, draw=True, device="cpu", workers=0
     )
     assert inference_callback.get_progress() == 1
     assert Path(inference_callback.inference_dir).exists()
@@ -131,6 +130,7 @@ def test_ultralytics_classification(
         image_size=32,
         pretrained_model=None,
         device="cpu",
+        workers=0,
     )
     assert train_callback.get_progress() == 1
     assert len(train_callback.get_metrics()) == 1
@@ -140,9 +140,7 @@ def test_ultralytics_classification(
     assert Path(train_callback.result_dir).exists()
 
     inference_callback: InferenceCallback = hub.inference(
-        source=export_dir,
-        draw=True,
-        device="cpu",
+        source=export_dir, draw=True, device="cpu", workers=0
     )
     assert inference_callback.get_progress() == 1
     assert Path(inference_callback.inference_dir).exists()
@@ -170,8 +168,8 @@ def test_huggingface_object_detection(
     hub = HuggingFaceHub.new(
         name=name,
         task=TaskType.OBJECT_DETECTION,
-        model_type="DETR",
-        model_size="base",
+        model_type="YOLOS",
+        model_size="tiny",
         categories=object_detection_dataset.category_names,
         root_dir=tmpdir,
     )
@@ -184,9 +182,8 @@ def test_huggingface_object_detection(
     train_callback: TrainCallback = hub.train(
         dataset_path=export_dir,
         epochs=1,
-        batch_size=1,
-        image_size=4,
-        pretrained_model=None,
+        batch_size=8,
+        image_size=16,
         device="cpu",
         workers=0,
     )
@@ -200,6 +197,7 @@ def test_huggingface_object_detection(
         draw=True,
         device="cpu",
         batch_size=1,
+        workers=0,
     )
 
     assert inference_callback.get_progress() == 1
@@ -213,7 +211,7 @@ def test_huggingface_object_detection(
     layer_names = model.get_layer_names()
     assert len(layer_names) > 0
 
-    x = torch.randn(4, 3, 4, 4)
+    x = torch.randn(4, 3, 16, 16)
     layer_name = layer_names[-1]
     x, feature_maps = model.get_feature_maps(x, layer_name)
     assert len(feature_maps) == 1
@@ -229,7 +227,7 @@ def test_huggingface_classification(
         name=name,
         task=TaskType.CLASSIFICATION,
         model_type="ViT",
-        model_size="base",
+        model_size="tiny",
         categories=classification_dataset.category_names,
         root_dir=tmpdir,
     )
@@ -242,7 +240,7 @@ def test_huggingface_classification(
     train_callback: TrainCallback = hub.train(
         dataset_path=export_dir,
         epochs=1,
-        batch_size=1,
+        batch_size=8,
         image_size=224,
         device="cpu",
         workers=0,
@@ -257,7 +255,8 @@ def test_huggingface_classification(
         draw=True,
         device="cpu",
         image_size=224,
-        batch_size=1,
+        batch_size=8,
+        workers=0,
     )
     assert inference_callback.get_progress() == 1
     assert Path(inference_callback.inference_dir).exists()
@@ -423,6 +422,7 @@ def test_non_hold(classification_dataset: Dataset, tmpdir: Path):
             pretrained_model=None,
             device="cpu",
             hold=False,
+            workers=0,
         )
         while not train_callback.is_finished():
             time.sleep(1)
@@ -439,6 +439,7 @@ def test_non_hold(classification_dataset: Dataset, tmpdir: Path):
         pretrained_model=None,
         device="cpu",
         hold=False,
+        workers=0,
     )
 
     while not train_callback.is_finished():
@@ -456,7 +457,7 @@ def test_non_hold(classification_dataset: Dataset, tmpdir: Path):
     assert Path(train_callback.result_dir).exists()
 
     inference_callback: InferenceCallback = hub.inference(
-        source=export_dir, device="cpu", hold=False
+        source=export_dir, device="cpu", hold=False, workers=0
     )
     while not inference_callback.is_finished():
         time.sleep(1)

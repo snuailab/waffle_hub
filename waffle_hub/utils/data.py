@@ -15,12 +15,14 @@ from waffle_hub.schema.fields import Annotation, Category, Image
 def get_images(d, recursive: bool = True) -> list[str]:
     exp = "**/*" if recursive else "*"
     return list(
-        map(
-            str,
-            list(Path(d).glob(exp + ".png"))
-            + list(Path(d).glob(exp + ".jpg"))
-            + list(Path(d).glob(exp + ".PNG"))
-            + list(Path(d).glob(exp + ".JPG")),
+        set(
+            map(
+                str,
+                list(Path(d).glob(exp + ".png"))
+                + list(Path(d).glob(exp + ".jpg"))
+                + list(Path(d).glob(exp + ".PNG"))
+                + list(Path(d).glob(exp + ".JPG")),
+            )
         )
     )
 

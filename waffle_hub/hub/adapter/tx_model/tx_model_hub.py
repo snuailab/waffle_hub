@@ -250,6 +250,8 @@ class TxModelHub(BaseHub):
             ckpt=cfg.pretrained_model,
             overwrite=True,
         )
+        if results is None:
+            raise RuntimeError("Training failed")
         del results
 
     def on_train_end(self, cfg: TrainConfig):
