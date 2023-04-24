@@ -32,7 +32,7 @@ def draw_classification(
         (loc_x, loc_y),
         FONT_FACE,
         FONT_SCALE,
-        colors[category_id-1],
+        colors[category_id - 1],
         FONT_WEIGHT,
     )
     return image
@@ -50,23 +50,51 @@ def draw_object_detection(
 
     category_id: int = annotation.category_id
     score: float = annotation.score
-    
+
     image = cv2.putText(
         image,
         f"{names[category_id-1]}" + (f": {score:.2f}" if score else ""),
         (int(x1), int(y1) - 3),
         FONT_FACE,
         FONT_SCALE,
-        colors[category_id-1],
+        colors[category_id - 1],
         FONT_WEIGHT,
     )
     image = cv2.rectangle(
         image,
         (int(x1), int(y1)),
         (int(x2), int(y2)),
-        colors[category_id-1],
+        colors[category_id - 1],
         THICKNESS,
     )
+    return image
+
+
+def draw_segmentation(
+    image: np.ndarray,
+    annotation: Annotation,
+    names: list[str],
+    score: float = None,
+):
+    image = draw_object_detection(image, annotation, names, score)
+    segments: list = annotation.segmentation
+
+    if len(segments) == 0:
+        return image
+
+    for segment in segments:
+        segment = np.array(segment).reshape(-1, 2).astype(int)
+        before_point = segment[0]
+        for point in segment[1:]:
+            image = cv2.line(
+                image,
+                tuple(before_point),
+                tuple(point),
+                colors[annotation.category_id - 1],
+                THICKNESS,
+            )
+            before_point = point
+
     return image
 
 
@@ -80,14 +108,15 @@ def draw_results(
         image = cv2.imread(image)
 
     classification_results = [
-        result
-        for result in results
-        if result.task == TaskType.CLASSIFICATION
+        result for result in results if result.task == TaskType.CLASSIFICATION
     ]
     object_detection_results = [
         result
         for result in results
         if result.task == TaskType.OBJECT_DETECTION
+    ]
+    segmentation_results = [
+        result for result in results if result.task == TaskType.SEGMENTATION
     ]
 
     for i, result in enumerate(classification_results, start=1):
@@ -101,5 +130,8 @@ def draw_results(
 
     for i, result in enumerate(object_detection_results, start=1):
         image = draw_object_detection(image, result, names=names)
+
+    for i, result in enumerate(segmentation_results, start=1):
+        image = draw_segmentation(image, result, names=names)
 
     return image

@@ -28,7 +28,7 @@ class UltralyticsHub(BaseHub):
     MODEL_TYPES = {
         "object_detection": {"yolov8": list("nsmlx")},
         "classification": {"yolov8": list("nsmlx")},
-        # "segmentation": {"yolov8": list("nsmlx")},
+        "segmentation": {"yolov8": list("nsmlx")},
         # "keypoint_detection": {"yolov8": list("nsmlx")},
     }
 
@@ -36,13 +36,13 @@ class UltralyticsHub(BaseHub):
     TASK_MAP = {
         "object_detection": "detect",
         "classification": "classify",
-        # "segmentation": "segment"
+        "segmentation": "segment"
         # "keypoint_detection": "pose"
     }
     TASK_SUFFIX = {
         "detect": "",
         "classify": "-cls",
-        # "segment": "-seg",
+        "segment": "-seg",
     }
 
     DEFAULT_PARAMAS = {
@@ -58,6 +58,13 @@ class UltralyticsHub(BaseHub):
             "image_size": [224, 224],
             "learning_rate": 0.01,
             "letter_box": False,
+            "batch_size": 16,
+        },
+        "segmentation": {
+            "epochs": 50,
+            "image_size": [640, 640],
+            "learning_rate": 0.01,
+            "letter_box": True,
             "batch_size": 16,
         },
     }
@@ -143,6 +150,12 @@ class UltralyticsHub(BaseHub):
             def preprocess(x, *args, **kwargs):
                 return normalize(x)
 
+        elif task == "segmentation":
+            normalize = T.Normalize([0, 0, 0], [1, 1, 1], inplace=True)
+
+            def preprocess(x, *args, **kwargs):
+                return normalize(x)
+
         else:
             raise NotImplementedError(f"Task {task} is not implemented.")
 
@@ -177,6 +190,59 @@ class UltralyticsHub(BaseHub):
                 confidences, class_ids = torch.max(probs, dim=-1)
 
                 return xyxy, confidences, class_ids
+
+        elif task == "segmentation":
+
+            def inner(
+                x: torch.Tensor, image_size: tuple[int, int], *args, **kwargs
+            ):
+                preds = x[0]  # x[0]: prediction, x[1]: TODO: what is this...?
+                preds = preds.transpose(1, 2)
+
+                protos = (
+                    x[1][-1] if len(x[1]) == 3 else x[1]
+                )  # [batch, mask_dim, mask_height, mask_width]
+                num_category = len(self.categories)
+
+                cxcywh = preds[:, :, :4]
+                cx, cy, w, h = torch.unbind(cxcywh, dim=-1)
+                x1 = cx - w / 2
+                y1 = cy - h / 2
+                x2 = cx + w / 2
+                y2 = cy + h / 2
+                xyxy = torch.stack([x1, y1, x2, y2], dim=-1)
+
+                xyxy[:, :, ::2] /= image_size[0]
+                xyxy[:, :, 1::2] /= image_size[1]
+                probs = preds[:, :, 4 : 4 + num_category]
+                confidences, class_ids = torch.max(probs, dim=-1)
+
+                pred_masks = preds[
+                    :, :, 4 + num_category :
+                ]  # [batch, n, mask_dim]
+                masks = []
+
+                # Remove masks outside the bounding box range.
+                for i, (mask, bbox) in enumerate(zip(pred_masks, xyxy)):
+                    c, mh, mw = protos[i].shape
+                    mask = (
+                        (mask @ protos[i].float().view(c, -1))
+                        .sigmoid()
+                        .view(-1, mh, mw)
+                    )
+                    for m, b in zip(mask, bbox):
+                        x1, y1, x2, y2 = (
+                            b * torch.tensor([mw, mh, mw, mh]).to(mask.device)
+                        ).int()
+                        m[:, :x1] = 0
+                        m[:, x2:] = 0
+                        m[:y1, :] = 0
+                        m[y2:, :] = 0
+
+                    masks.append(mask)
+
+                masks = torch.stack(masks)
+                return xyxy, confidences, class_ids, masks
 
         else:
             raise NotImplementedError(f"Task {task} is not implemented.")
