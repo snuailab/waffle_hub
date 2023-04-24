@@ -141,13 +141,17 @@ class BaseEnum(enum.Enum, metaclass=CustomEnumMeta):
 
 
 class DataType(BaseEnum):
+    # TODO: map to same value
+
     YOLO = enum.auto()
-    ULTRALYTICS = YOLO
+    ULTRALYTICS = enum.auto()
 
     COCO = enum.auto()
-    TX_MODEL = COCO
+    TX_MODEL = enum.auto()
+    AUTOCARE_TX_MODEL = enum.auto()
 
     HUGGINGFACE = enum.auto()
+    TRANSFORMERS = enum.auto()
 
 
 class TaskType(BaseEnum):

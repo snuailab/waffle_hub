@@ -934,24 +934,34 @@ class Dataset:
         Returns:
             str: exported dataset directory
         """
-        export_dir: Path = self.export_dir / str(data_type)
-        if export_dir.exists():
-            io.remove_directory(export_dir)
-            warnings.warn(
-                f"{export_dir} already exists. Removing exist export and override."
-            )
+
+        if data_type in [DataType.YOLO, DataType.ULTRALYTICS]:
+            export_dir: Path = self.export_dir / str(DataType.YOLO)
+            export_function = export_yolo
+        elif data_type in [
+            DataType.COCO,
+            DataType.TX_MODEL,
+            DataType.AUTOCARE_TX_MODEL,
+        ]:
+            export_dir: Path = self.export_dir / str(DataType.COCO)
+            export_function = export_coco
+        elif data_type in [DataType.HUGGINGFACE, DataType.TRANSFORMERS]:
+            export_dir: Path = self.export_dir / str(DataType.HUGGINGFACE)
+            export_function = export_huggingface
+        else:
+            raise ValueError(f"Invalid data_type: {data_type}")
 
         try:
-            if data_type == DataType.YOLO:
-                export_dir = export_yolo(self, export_dir)
-            elif data_type == DataType.COCO:
-                export_dir = export_coco(self, export_dir)
-            elif data_type == DataType.HUGGINGFACE:
-                export_dir = export_huggingface(self, export_dir)
-            else:
-                raise ValueError(f"Invalid data_type: {data_type}")
+            if export_dir.exists():
+                io.remove_directory(export_dir)
+                warnings.warn(
+                    f"{export_dir} already exists. Removing exist export and override."
+                )
+
+            export_dir = export_function(self, export_dir)
 
             return export_dir
+
         except Exception as e:
             io.remove_directory(export_dir)
             raise e

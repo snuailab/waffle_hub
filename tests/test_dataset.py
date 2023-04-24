@@ -258,7 +258,7 @@ def test_dataset_huggingface(huggingface_path, tmpdir):
     ds.export("huggingface")
 
 
-def test_dataloader(coco_path, tmpdir):
+def test_image_dataloader(coco_path, tmpdir):
 
     image_dataset = ImageDataset(coco_path / "images", 224)
     assert len(image_dataset) == 100
@@ -267,6 +267,8 @@ def test_dataloader(coco_path, tmpdir):
     )
     assert len(image_dataloader) == 4
 
+
+def test_labled_dataloader(coco_path, tmpdir):
     ds = Dataset.from_coco(
         name="from_coco",
         task=TaskType.OBJECT_DETECTION,
@@ -278,7 +280,7 @@ def test_dataloader(coco_path, tmpdir):
 
     labeled_dataset = LabeledDataset(ds, 224)
     assert len(labeled_dataset) == 100
-    labeled_dataloader = image_dataset.get_dataloader(
+    labeled_dataloader = labeled_dataset.get_dataloader(
         batch_size=32, num_workers=0
     )
     assert len(labeled_dataloader) == 4
@@ -288,4 +290,4 @@ def test_dataloader(coco_path, tmpdir):
     assert len(labeled_dataset) == 80
 
     image, image_info, annotations = labeled_dataset[0]
-    assert "bbox" in annotations
+    assert hasattr(annotations[0], "bbox")
