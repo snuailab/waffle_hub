@@ -107,9 +107,7 @@ def test_category():
 
 def test_dataset(tmpdir):
 
-    dataset: Dataset = Dataset.new(
-        name="test_new", task=TaskType.OBJECT_DETECTION, root_dir=tmpdir
-    )
+    dataset: Dataset = Dataset.new(name="test_new", task=TaskType.OBJECT_DETECTION, root_dir=tmpdir)
     assert Path(dataset.dataset_dir).exists()
 
     dataset.delete()
@@ -126,6 +124,32 @@ def test_dataset_coco(coco_path, tmpdir):
         root_dir=tmpdir,
     )
     assert ds.dataset_info_file.exists()
+
+    ds = Dataset.from_coco(
+        name="import_train_val",
+        task=TaskType.OBJECT_DETECTION,
+        coco_file=[coco_path / "train.json", coco_path / "val.json"],
+        coco_root_dir=coco_path / "images",
+        root_dir=tmpdir,
+    )
+    train_ids, val_ids, test_ids, unlabeled_ids = ds.get_split_ids()
+    assert len(train_ids) == 60
+    assert len(val_ids) == 20
+    assert len(val_ids) == len(test_ids)
+    assert len(ds.images) == 80
+
+    ds = Dataset.from_coco(
+        name="import_train_val_test",
+        task=TaskType.OBJECT_DETECTION,
+        coco_file=[coco_path / "train.json", coco_path / "val.json", coco_path / "test.json"],
+        coco_root_dir=coco_path / "images",
+        root_dir=tmpdir,
+    )
+    train_ids, val_ids, test_ids, unlabeled_ids = ds.get_split_ids()
+    assert len(train_ids) == 60
+    assert len(val_ids) == 20
+    assert len(test_ids) == 20
+    assert len(ds.images) == 100
 
     ds = Dataset.load("from_coco", root_dir=tmpdir)
 
@@ -262,9 +286,7 @@ def test_image_dataloader(coco_path, tmpdir):
 
     image_dataset = ImageDataset(coco_path / "images", 224)
     assert len(image_dataset) == 100
-    image_dataloader = image_dataset.get_dataloader(
-        batch_size=32, num_workers=0
-    )
+    image_dataloader = image_dataset.get_dataloader(batch_size=32, num_workers=0)
     assert len(image_dataloader) == 4
 
 
@@ -280,9 +302,7 @@ def test_labled_dataloader(coco_path, tmpdir):
 
     labeled_dataset = LabeledDataset(ds, 224)
     assert len(labeled_dataset) == 100
-    labeled_dataloader = labeled_dataset.get_dataloader(
-        batch_size=32, num_workers=0
-    )
+    labeled_dataloader = labeled_dataset.get_dataloader(batch_size=32, num_workers=0)
     assert len(labeled_dataloader) == 4
 
     ds.split(0.8)
