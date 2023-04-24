@@ -183,13 +183,6 @@ class LabeledDataset:
         annotations: list[Annotation] = self.image_to_annotations[
             image.image_id
         ]
-        annotations: list[dict] = [a.to_dict() for a in annotations]
-
-        # collate list[dict] to dict[list]
-        annotations = {
-            k: torch.Tensor([dic[k] for dic in annotations])
-            for k in annotations[0]
-        }
 
         image, image_info = self.transform(image_path)
         image_info.image_path = image_path

@@ -31,6 +31,22 @@ class TrainConfig(BaseSchema):
 
 
 @dataclass
+class EvaluateConfig(BaseSchema):
+    dataset_name: str = None
+    set_name: str = None
+    batch_size: int = None
+    image_size: Union[int, list[int]] = None
+    letter_box: bool = None
+    confidence_threshold: float = None
+    iou_threshold: float = None
+    half: bool = None
+    workers: int = None
+    device: str = None
+    draw: bool = None
+    dataset_root_dir: str = None
+
+
+@dataclass
 class InferenceConfig(BaseSchema):
     source: str = None
     batch_size: int = None
