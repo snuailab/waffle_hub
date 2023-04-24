@@ -26,6 +26,12 @@ from waffle_hub.schema.configs import (
     ModelConfig,
     TrainConfig,
 )
+from waffle_hub.schema.result import (
+    EvaluateResult,
+    ExportResult,
+    InferenceResult,
+    TrainResult,
+)
 from waffle_hub.utils.callback import (
     EvaluateCallback,
     ExportCallback,
@@ -62,7 +68,12 @@ class BaseHub:
     LAST_CKPT_FILE = "weights/last_ckpt.pt"
     BEST_CKPT_FILE = "weights/best_ckpt.pt"  # TODO: best metric?
     METRIC_FILE = "metrics.json"
+
+    # evaluate results
     EVALUATE_FILE = "evaluate.json"
+
+    # inference results
+    INFERENCE_FILE = "inferences.json"
 
     # export results
     ONNX_FILE = "weights/model.onnx"
@@ -261,6 +272,11 @@ class BaseHub:
         return self.root_dir / self.name
 
     @cached_property
+    def model_config_file(self) -> Path:
+        """Model Config yaml File"""
+        return self.hub_dir / BaseHub.MODEL_CONFIG_FILE
+
+    @cached_property
     def artifact_dir(self) -> Path:
         """Artifact Directory. This is raw output of each backend."""
         return self.hub_dir / BaseHub.ARTIFACT_DIR
@@ -271,24 +287,14 @@ class BaseHub:
         return self.hub_dir / BaseHub.INFERENCE_DIR
 
     @cached_property
-    def evaluate_dir(self) -> Path:
-        """Evaluation Results Directory"""
-        return self.hub_dir / BaseHub.EVALUATE_FILE
-
-    @cached_property
-    def export_dir(self) -> Path:
-        """Export Results Directory"""
-        return self.hub_dir / BaseHub.EXPORT_DIR
+    def inference_file(self) -> Path:
+        """Inference Results File"""
+        return self.inference_dir / BaseHub.INFERENCE_FILE
 
     @cached_property
     def draw_dir(self) -> Path:
         """Draw Results Directory"""
-        return self.hub_dir / BaseHub.DRAW_DIR
-
-    @cached_property
-    def model_config_file(self) -> Path:
-        """Model Config yaml File"""
-        return self.hub_dir / BaseHub.MODEL_CONFIG_FILE
+        return self.inference_dir / BaseHub.DRAW_DIR
 
     @cached_property
     def train_config_file(self) -> Path:
@@ -340,13 +346,42 @@ class BaseHub:
         return True
 
     def get_train_config(self) -> TrainConfig:
+        """Get train config from train config file.
+
+        Returns:
+            TrainConfig: train config
+        """
+        if not self.train_config_file.exists():
+            warnings.warn("Train config file is not exist. Train first!")
+            return None
         return TrainConfig.load(self.train_config_file)
 
     def get_model_config(self) -> ModelConfig:
+        """Get model config from model config file.
+
+        Returns:
+            ModelConfig: model config
+        """
         return ModelConfig.load(self.model_config_file)
 
-    def get_metrics(self) -> list[dict]:
+    # get results
+    def get_metrics(self) -> list[list[dict]]:
         """Get metrics per epoch from metric file.
+
+        Example:
+            >>> hub.get_metrics()
+            [
+                [
+                    {
+                        "tag": "epoch",
+                        "value": "1",
+                    },
+                    {
+                        "tag": "train_loss",
+                        "value": "0.0012",
+                    }
+                ],
+            ]
 
         Returns:
             list[dict]: metrics per epoch
@@ -356,15 +391,45 @@ class BaseHub:
             return []
         return io.load_json(self.metric_file)
 
-    def get_evaluate_result(self) -> dict:
+    def get_evaluate_result(self) -> list[dict]:
         """Get evaluate result from evaluate file.
+
+        Example:
+            >>> hub.get_evaluate_result()
+            [
+                {
+                    "tag": "mAP",
+                    "value": 0.5,
+                },
+            ]
 
         Returns:
             dict: evaluate result
         """
         if not self.evaluate_file.exists():
-            return {}
+            return []
         return io.load_json(self.evaluate_file)
+
+    def get_inference_result(self) -> list[dict]:
+        """Get inference result from inference file.
+
+        Example:
+            >>> hub.get_inference_result()
+            [
+                {
+                    "id": "00000001",
+                    "category": "person",
+                    "bbox": [0.1, 0.2, 0.3, 0.4],
+                    "score": 0.9,
+                },
+            ]
+
+        Returns:
+            list[dict]: inference result
+        """
+        if not self.inference_file.exists():
+            return []
+        return io.load_json(self.inference_file)
 
     # Train Hook
     def before_train(self, cfg: TrainConfig):
@@ -382,8 +447,10 @@ class BaseHub:
     def on_train_end(self, cfg: TrainConfig):
         pass
 
-    def after_train(self, cfg: TrainConfig):
-        pass
+    def after_train(self, cfg: TrainConfig, result: TrainResult):
+        result.best_ckpt_file = self.best_ckpt_file
+        result.last_ckpt_file = self.last_ckpt_file
+        result.metrics = self.get_metrics()
 
     def train(
         self,
@@ -399,7 +466,7 @@ class BaseHub:
         seed: int = 0,
         verbose: bool = True,
         hold: bool = True,
-    ) -> TrainCallback:
+    ) -> TrainResult:
         """Start Train
 
         Args:
@@ -423,7 +490,7 @@ class BaseHub:
             e: something gone wrong with ultralytics
 
         Returns:
-            TrainCallback: train callback
+            TrainResult: train result
         """
 
         if self.artifact_dir.exists():
@@ -432,14 +499,14 @@ class BaseHub:
                 "Train artifacts already exist. Remove artifact to re-train (hub.delete_artifact())."
             )
 
-        def inner(callback: TrainCallback):
+        def inner(callback: TrainCallback, result: TrainResult):
             try:
                 self.before_train(cfg)
                 self.on_train_start(cfg)
                 self.save_train_config(cfg)
                 self.training(cfg, callback)
                 self.on_train_end(cfg)
-                self.after_train(cfg)
+                self.after_train(cfg, result)
                 callback.force_finish()
             except Exception as e:
                 if self.artifact_dir.exists():
@@ -463,21 +530,19 @@ class BaseHub:
         )
 
         callback = TrainCallback(cfg.epochs, self.get_metrics)
-        callback.best_ckpt_file = self.best_ckpt_file
-        callback.last_ckpt_file = self.last_ckpt_file
-        callback.metric_file = self.metric_file
-        callback.result_dir = self.hub_dir
+        result = TrainResult()
+        result.callback = callback
 
         if hold:
-            inner(callback)
+            inner(callback, result)
         else:
             thread = threading.Thread(
-                target=inner, args=(callback,), daemon=True
+                target=inner, args=(callback, result), daemon=True
             )
             callback.register_thread(thread)
             callback.start()
 
-        return callback
+        return result
 
     # Evaluation Hook
     def get_model(self):
@@ -524,42 +589,27 @@ class BaseHub:
             preds.extend(result_batch)
             labels.extend(annotations)
 
-            results = []
-            for result, image_info in zip(result_batch, image_infos):
-                image_path = image_info.image_path
-
-                relpath = Path(image_path).relative_to(dataset.raw_image_dir)
-
-                io.save_json(
-                    [res.to_dict() for res in result],
-                    self.inference_dir / relpath.with_suffix(".json"),
-                    create_directory=True,
-                )
-
-                results.append(result)
-
-                if cfg.draw:
-                    draw = draw_results(
-                        image_path,
-                        result,
-                        names=[x["name"] for x in self.categories],
-                    )
-                    draw_path = self.draw_dir / relpath.with_suffix(".png")
-                    io.make_directory(draw_path.parent)
-                    cv2.imwrite(str(draw_path), draw)
-
             callback.update(i)
 
         metrics = evaluate_function(
             preds, labels, self.task, len(self.categories)
         )
-        io.save_json(metrics.to_dict(), self.evaluate_file)
+        io.save_json(
+            [
+                {
+                    "tag": tag,
+                    "value": value,
+                }
+                for tag, value in metrics.to_dict().items()
+            ],
+            self.evaluate_file,
+        )
 
     def on_evaluate_end(self, cfg: EvaluateConfig):
         pass
 
-    def after_evaluate(self, cfg: EvaluateConfig):
-        pass
+    def after_evaluate(self, cfg: EvaluateConfig, result: EvaluateResult):
+        result.metrics = self.get_evaluate_result()
 
     def evaluate(
         self,
@@ -576,7 +626,7 @@ class BaseHub:
         draw: bool = False,
         dataset_root_dir: str = None,
         hold: bool = True,
-    ) -> EvaluateCallback:
+    ) -> EvaluateResult:
         """Start Evaluate
 
         Args:
@@ -598,20 +648,20 @@ class BaseHub:
             e: something gone wrong with ultralytics
 
         Returns:
-            EvaluateCallback: evaluate callback
+            EvaluateResult: evaluate result
         """
 
-        def inner(callback):
+        def inner(callback: EvaluateCallback, result: EvaluateResult):
             try:
                 self.before_evaluate(cfg)
                 self.on_evaluate_start(cfg)
                 self.evaluating(cfg, callback)
                 self.on_evaluate_end(cfg)
-                self.after_evaluate(cfg)
+                self.after_evaluate(cfg, result)
                 callback.force_finish()
             except Exception as e:
-                if self.evaluate_dir.exists():
-                    io.remove_directory(self.evaluate_dir)
+                if self.evaluate_file.exists():
+                    io.remove_file(self.evaluate_file)
                 callback.force_finish()
                 callback.set_failed()
                 raise e
@@ -632,19 +682,19 @@ class BaseHub:
         )
 
         callback = EvaluateCallback(0)
-        callback.evaluate_file = self.evaluate_file
-        callback.draw_dir = self.draw_dir if cfg.draw else None
+        result = EvaluateResult()
+        result.callback = callback
 
         if hold:
-            inner(callback)
+            inner(callback, result)
         else:
             thread = threading.Thread(
-                target=inner, args=(callback,), daemon=True
+                target=inner, args=(callback, result), daemon=True
             )
             callback.register_thread(thread)
             callback.start()
 
-        return callback
+        return result
 
     # inference hooks
     def before_inference(self, cfg: InferenceConfig):
@@ -670,25 +720,20 @@ class BaseHub:
 
         result_parser = get_parser(self.task)(**cfg.to_dict())
 
+        results = []
         callback._total_steps = len(dataloader)
         for i, (images, image_infos) in tqdm.tqdm(
             enumerate(dataloader, start=1), total=len(dataloader)
         ):
             result_batch = model(images.to(device))
             result_batch = result_parser(result_batch, image_infos)
-            results = []
             for result, image_info in zip(result_batch, image_infos):
                 image_path = image_info.image_path
 
                 relpath = Path(image_path).relative_to(cfg.source)
-
-                io.save_json(
-                    [res.to_dict() for res in result],
-                    self.inference_dir / relpath.with_suffix(".json"),
-                    create_directory=True,
+                results.append(
+                    {str(relpath): [res.to_dict() for res in result]}
                 )
-
-                results.append(result)
 
                 if cfg.draw:
                     draw = draw_results(
@@ -702,11 +747,19 @@ class BaseHub:
 
             callback.update(i)
 
+        io.save_json(
+            results,
+            self.inference_file,
+            create_directory=True,
+        )
+
     def on_inference_end(self, cfg: InferenceConfig):
         pass
 
-    def after_inference(self, cfg: InferenceConfig):
-        pass
+    def after_inference(self, cfg: InferenceConfig, result: EvaluateResult):
+        result.predictions = self.get_inference_result()
+        if cfg.draw:
+            result.draw_dir = self.draw_dir
 
     def inference(
         self,
@@ -722,7 +775,7 @@ class BaseHub:
         device: str = "0",
         draw: bool = False,
         hold: bool = True,
-    ) -> InferenceCallback:
+    ) -> InferenceResult:
         """Start Inference
 
         Args:
@@ -745,16 +798,16 @@ class BaseHub:
             e: something gone wrong with ultralytics
 
         Returns:
-            InferenceCallback: inference callback
+            InferenceResult: inference result
         """
 
-        def inner(callback):
+        def inner(callback: InferenceCallback, result: InferenceResult):
             try:
                 self.before_inference(cfg)
                 self.on_inference_start(cfg)
                 self.inferencing(cfg, callback)
                 self.on_inference_end(cfg)
-                self.after_inference(cfg)
+                self.after_inference(cfg, result)
                 callback.force_finish()
             except Exception as e:
                 if self.inference_dir.exists():
@@ -778,19 +831,19 @@ class BaseHub:
         )
 
         callback = InferenceCallback(0)
-        callback.inference_dir = self.inference_dir
-        callback.draw_dir = self.draw_dir if cfg.draw else None
+        result = InferenceResult()
+        result.callback = callback
 
         if hold:
-            inner(callback)
+            inner(callback, result)
         else:
             thread = threading.Thread(
-                target=inner, args=(callback,), daemon=True
+                target=inner, args=(callback, result), daemon=True
             )
             callback.register_thread(thread)
             callback.start()
 
-        return callback
+        return result
 
     # Export Hook
     def before_export(self, cfg: ExportConfig):
@@ -840,8 +893,8 @@ class BaseHub:
     def on_export_end(self, cfg: ExportConfig):
         pass
 
-    def after_export(self, cfg: ExportConfig):
-        pass
+    def after_export(self, cfg: ExportConfig, result: ExportResult):
+        result.export_file = self.onnx_file
 
     def export(
         self,
@@ -849,7 +902,7 @@ class BaseHub:
         batch_size: int = 16,
         opset_version: int = 11,
         hold: bool = True,
-    ) -> ExportCallback:
+    ) -> ExportResult:
         """Export Model
 
         Args:
@@ -861,17 +914,17 @@ class BaseHub:
                 If False then return Inferece Callback and run in background. Defaults to True.
 
         Returns:
-            ExportCallback: export callback
+            ExportResult: export result
         """
         self.check_train_sanity()
 
-        def inner(callback):
+        def inner(callback: ExportCallback, result: ExportResult):
             try:
                 self.before_export(cfg)
                 self.on_export_start(cfg)
                 self.exporting(cfg, callback)
                 self.on_export_end(cfg)
-                self.after_export(cfg)
+                self.after_export(cfg, result)
                 callback.force_finish()
             except Exception as e:
                 if self.onnx_file.exists():
@@ -887,15 +940,16 @@ class BaseHub:
         )
 
         callback = ExportCallback(1)
-        callback.export_file = self.onnx_file
+        result = ExportResult()
+        result.callback = callback
 
         if hold:
-            inner(callback)
+            inner(callback, result)
         else:
             thread = threading.Thread(
-                target=inner, args=(callback,), daemon=True
+                target=inner, args=(callback, result), daemon=True
             )
             callback.register_thread(thread)
             callback.start()
 
-        return callback
+        return result
