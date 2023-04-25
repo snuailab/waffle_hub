@@ -11,7 +11,7 @@ from waffle_hub.utils.data import ImageDataset, LabeledDataset
 def test_annotation():
 
     bbox = [100, 100, 100, 100]
-    segmentation = [110, 110, 130, 130, 110, 130]
+    segmentation = [[110, 110, 130, 130, 110, 130]]
     keypoints = [0, 0, 0, 130, 130, 1, 110, 130, 2]
 
     # object detection
@@ -38,7 +38,7 @@ def test_annotation():
     )
 
     # segmentation
-    a = Annotation.segmentation(
+    a = Annotation.sementic_segmentation(
         annotation_id=1,
         image_id=1,
         category_id=1,
@@ -89,7 +89,7 @@ def test_category():
     )
 
     # segmentation
-    category = Category.segmentation(
+    category = Category.sementic_segmentation(
         category_id=1,
         name="test",
         supercategory="object",

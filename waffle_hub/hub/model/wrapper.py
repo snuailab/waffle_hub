@@ -140,9 +140,6 @@ class SegmentationResultParser(ObjectDetectionResultParser):
             )
             idxs = batched_nms(bboxes, confs, class_ids, self.iou_threshold)
 
-            if len(idxs) == 0:
-                continue
-
             bboxes = bboxes[idxs, :].cpu()
             confs = confs[idxs].cpu()
             class_ids = class_ids[idxs].cpu()
@@ -153,12 +150,13 @@ class SegmentationResultParser(ObjectDetectionResultParser):
             ori_w, ori_h = image_info.ori_shape
             new_w, new_h = image_info.new_shape
 
-            masks = F.interpolate(
-                input=masks.unsqueeze(0),
-                size=image_info.ori_shape,
-                mode="bilinear",
-                align_corners=False,
-            )
+            if len(idxs) != 0:
+                masks = F.interpolate(
+                    input=masks.unsqueeze(0),
+                    size=image_info.ori_shape,
+                    mode="bilinear",
+                    align_corners=False,
+                )
             masks = masks.squeeze(0).gt_(0.5)
 
             parsed = []

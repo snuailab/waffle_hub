@@ -15,7 +15,20 @@ from waffle_hub.schema.result import (
     TrainResult,
 )
 
+
 # from waffle_hub.hub.adapter.tx_model import TxModelHub
+@pytest.fixture
+def segmentation_dataset(coco_path: Path, tmpdir: Path):
+    dataset: Dataset = Dataset.from_coco(
+        name="seg",
+        task=TaskType.SEGMENTATION,
+        coco_file=coco_path / "coco.json",
+        coco_root_dir=coco_path / "images",
+        root_dir=tmpdir,
+    )
+    dataset.split(0.8)
+
+    return dataset
 
 
 @pytest.fixture
@@ -47,7 +60,6 @@ def classification_dataset(coco_path: Path, tmpdir: Path):
 
 
 def _train(hub, dataset: Dataset, image_size: int, hold: bool = True):
-
     result: TrainResult = hub.train(
         dataset_path=dataset.export(hub.backend),
         epochs=1,
@@ -61,10 +73,7 @@ def _train(hub, dataset: Dataset, image_size: int, hold: bool = True):
 
     if not hold:
         assert hasattr(result, "callback")
-        while (
-            not result.callback.is_finished()
-            and not result.callback.is_failed()
-        ):
+        while not result.callback.is_finished() and not result.callback.is_failed():
             time.sleep(1)
         assert result.callback.is_finished()
         assert not result.callback.is_failed()
@@ -89,10 +98,7 @@ def _evaluate(hub, dataset: Dataset, hold: bool = True):
 
     if not hold:
         assert hasattr(result, "callback")
-        while (
-            not result.callback.is_finished()
-            and not result.callback.is_failed()
-        ):
+        while not result.callback.is_finished() and not result.callback.is_failed():
             time.sleep(1)
         assert result.callback.is_finished()
         assert not result.callback.is_failed()
@@ -114,10 +120,7 @@ def _inference(hub, source: str, hold: bool = True):
 
     if not hold:
         assert hasattr(result, "callback")
-        while (
-            not result.callback.is_finished()
-            and not result.callback.is_failed()
-        ):
+        while not result.callback.is_finished() and not result.callback.is_failed():
             time.sleep(1)
         assert result.callback.is_finished()
         assert not result.callback.is_failed()
@@ -133,10 +136,7 @@ def _export(hub, hold: bool = True):
 
     if not hold:
         assert hasattr(result, "callback")
-        while (
-            not result.callback.is_finished()
-            and not result.callback.is_failed()
-        ):
+        while not result.callback.is_finished() and not result.callback.is_failed():
             time.sleep(1)
         assert result.callback.is_finished()
         assert not result.callback.is_failed()
@@ -171,9 +171,31 @@ def _total(hub, dataset: Dataset, image_size: int, hold: bool = True):
     _feature_extraction(hub, image_size)
 
 
-def test_ultralytics_object_detection(
-    object_detection_dataset: Dataset, tmpdir: Path
-):
+def test_ultralytics_segmentation(segmentation_dataset: Dataset, tmpdir: Path):
+    image_size = 32
+    dataset = segmentation_dataset
+
+    # test hub
+    name = "test_seg"
+    hub = UltralyticsHub.new(
+        name=name,
+        task=TaskType.SEGMENTATION,
+        model_type="yolov8",
+        model_size="n",
+        categories=dataset.category_names,
+        root_dir=tmpdir,
+    )
+    hub = UltralyticsHub.load(name=name, root_dir=tmpdir)
+    hub: UltralyticsHub = UltralyticsHub.from_model_config(
+        name=name,
+        model_config_file=tmpdir / name / UltralyticsHub.MODEL_CONFIG_FILE,
+        root_dir=tmpdir,
+    )
+
+    _total(hub, dataset, image_size)
+
+
+def test_ultralytics_object_detection(object_detection_dataset: Dataset, tmpdir: Path):
     image_size = 32
     dataset = object_detection_dataset
 
@@ -197,9 +219,7 @@ def test_ultralytics_object_detection(
     _total(hub, dataset, image_size)
 
 
-def test_ultralytics_classification(
-    classification_dataset: Dataset, tmpdir: Path
-):
+def test_ultralytics_classification(classification_dataset: Dataset, tmpdir: Path):
     image_size = 32
     dataset = classification_dataset
 

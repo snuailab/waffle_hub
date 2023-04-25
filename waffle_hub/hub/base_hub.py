@@ -102,9 +102,7 @@ class BaseHub:
         # check task supports
         if self.task not in self.MODEL_TYPES:
             io.remove_directory()
-            raise ValueError(
-                f"{self.task} is not supported with {self.backend}"
-            )
+            raise ValueError(f"{self.task} is not supported with {self.backend}")
 
         try:
             # save model config
@@ -138,9 +136,7 @@ class BaseHub:
         root_dir = Path(root_dir if root_dir else BaseHub.DEFAULT_ROOT_DIR)
         model_config_file = root_dir / name / BaseHub.MODEL_CONFIG_FILE
         if not model_config_file.exists():
-            raise FileNotFoundError(
-                f"Model[{name}] does not exists. {model_config_file}"
-            )
+            raise FileNotFoundError(f"Model[{name}] does not exists. {model_config_file}")
         model_config = io.load_yaml(model_config_file)
         return cls(
             **{
@@ -150,9 +146,7 @@ class BaseHub:
         )
 
     @classmethod
-    def from_model_config(
-        cls, name: str, model_config_file: str, root_dir: str = None
-    ) -> "BaseHub":
+    def from_model_config(cls, name: str, model_config_file: str, root_dir: str = None) -> "BaseHub":
         """Create new Hub with model config.
 
         Args:
@@ -202,9 +196,7 @@ class BaseHub:
     def task(self, v):
         v = str(v).lower()  # TODO: MODEL_TYPES should be enum
         if v not in self.MODEL_TYPES:
-            raise ValueError(
-                f"Task {v} is not supported. Choose one of {self.MODEL_TYPES}"
-            )
+            raise ValueError(f"Task {v} is not supported. Choose one of {self.MODEL_TYPES}")
         self.__task = v
 
     @property
@@ -536,9 +528,7 @@ class BaseHub:
         if hold:
             inner(callback, result)
         else:
-            thread = threading.Thread(
-                target=inner, args=(callback, result), daemon=True
-            )
+            thread = threading.Thread(target=inner, args=(callback, result), daemon=True)
             callback.register_thread(thread)
             callback.start()
 
@@ -559,9 +549,7 @@ class BaseHub:
     def on_evaluate_start(self, cfg: EvaluateConfig):
         pass
 
-    def evaluating(
-        self, cfg: EvaluateConfig, callback: EvaluateCallback
-    ) -> str:
+    def evaluating(self, cfg: EvaluateConfig, callback: EvaluateCallback) -> str:
         device = cfg.device
 
         model = self.get_model().to(device)
@@ -591,9 +579,7 @@ class BaseHub:
 
             callback.update(i)
 
-        metrics = evaluate_function(
-            preds, labels, self.task, len(self.categories)
-        )
+        metrics = evaluate_function(preds, labels, self.task, len(self.categories))
         io.save_json(
             [
                 {
@@ -688,9 +674,7 @@ class BaseHub:
         if hold:
             inner(callback, result)
         else:
-            thread = threading.Thread(
-                target=inner, args=(callback, result), daemon=True
-            )
+            thread = threading.Thread(target=inner, args=(callback, result), daemon=True)
             callback.register_thread(thread)
             callback.start()
 
@@ -708,9 +692,7 @@ class BaseHub:
     def on_inference_start(self, cfg: InferenceConfig):
         pass
 
-    def inferencing(
-        self, cfg: InferenceConfig, callback: InferenceCallback
-    ) -> str:
+    def inferencing(self, cfg: InferenceConfig, callback: InferenceCallback) -> str:
         device = cfg.device
 
         model = self.get_model().to(device)
@@ -731,9 +713,7 @@ class BaseHub:
                 image_path = image_info.image_path
 
                 relpath = Path(image_path).relative_to(cfg.source)
-                results.append(
-                    {str(relpath): [res.to_dict() for res in result]}
-                )
+                results.append({str(relpath): [res.to_dict() for res in result]})
 
                 if cfg.draw:
                     draw = draw_results(
@@ -837,9 +817,7 @@ class BaseHub:
         if hold:
             inner(callback, result)
         else:
-            thread = threading.Thread(
-                target=inner, args=(callback, result), daemon=True
-            )
+            thread = threading.Thread(target=inner, args=(callback, result), daemon=True)
             callback.register_thread(thread)
             callback.start()
 
@@ -858,11 +836,7 @@ class BaseHub:
 
     def exporting(self, cfg: ExportConfig, callback: ExportCallback) -> str:
         image_size = cfg.image_size
-        image_size = (
-            [image_size, image_size]
-            if isinstance(image_size, int)
-            else image_size
-        )
+        image_size = [image_size, image_size] if isinstance(image_size, int) else image_size
 
         model = self.get_model()
 
@@ -871,10 +845,10 @@ class BaseHub:
             output_names = ["bbox", "conf", "class_id"]
         elif self.task == "classification":
             output_names = ["predictions"]
+        elif self.task == "segmentation":
+            output_names = ["bbox", "conf", "class_id", "masks"]
         else:
-            raise NotImplementedError(
-                f"{self.task} does not support export yet."
-            )
+            raise NotImplementedError(f"{self.task} does not support export yet.")
 
         dummy_input = torch.randn(cfg.batch_size, 3, *image_size)
 
@@ -885,9 +859,7 @@ class BaseHub:
             input_names=input_name,
             output_names=output_names,
             opset_version=cfg.opset_version,
-            dynamic_axes={
-                name: {0: "batch_size"} for name in input_name + output_names
-            },
+            dynamic_axes={name: {0: "batch_size"} for name in input_name + output_names},
         )
 
     def on_export_end(self, cfg: ExportConfig):
@@ -946,9 +918,7 @@ class BaseHub:
         if hold:
             inner(callback, result)
         else:
-            thread = threading.Thread(
-                target=inner, args=(callback, result), daemon=True
-            )
+            thread = threading.Thread(target=inner, args=(callback, result), daemon=True)
             callback.register_thread(thread)
             callback.start()
 

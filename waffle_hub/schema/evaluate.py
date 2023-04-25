@@ -11,3 +11,8 @@ class ObjectDetectionMetric(BaseSchema):
 @dataclass
 class ClassificationMetric(BaseSchema):
     accuracy: float
+
+
+@dataclass
+class SegmentationMetric(BaseSchema):
+    mAP: float
