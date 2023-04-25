@@ -21,11 +21,7 @@ try:
         )
 except ModuleNotFoundError as e:
     # TODO: Generalize install strings
-    strings = [
-        "  - conda install pytorch==1.12.1 torchvision==0.13.1 torchaudio==0.12.1 cudatoolkit=11.3 -c pytorch",
-        "  - pip install torch==1.12.1+cu113 torchvision==0.13.1+cu113 torchaudio==0.12.1 --extra-index-url https://download.pytorch.org/whl/cu113",
-        "  - pip install torch==1.12.1 torchvision==0.13.1 torchaudio==0.12.1",
-    ]
+    strings = []
 
     e.msg = "Need to install torch\n" + "\n".join(strings)
     raise e
@@ -33,7 +29,7 @@ except ModuleNotFoundError as e:
 # backend supports
 _backends = OrderedDict(
     {
-        "ultralytics": ["8.0.72"],
+        "ultralytics": ["8.0.87"],
         "autocare_tx_model": ["0.2.0"],
         "transformers": ["4.27.4"],
     }
@@ -67,9 +63,7 @@ def get_installed_backend_version(backend: str) -> str:
 
     except ModuleNotFoundError as e:
 
-        install_queries = "\n".join(
-            [f"- pip install {backend}=={version}" for version in versions]
-        )
+        install_queries = "\n".join([f"- pip install {backend}=={version}" for version in versions])
 
         e.msg = f"""
             Need to install {backend}.
