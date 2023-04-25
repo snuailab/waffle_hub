@@ -1,7 +1,26 @@
-"""
-Base Hub Class
-Do not use this Class directly.
-Use {Backend}Hub instead.
+""" (.rst format docstring)
+Hub
+================
+Hub is a multi-backend compatible interface for model training, evaluation, inference, and export.
+
+.. note::
+    Check out docstrings for more details.
+
+Advanced Usage using threads
+----------------
+
+.. code-block:: python
+    import time
+
+    result = hub.some_job(..., hold=False)
+
+    while (
+        not result.callback.is_finished()
+        and not result.callback.is_failed()
+    ):
+        time.sleep(1)
+        print(result.callback.get_progress())
+
 """
 import logging
 import threading
@@ -481,10 +500,27 @@ class BaseHub:
             ValueError: if can not detect appropriate dataset.
             e: something gone wrong with ultralytics
 
+        Example:
+            >>> train_result = hub.train(
+                    dataset_path=dataset_path,
+                    epochs=100,
+                    batch_size=16,
+                    image_size=640,
+                    learning_rate=0.001,
+                    letterbox=False,
+                    device="0",
+                    workers=2,
+                    seed=123
+                )
+            >>> train_result.best_ckpt_file
+            hubs/my_hub/weights/best_ckpt.pt
+            >>> train_result.metrics
+            [[{"tag": "epoch", "value": 1}, {"tag": "train/loss", "value": 0.1}, ...], ...]
+
         Returns:
             TrainResult: train result
         """
-
+        
         if self.artifact_dir.exists():
             raise FileExistsError(
                 f"{self.artifact_dir}\n"
@@ -633,6 +669,27 @@ class BaseHub:
             FileNotFoundError: if can not detect appropriate dataset.
             e: something gone wrong with ultralytics
 
+        Examples:
+            >>> evaluate_result = hub.evaluate(
+                    dataset_name="detection_dataset",
+                    batch_size=4,
+                    image_size=640,
+                    letterbox=False,
+                    confidence_threshold=0.25,
+                    iou_threshold=0.5,
+                    workers=4,
+                    device="0",
+                )
+            # or you can use train option by passing None
+            >>> evaluate_result = hub.evaluate(
+                    ...
+                    image_size=None,  # use train option
+                    letterbox=None,  # use train option
+                    ...
+                )
+            >>> evaluate_result.metrics
+            [{"tag": "mAP", "value": 0.1}, ...]
+
         Returns:
             EvaluateResult: evaluate result
         """
@@ -777,6 +834,28 @@ class BaseHub:
             FileNotFoundError: if can not detect appropriate dataset.
             e: something gone wrong with ultralytics
 
+        Example:
+            >>> inference_result = hub.inference(
+                    source="path/to/images",
+                    batch_size=4,
+                    image_size=640,
+                    letterbox=False,
+                    confidence_threshold=0.25,
+                    iou_threshold=0.5,
+                    workers=4,
+                    device="0",
+                    draw=True,
+                )
+            # or simply use train option by passing None
+            >>> inference_result = hub.inference(
+                    ...
+                    image_size=None,  # use train option
+                    letterbox=None,  # use train option
+                    ...
+                )
+            >>> inference_result.predictions
+            [{"relative/path/to/image/file": [{"category": "1", "bbox": [0, 0, 100, 100], "score": 0.9}, ...]}, ...]
+
         Returns:
             InferenceResult: inference result
         """
@@ -884,6 +963,21 @@ class BaseHub:
             hold (bool, optional): hold or not.
                 If True then it holds until task finished.
                 If False then return Inferece Callback and run in background. Defaults to True.
+
+        Example:
+            >>> export_result = hub.export(
+                image_size=640,
+                batch_size=16,
+                opset_version=11,
+            )
+            # or simply use train option by passing None
+            >>> export_result = hub.export(
+                ...,
+                image_size=None,  # use train option
+                ...
+            )
+            >>> export_result.export_file
+            hubs/my_hub/weights/model.onnx
 
         Returns:
             ExportResult: export result

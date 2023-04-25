@@ -1,6 +1,6 @@
 """
-!!! DEPRECATED !!!
 Tx Model Hub
+See BaseHub documentation for more details about usage.
 """
 
 from waffle_hub import get_installed_backend_version
@@ -15,11 +15,11 @@ from typing import Union
 import tbparse
 import torch
 from attrdict import AttrDict
+from autocare_tx_model.core.model import build_model
+from autocare_tx_model.tools import train
 from torchvision import transforms as T
 from waffle_utils.file import io
 
-from autocare_tx_model.core.model import build_model
-from autocare_tx_model.tools import train
 from waffle_hub.hub.adapter.tx_model.configs import (
     get_data_config,
     get_model_config,
@@ -75,9 +75,7 @@ class TxModelHub(BaseHub):
         """Create Tx Model Hub Class. Do not use this class directly. Use TxModelHub.new() instead."""
 
         if backend is not None and backend != BACKEND_NAME:
-            raise ValueError(
-                f"you've loaded {backend}. backend must be {BACKEND_NAME}"
-            )
+            raise ValueError(f"you've loaded {backend}. backend must be {BACKEND_NAME}")
 
         if version is not None and version != BACKEND_VERSION:
             warnings.warn(
@@ -183,11 +181,7 @@ class TxModelHub(BaseHub):
         metrics = (
             df.sort_values("step")
             .groupby("step")
-            .apply(
-                lambda x: [
-                    {"tag": s, "value": v} for s, v in zip(x.tag, x.value)
-                ]
-            )
+            .apply(lambda x: [{"tag": s, "value": v} for s, v in zip(x.tag, x.value)])
             .to_list()
         )
 
@@ -234,9 +228,7 @@ class TxModelHub(BaseHub):
         )
         if not Path(cfg.pretrained_model).exists():
             cfg.pretrained_model = None
-            warnings.warn(
-                f"{cfg.pretrained_model} does not exists. Train from scratch."
-            )
+            warnings.warn(f"{cfg.pretrained_model} does not exists. Train from scratch.")
 
         cfg.dataset_path = str(cfg.dataset_path.absolute())
 

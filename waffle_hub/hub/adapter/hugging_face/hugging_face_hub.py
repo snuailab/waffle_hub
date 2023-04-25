@@ -1,5 +1,6 @@
 """
 Hugging Face Hub
+See BaseHub documentation for more details about usage.
 """
 
 from waffle_hub import get_installed_backend_version
@@ -109,9 +110,7 @@ class HuggingFaceHub(BaseHub):
     ):
 
         if backend is not None and backend != BACKEND_NAME:
-            raise ValueError(
-                f"you've loaded {backend}. backend must be {BACKEND_NAME}"
-            )
+            raise ValueError(f"you've loaded {backend}. backend must be {BACKEND_NAME}")
 
         if version is not None and version != BACKEND_VERSION:
             warnings.warn(
@@ -130,9 +129,7 @@ class HuggingFaceHub(BaseHub):
             root_dir=root_dir,
         )
 
-        self.pretrained_model: str = self.MODEL_TYPES[self.task][
-            self.model_type
-        ][self.model_size]
+        self.pretrained_model: str = self.MODEL_TYPES[self.task][self.model_type][self.model_size]
         self.best_ckpt_dir = self.hub_dir / "weights" / "best_ckpt"
         self.train_input = None
 
@@ -172,43 +169,27 @@ class HuggingFaceHub(BaseHub):
         dataset = load_from_disk(cfg.dataset_path)
 
         if self.task == "classification":
-            helper = ClassifierInputHelper(
-                cfg.pretrained_model, cfg.image_size
-            )
+            helper = ClassifierInputHelper(cfg.pretrained_model, cfg.image_size)
             self.train_input = helper.get_train_input()
             categories = dataset["train"].features["label"].names
-            id2label = {
-                index: x for index, x in enumerate(categories, start=0)
-            }
-            self.train_input.model = (
-                AutoModelForImageClassification.from_pretrained(
-                    self.pretrained_model,
-                    num_labels=len(id2label),
-                    ignore_mismatched_sizes=True,
-                )
+            id2label = {index: x for index, x in enumerate(categories, start=0)}
+            self.train_input.model = AutoModelForImageClassification.from_pretrained(
+                self.pretrained_model,
+                num_labels=len(id2label),
+                ignore_mismatched_sizes=True,
             )
 
         elif self.task == "object_detection":
-            helper = ObjectDetectionInputHelper(
-                cfg.pretrained_model, cfg.image_size
-            )
+            helper = ObjectDetectionInputHelper(cfg.pretrained_model, cfg.image_size)
             self.train_input = helper.get_train_input()
-            categories = (
-                dataset["train"].features["objects"].feature["category"].names
-            )
-            id2label = {
-                index: x for index, x in enumerate(categories, start=0)
-            }
-            label2id = {
-                x: index for index, x in enumerate(categories, start=0)
-            }
-            self.train_input.model = (
-                AutoModelForObjectDetection.from_pretrained(
-                    self.pretrained_model,
-                    id2label=id2label,
-                    label2id=label2id,
-                    ignore_mismatched_sizes=True,
-                )
+            categories = dataset["train"].features["objects"].feature["category"].names
+            id2label = {index: x for index, x in enumerate(categories, start=0)}
+            label2id = {x: index for index, x in enumerate(categories, start=0)}
+            self.train_input.model = AutoModelForObjectDetection.from_pretrained(
+                self.pretrained_model,
+                id2label=id2label,
+                label2id=label2id,
+                ignore_mismatched_sizes=True,
             )
         else:
             raise NotImplementedError
@@ -251,9 +232,7 @@ class HuggingFaceHub(BaseHub):
     def get_metrics(self) -> list[list[dict]]:
         metrics = []
 
-        for epoch in range(
-            0, len(self.train_log) - 1, 3
-        ):  # last is runtime info
+        for epoch in range(0, len(self.train_log) - 1, 3):  # last is runtime info
 
             current_epoch_log = self.train_log[epoch]
 
@@ -278,9 +257,7 @@ class HuggingFaceHub(BaseHub):
     def get_preprocess(self, task, pretrained_model: str) -> Callable:
         image_processer = AutoImageProcessor.from_pretrained(pretrained_model)
 
-        normalize = T.Normalize(
-            image_processer.image_mean, image_processer.image_std, inplace=True
-        )
+        normalize = T.Normalize(image_processer.image_mean, image_processer.image_std, inplace=True)
 
         def preprocess(x, *args, **kwargs):
             return normalize(x)
@@ -299,9 +276,7 @@ class HuggingFaceHub(BaseHub):
 
                 if x.logits.shape[-1] != len(self.categories):
                     x.logits = x.logits[:, :, :-1]  # remove background
-                confidences, category_ids = torch.max(
-                    x.logits[:, :, :], dim=-1
-                )
+                confidences, category_ids = torch.max(x.logits[:, :, :], dim=-1)
                 cxcywh = x.pred_boxes[:, :, :4]
                 cx, cy, w, h = torch.unbind(cxcywh, dim=-1)
                 x1 = cx - w / 2
@@ -343,8 +318,6 @@ class HuggingFaceHub(BaseHub):
         return model
 
     def check_train_sanity(self) -> bool:
-        if not (
-            self.model_config_file.exists() and self.best_ckpt_dir.exists()
-        ):
+        if not (self.model_config_file.exists() and self.best_ckpt_dir.exists()):
             raise FileNotFoundError("Train first! hub.train(...).")
         return True
