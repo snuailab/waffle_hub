@@ -3,6 +3,7 @@ __version__ = "0.1.9"
 import enum
 import importlib
 import warnings
+import enum
 from collections import OrderedDict
 
 from tabulate import tabulate
@@ -89,7 +90,6 @@ def get_available_backends() -> str:
     )
 
     return table
-
 
 class CustomEnumMeta(enum.EnumMeta):
     def __contains__(cls, item):
