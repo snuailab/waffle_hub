@@ -203,7 +203,10 @@ class Dataset:
     # factories
     @classmethod
     def new(cls, name: str, task: str, root_dir: str = None) -> "Dataset":
-        """Create New Dataset
+        """
+        Create New Dataset.
+        This method creates a new dataset directory and initialize dataset info file.
+        If you have other types of data, you can use from_* methods to create a dataset.
 
         Args:
             name (str): Dataset name
@@ -212,6 +215,13 @@ class Dataset:
 
         Raises:
             FileExistsError: if dataset name already exists
+
+        Examples:
+            >>> ds = Dataset.new("my_dataset", "CLASSIFICATION")
+            >>> ds.name
+            'my_dataset'  # dataset name
+            >>> ds.task  # dataset task
+            'CLASSIFICATION'
 
         Returns:
             Dataset: Dataset Class
@@ -232,7 +242,9 @@ class Dataset:
         src_root_dir: str = None,
         root_dir: str = None,
     ) -> "Dataset":
-        """Clone Existing Dataset
+        """
+        Clone Existing Dataset.
+        This method clones an existing dataset.
 
         Args:
             src_name (str):
@@ -245,6 +257,13 @@ class Dataset:
         Raises:
             FileNotFoundError: if source dataset does not exist.
             FileExistsError: if new dataset name already exist.
+
+        Examples:
+            >>> ds = Dataset.clone("my_dataset", "my_dataset_clone")
+            >>> ds.name
+            'my_dataset_clone'  # cloned dataset name
+            >>> ds.task
+            'CLASSIFICATION'   # original dataset task
 
         Returns:
             Dataset: Dataset Class
@@ -261,7 +280,9 @@ class Dataset:
 
     @classmethod
     def load(cls, name: str, root_dir: str = None) -> "Dataset":
-        """Load Dataset.
+        """
+        Load Dataset.
+        This method loads an existing dataset.
 
         Args:
             name (str): Dataset name that Waffle Created
@@ -269,6 +290,11 @@ class Dataset:
 
         Raises:
             FileNotFoundError: if source dataset does not exist.
+
+        Examples:
+            >>> ds = Dataset.load("my_dataset")
+            >>> ds.name
+            'my_dataset'  # dataset name
 
         Returns:
             Dataset: Dataset Class
@@ -289,7 +315,9 @@ class Dataset:
         coco_root_dir: Union[str, list[str]],
         root_dir: str = None,
     ) -> "Dataset":
-        """Import Dataset from coco format.
+        """
+        Import Dataset from coco format.
+        This method imports coco format dataset.
 
         Args:
             name (str): Dataset name.
@@ -300,6 +328,23 @@ class Dataset:
 
         Raises:
             FileExistsError: if new dataset name already exist.
+
+        Examples:
+            # Import one coco json file.
+            >>> ds = Dataset.from_coco("my_dataset", "object_detection", "path/to/coco.json", "path/to/coco_root")
+            >>> ds.images
+            {1: <Image: 1>, 2: <Image: 2>, 3: <Image: 3>, 4: <Image: 4>, 5: <Image: 5>}
+            >>> ds.annotations
+            {1: <Annotation: 1>, 2: <Annotation: 2>, 3: <Annotation: 3>, 4: <Annotation: 4>, 5: <Annotation: 5>}
+            >>> ds.categories
+            {1: <Category: 1>, 2: <Category: 2>, 3: <Category: 3>, 4: <Category: 4>, 5: <Category: 5>}
+            >>> ds.category_names
+            ['person', 'bicycle', 'car', 'motorcycle', 'airplane']
+
+            # Import multiple coco json files.
+            # You can give coco_file as list.
+            # Given coco files are regarded as [train, [val, [test]]] json files.
+            >>> ds = Dataset.from_coco("my_dataset", "object_detection", ["coco_train.json", "coco_val.json"], ["coco_train_root", "coco_val_root"])
 
         Returns:
             Dataset: Dataset Class
@@ -422,13 +467,21 @@ class Dataset:
         yaml_path: str,
         root_dir: str = None,
     ) -> "Dataset":
-        """Import Dataset from yolo format.
+        """
+        Import Dataset from yolo format.
+        This method imports dataset from yolo(ultralytics) yaml file.
 
         Args:
             name (str): Dataset name.
             task (str): Dataset task.
             yaml_path (str): Yolo yaml file path.
             root_dir (str, optional): Dataset root directory. Defaults to None.
+
+        Example:
+            >>> ds = Dataset.from_yolo("yolo", "classification", "path/to/yolo.yaml")
+
+        Returns:
+            Dataset: Imported dataset.
         """
 
         ds = Dataset.new(name, task, root_dir)
@@ -579,7 +632,9 @@ class Dataset:
         dataset_dir: str,
         root_dir=None,
     ) -> "Dataset":
-        """Import Dataset from huggingface datasets.
+        """
+        Import Dataset from huggingface datasets.
+        This method imports huggingface dataset from directory.
 
         Args:
             name (str): Dataset name.
@@ -590,6 +645,9 @@ class Dataset:
         Raises:
             FileExistsError: if dataset name already exists
             ValueError: if dataset is not Dataset or DatasetDict
+
+        Examples:
+            >>> ds = Dataset.from_huggingface("huggingface", "object_detection", "path/to/huggingface/dataset")
 
         Returns:
             Dataset: Dataset Class
@@ -848,13 +906,24 @@ class Dataset:
         test_ratio: float = 0.0,
         seed: int = 0,
     ):
-        """Split Dataset to train, validation, test, (unlabeled) sets.
+        """
+        Split Dataset to train, validation, test, (unlabeled) sets.
 
         Args:
             train_ratio (float): train num ratio (0 ~ 1).
             val_ratio (float, optional): val num ratio (0 ~ 1).
             test_ratio (float, optional): test num ratio (0 ~ 1).
             seed (int, optional): random seed. Defaults to 0.
+
+        Raises:
+            ValueError: if train_ratio is not between 0.0 and 1.0.
+            ValueError: if train_ratio + val_ratio + test_ratio is not 1.0.
+
+        Examples:
+            >>> dataset = Dataset.load("some_dataset")
+            >>> dataset.split(train_ratio=0.8, val_ratio=0.1, test_ratio=0.1)
+            >>> dataset.get_split_ids()
+            [[1, 2, 3, 4, 5, 6, 7, 8], [9], [10], []]  # train, val, test, unlabeled image ids
         """
 
         if train_ratio <= 0.0 or train_ratio >= 1.0:
@@ -921,7 +990,8 @@ class Dataset:
 
     # export
     def get_split_ids(self) -> list[list[int]]:
-        """Get split ids
+        """
+        Get split ids
 
         Returns:
             list[list[int]]: split ids
@@ -937,10 +1007,22 @@ class Dataset:
         return [train_ids, val_ids, test_ids, unlabeled_ids]
 
     def export(self, data_type: Union[str, DataType]) -> str:
-        """Export Dataset to Specific data formats
+        """
+        Export Dataset to Specific data formats
 
         Args:
             data_type (Union[str, DataType]): export data type. one of ["YOLO", "COCO"].
+
+        Raises:
+            ValueError: if data_type is not one of DataType.
+
+        Examples:
+            >>> dataset = Dataset.load("some_dataset")
+            >>> dataset.export(data_type="YOLO")
+            path/to/dataset_dir/exports/yolo
+
+            # You can train with exported dataset
+            >>> hub.train("path/to/dataset_dir/exports/yolo", ...)
 
         Returns:
             str: exported dataset directory
