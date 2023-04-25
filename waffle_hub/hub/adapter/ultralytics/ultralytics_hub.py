@@ -1,5 +1,6 @@
 """
 Ultralytics Hub
+See BaseHub documentation for more details about usage.
 """
 
 from waffle_hub import get_installed_backend_version
@@ -76,9 +77,7 @@ class UltralyticsHub(BaseHub):
         """Create Ultralytics Hub Class. Do not use this class directly. Use UltralyticsHub.new() instead."""
 
         if backend is not None and backend != BACKEND_NAME:
-            raise ValueError(
-                f"you've loaded {backend}. backend must be {BACKEND_NAME}"
-            )
+            raise ValueError(f"you've loaded {backend}. backend must be {BACKEND_NAME}")
 
         if version is not None and version != BACKEND_VERSION:
             warnings.warn(
@@ -157,9 +156,7 @@ class UltralyticsHub(BaseHub):
 
         elif task == "object_detection":
 
-            def inner(
-                x: torch.Tensor, image_size: tuple[int, int], *args, **kwargs
-            ):
+            def inner(x: torch.Tensor, image_size: tuple[int, int], *args, **kwargs):
                 x = x[0]  # x[0]: prediction, x[1]: TODO: what is this...?
                 x = x.transpose(1, 2)
 
@@ -227,9 +224,7 @@ class UltralyticsHub(BaseHub):
                     cfg.dataset_path.glob("*.yml")
                 )
                 if len(yaml_files) != 1:
-                    raise FileNotFoundError(
-                        f"Ambiguous data file. Detected files: {yaml_files}"
-                    )
+                    raise FileNotFoundError(f"Ambiguous data file. Detected files: {yaml_files}")
                 cfg.dataset_path = Path(yaml_files[0]).absolute()
             else:
                 cfg.dataset_path = cfg.dataset_path.absolute()
@@ -238,9 +233,7 @@ class UltralyticsHub(BaseHub):
             from torchvision.datasets.folder import ImageFolder
 
             def find_categories(_, directory: str):
-                return directory, {
-                    v["name"]: i for i, v in enumerate(self.categories)
-                }
+                return directory, {v["name"]: i for i, v in enumerate(self.categories)}
 
             ImageFolder.find_categories = find_categories
 
@@ -255,10 +248,7 @@ class UltralyticsHub(BaseHub):
         cfg.pretrained_model = (
             cfg.pretrained_model
             if cfg.pretrained_model
-            else self.model_type
-            + self.model_size
-            + self.TASK_SUFFIX[self.backend_task_name]
-            + ".pt"
+            else self.model_type + self.model_size + self.TASK_SUFFIX[self.backend_task_name] + ".pt"
         )
 
         # overwrite train config with default config
