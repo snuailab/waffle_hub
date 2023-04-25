@@ -109,7 +109,7 @@ class ObjectDetectionResultParser(ResultParser):
         return parseds
 
 
-class SegmentationResultParser(ObjectDetectionResultParser):
+class SementicSegmentationResultParser(ObjectDetectionResultParser):
     def __init__(
         self, confidence_threshold: float = 0.25, iou_threshold: float = 0.5, *args, **kwargs
     ):
@@ -188,8 +188,8 @@ def get_parser(task: str):
         return ClassificationResultParser
     elif task == "object_detection":
         return ObjectDetectionResultParser
-    elif task == "segmentation":
-        return SegmentationResultParser
+    elif task == "sementic_segmentation":
+        return SementicSegmentationResultParser
 
 
 class ModelWrapper(torch.nn.Module):

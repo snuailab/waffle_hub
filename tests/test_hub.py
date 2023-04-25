@@ -21,7 +21,7 @@ from waffle_hub.schema.result import (
 def segmentation_dataset(coco_path: Path, tmpdir: Path):
     dataset: Dataset = Dataset.from_coco(
         name="seg",
-        task=TaskType.SEGMENTATION,
+        task=TaskType.SEMENTIC_SEGMENTATION,
         coco_file=coco_path / "coco.json",
         coco_root_dir=coco_path / "images",
         root_dir=tmpdir,
@@ -179,7 +179,7 @@ def test_ultralytics_segmentation(segmentation_dataset: Dataset, tmpdir: Path):
     name = "test_seg"
     hub = UltralyticsHub.new(
         name=name,
-        task=TaskType.SEGMENTATION,
+        task=TaskType.SEMENTIC_SEGMENTATION,
         model_type="yolov8",
         model_size="n",
         categories=dataset.category_names,

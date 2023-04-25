@@ -102,7 +102,9 @@ def draw_results(
     object_detection_results = [
         result for result in results if result.task == TaskType.OBJECT_DETECTION
     ]
-    segmentation_results = [result for result in results if result.task == TaskType.SEGMENTATION]
+    segmentation_results = [
+        result for result in results if result.task == TaskType.SEMENTIC_SEGMENTATION
+    ]
 
     for i, result in enumerate(classification_results, start=1):
         image = draw_classification(

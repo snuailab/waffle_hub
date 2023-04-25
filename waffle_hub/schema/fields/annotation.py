@@ -339,7 +339,7 @@ class Annotation(BaseField):
             area=area,
             iscrowd=iscrowd,
             score=score,
-            task=TaskType.SEGMENTATION,
+            task=TaskType.SEMENTIC_SEGMENTATION,
         )
 
     @classmethod

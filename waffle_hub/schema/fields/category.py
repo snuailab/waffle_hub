@@ -180,7 +180,7 @@ class Category(BaseField):
             category_id=category_id,
             name=name,
             supercategory=supercategory,
-            task=TaskType.SEGMENTATION,
+            task=TaskType.SEMENTIC_SEGMENTATION,
         )
 
     @classmethod

@@ -520,7 +520,7 @@ class BaseHub:
         Returns:
             TrainResult: train result
         """
-        
+
         if self.artifact_dir.exists():
             raise FileExistsError(
                 f"{self.artifact_dir}\n"
@@ -924,7 +924,7 @@ class BaseHub:
             output_names = ["bbox", "conf", "class_id"]
         elif self.task == "classification":
             output_names = ["predictions"]
-        elif self.task == "segmentation":
+        elif self.task == "sementic_segmentation":
             output_names = ["bbox", "conf", "class_id", "masks"]
         else:
             raise NotImplementedError(f"{self.task} does not support export yet.")

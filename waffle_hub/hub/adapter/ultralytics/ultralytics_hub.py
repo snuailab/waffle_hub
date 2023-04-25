@@ -29,7 +29,7 @@ class UltralyticsHub(BaseHub):
     MODEL_TYPES = {
         "object_detection": {"yolov8": list("nsmlx")},
         "classification": {"yolov8": list("nsmlx")},
-        "segmentation": {"yolov8": list("nsmlx")},
+        "sementic_segmentation": {"yolov8": list("nsmlx")},
         # "keypoint_detection": {"yolov8": list("nsmlx")},
     }
 
@@ -37,7 +37,7 @@ class UltralyticsHub(BaseHub):
     TASK_MAP = {
         "object_detection": "detect",
         "classification": "classify",
-        "segmentation": "segment"
+        "sementic_segmentation": "segment"
         # "keypoint_detection": "pose"
     }
     TASK_SUFFIX = {
@@ -61,7 +61,7 @@ class UltralyticsHub(BaseHub):
             "letter_box": False,
             "batch_size": 16,
         },
-        "segmentation": {
+        "sementic_segmentation": {
             "epochs": 50,
             "image_size": [640, 640],
             "learning_rate": 0.01,
@@ -149,7 +149,7 @@ class UltralyticsHub(BaseHub):
             def preprocess(x, *args, **kwargs):
                 return normalize(x)
 
-        elif task == "segmentation":
+        elif task == "sementic_segmentation":
             normalize = T.Normalize([0, 0, 0], [1, 1, 1], inplace=True)
 
             def preprocess(x, *args, **kwargs):
@@ -188,11 +188,9 @@ class UltralyticsHub(BaseHub):
 
                 return xyxy, confidences, class_ids
 
-        elif task == "segmentation":
+        elif task == "sementic_segmentation":
 
-            def inner(
-                x: torch.Tensor, image_size: tuple[int, int], *args, **kwargs
-            ):
+            def inner(x: torch.Tensor, image_size: tuple[int, int], *args, **kwargs):
                 preds = x[0]  # x[0]: prediction, x[1]: TODO: what is this...?
                 preds = preds.transpose(1, 2)
 
@@ -214,23 +212,15 @@ class UltralyticsHub(BaseHub):
                 probs = preds[:, :, 4 : 4 + num_category]
                 confidences, class_ids = torch.max(probs, dim=-1)
 
-                pred_masks = preds[
-                    :, :, 4 + num_category :
-                ]  # [batch, n, mask_dim]
+                pred_masks = preds[:, :, 4 + num_category :]  # [batch, n, mask_dim]
                 masks = []
 
                 # Remove masks outside the bounding box range.
                 for i, (mask, bbox) in enumerate(zip(pred_masks, xyxy)):
                     c, mh, mw = protos[i].shape
-                    mask = (
-                        (mask @ protos[i].float().view(c, -1))
-                        .sigmoid()
-                        .view(-1, mh, mw)
-                    )
+                    mask = (mask @ protos[i].float().view(c, -1)).sigmoid().view(-1, mh, mw)
                     for m, b in zip(mask, bbox):
-                        x1, y1, x2, y2 = (
-                            b * torch.tensor([mw, mh, mw, mh]).to(mask.device)
-                        ).int()
+                        x1, y1, x2, y2 = (b * torch.tensor([mw, mh, mw, mh]).to(mask.device)).int()
                         m[:, :x1] = 0
                         m[:, x2:] = 0
                         m[:y1, :] = 0
