@@ -4,6 +4,7 @@ from waffle_utils.file import io
 
 from waffle_hub import TaskType
 
+
 class BaseField(ABC):
     def __init__(self):
         pass
@@ -19,13 +20,13 @@ class BaseField(ABC):
 
     @classmethod
     def from_dict(cls, d: dict, task: str = None) -> "BaseField":
-        
+
         if task == TaskType.CLASSIFICATION:
             return cls.classification(**d)
         elif task == TaskType.OBJECT_DETECTION:
             return cls.object_detection(**d)
         elif task == TaskType.SEGMENTATION:
-            return cls.segmentation(**d)
+            return cls.sementic_segmentation(**d)
         elif task == TaskType.KEYPOINT_DETECTION:
             return cls.keypoint_detection(**d)
         elif task == TaskType.TEXT_RECOGNITION:

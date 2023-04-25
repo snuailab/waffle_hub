@@ -84,16 +84,7 @@ def draw_segmentation(
 
     for segment in segments:
         segment = np.array(segment).reshape(-1, 2).astype(int)
-        before_point = segment[0]
-        for point in segment[1:]:
-            image = cv2.line(
-                image,
-                tuple(before_point),
-                tuple(point),
-                colors[annotation.category_id - 1],
-                THICKNESS,
-            )
-            before_point = point
+        image = cv2.polylines(image, [segment], True, colors[annotation.category_id - 1], THICKNESS)
 
     return image
 
@@ -107,17 +98,11 @@ def draw_results(
     if isinstance(image, str):
         image = cv2.imread(image)
 
-    classification_results = [
-        result for result in results if result.task == TaskType.CLASSIFICATION
-    ]
+    classification_results = [result for result in results if result.task == TaskType.CLASSIFICATION]
     object_detection_results = [
-        result
-        for result in results
-        if result.task == TaskType.OBJECT_DETECTION
+        result for result in results if result.task == TaskType.OBJECT_DETECTION
     ]
-    segmentation_results = [
-        result for result in results if result.task == TaskType.SEGMENTATION
-    ]
+    segmentation_results = [result for result in results if result.task == TaskType.SEGMENTATION]
 
     for i, result in enumerate(classification_results, start=1):
         image = draw_classification(

@@ -83,10 +83,7 @@ class Category(BaseField):
     @task.setter
     def task(self, v):
         if v is not None and v not in TaskType:
-            raise ValueError(
-                f"Invalid task type: {v}"
-                f"Available task types: {list(TaskType)}"
-            )
+            raise ValueError(f"Invalid task type: {v}" f"Available task types: {list(TaskType)}")
         self.__task = str(v).upper()
 
     # factories
@@ -125,11 +122,7 @@ class Category(BaseField):
 
     @classmethod
     def classification(
-        cls, 
-        category_id: int, 
-        name: str, 
-        supercategory: str = None, 
-        **kwargs
+        cls, category_id: int, name: str, supercategory: str = None, **kwargs
     ) -> "Category":
         """Classification Category Format
 
@@ -147,15 +140,10 @@ class Category(BaseField):
             supercategory=supercategory,
             task=TaskType.CLASSIFICATION,
         )
-            
 
     @classmethod
     def object_detection(
-        cls, 
-        category_id: int, 
-        name: str, 
-        supercategory: str = None, 
-        **kwargs
+        cls, category_id: int, name: str, supercategory: str = None, **kwargs
     ) -> "Category":
         """Object Detection Category Format
 
@@ -175,12 +163,8 @@ class Category(BaseField):
         )
 
     @classmethod
-    def segmentation(
-        cls, 
-        category_id: int, 
-        name: str, 
-        supercategory: str = None, 
-        **kwargs
+    def sementic_segmentation(
+        cls, category_id: int, name: str, supercategory: str = None, **kwargs
     ) -> "Category":
         """Segmentation Category Format
 
@@ -232,11 +216,7 @@ class Category(BaseField):
 
     @classmethod
     def text_recognition(
-        cls, 
-        category_id: int, 
-        name: str, 
-        supercategory: str = None, 
-        **kwargs
+        cls, category_id: int, name: str, supercategory: str = None, **kwargs
     ) -> "Category":
         """Text Recognition Category Format
 

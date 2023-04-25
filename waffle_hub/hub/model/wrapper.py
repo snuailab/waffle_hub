@@ -10,7 +10,6 @@ Returns:
 
 from typing import Union
 
-import cv2
 import numpy as np
 import torch
 import torch.nn.functional as F
@@ -18,6 +17,7 @@ from torchvision.ops import batched_nms
 
 from waffle_hub.schema.data import ImageInfo
 from waffle_hub.schema.fields import Annotation
+from waffle_hub.utils.conversion import convert_mask_to_polygon
 
 
 class PreprocessFunction:
@@ -37,26 +37,18 @@ class ClassificationResultParser(ResultParser):
         pass
 
     def __call__(
-        self,
-        results: list[torch.Tensor],
-        image_infos: list[ImageInfo] = None,
-        *args,
-        **kwargs
+        self, results: list[torch.Tensor], image_infos: list[ImageInfo] = None, *args, **kwargs
     ) -> list[Annotation]:
         parseds = []
 
         results = results[0]  # TODO: multi label
         scores, class_ids = results.cpu().topk(results.shape[1], dim=-1)
-        results = torch.cat(
-            [class_ids.unsqueeze(-1), scores.unsqueeze(-1)], dim=-1
-        )
+        results = torch.cat([class_ids.unsqueeze(-1), scores.unsqueeze(-1)], dim=-1)
         for result in results:
             parsed = []
             for class_id, score in result:
                 parsed.append(
-                    Annotation.classification(
-                        category_id=int(class_id) + 1, score=float(score)
-                    )
+                    Annotation.classification(category_id=int(class_id) + 1, score=float(score))
                 )
             parseds.append(parsed)
         return parseds
@@ -64,21 +56,13 @@ class ClassificationResultParser(ResultParser):
 
 class ObjectDetectionResultParser(ResultParser):
     def __init__(
-        self,
-        confidence_threshold: float = 0.25,
-        iou_threshold: float = 0.5,
-        *args,
-        **kwargs
+        self, confidence_threshold: float = 0.25, iou_threshold: float = 0.5, *args, **kwargs
     ):
         self.confidence_threshold = confidence_threshold
         self.iou_threshold = iou_threshold
 
     def __call__(
-        self,
-        results: list[torch.Tensor],
-        image_infos: list[ImageInfo],
-        *args,
-        **kwargs
+        self, results: list[torch.Tensor], image_infos: list[ImageInfo], *args, **kwargs
     ) -> list[Annotation]:
         parseds = []
 
@@ -106,9 +90,7 @@ class ObjectDetectionResultParser(ResultParser):
             new_w, new_h = image_info.new_shape
 
             parsed = []
-            for (x1, y1, x2, y2), conf, class_id in zip(
-                bboxes, confs, class_ids
-            ):
+            for (x1, y1, x2, y2), conf, class_id in zip(bboxes, confs, class_ids):
 
                 x1 = max(float((x1 * W - left_pad) / new_w * ori_w), 0)
                 y1 = max(float((y1 * H - top_pad) / new_h * ori_h), 0)
@@ -129,42 +111,16 @@ class ObjectDetectionResultParser(ResultParser):
 
 class SegmentationResultParser(ObjectDetectionResultParser):
     def __init__(
-        self,
-        confidence_threshold: float = 0.25,
-        iou_threshold: float = 0.5,
-        *args,
-        **kwargs
+        self, confidence_threshold: float = 0.25, iou_threshold: float = 0.5, *args, **kwargs
     ):
         self.confidence_threshold = confidence_threshold
         self.iou_threshold = iou_threshold
         super().__init__(confidence_threshold, iou_threshold, *args, **kwargs)
 
     def __call__(
-        self,
-        results: list[torch.Tensor],
-        image_infos: list[ImageInfo],
-        *args,
-        **kwargs
+        self, results: list[torch.Tensor], image_infos: list[ImageInfo], *args, **kwargs
     ) -> list[Annotation]:
         parseds = []
-
-        # XXX: move func??
-        def mask2segment(mask: torch.Tensor) -> list[list[int]]:
-            mask: np.ndarray = mask.int().cpu().numpy().astype("uint8")
-
-            contours, _ = cv2.findContours(
-                mask, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE
-            )
-            segments = []
-
-            for contour in contours:
-                segment = []
-                contour = contour.reshape(-1, 2)
-                for point in contour:
-                    segment.extend(point.tolist())
-                segments.append(segment)
-            return segments
-
         bboxes_batch, confs_batch, class_ids_batch, masks_batch = results
         for bboxes, confs, class_ids, masks, image_info in zip(
             bboxes_batch,
@@ -183,6 +139,9 @@ class SegmentationResultParser(ObjectDetectionResultParser):
                 masks[mask],
             )
             idxs = batched_nms(bboxes, confs, class_ids, self.iou_threshold)
+
+            if len(idxs) == 0:
+                continue
 
             bboxes = bboxes[idxs, :].cpu()
             confs = confs[idxs].cpu()
@@ -203,19 +162,18 @@ class SegmentationResultParser(ObjectDetectionResultParser):
             masks = masks.squeeze(0).gt_(0.5)
 
             parsed = []
-            for (x1, y1, x2, y2), conf, class_id, mask in zip(
-                bboxes, confs, class_ids, masks
-            ):
+            for (x1, y1, x2, y2), conf, class_id, mask in zip(bboxes, confs, class_ids, masks):
 
                 x1 = max(float((x1 * W - left_pad) / new_w * ori_w), 0)
                 y1 = max(float((y1 * H - top_pad) / new_h * ori_h), 0)
                 x2 = min(float((x2 * W - left_pad) / new_w * ori_w), ori_w)
                 y2 = min(float((y2 * H - top_pad) / new_h * ori_h), ori_h)
 
-                segment = mask2segment(mask)
+                mask: np.ndarray = mask.int().cpu().numpy().astype("uint8")
+                segment = convert_mask_to_polygon(mask)
 
                 parsed.append(
-                    Annotation.segmentation(
+                    Annotation.sementic_segmentation(
                         category_id=int(class_id) + 1,
                         bbox=[x1, y1, x2 - x1, y2 - y1],
                         area=float((x2 - x1) * (y2 - y1)),

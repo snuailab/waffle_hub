@@ -3,6 +3,7 @@ from typing import Union
 from waffle_utils.utils import type_validator
 
 from waffle_hub import TaskType
+from waffle_hub.utils.conversion import convert_rle_to_polygon
 
 from .base_field import BaseField
 
@@ -16,7 +17,7 @@ class Annotation(BaseField):
         # optional
         category_id: int = None,
         bbox: list[float] = None,
-        segmentation: list[float] = None,
+        segmentation: list[list[float]] = None,
         area: float = None,
         keypoints: list[float] = None,
         num_keypoints: int = None,
@@ -41,7 +42,7 @@ class Annotation(BaseField):
         self.value = value
         self.iscrowd = iscrowd
         self.score = score
-        
+
         self.task = task
 
     # properties
@@ -94,12 +95,14 @@ class Annotation(BaseField):
         return self.__segmentation
 
     @segmentation.setter
-    @type_validator(list)
+    # XXX: dict->rle, list->polygon
     def segmentation(self, v):
-        if v and len(v) % 2 != 0 and len(v) < 6:
-            raise ValueError(
-                "the length of segmentation should be at least 6 and divisible by 2."
-            )
+        if isinstance(v, dict):
+            v: list = convert_rle_to_polygon(v)
+        if v:
+            for segment in v:
+                if len(segment) % 2 != 0:
+                    raise ValueError("the length of segmentation should be divisible by 2.")
         self.__segmentation = v
 
     @property
@@ -119,9 +122,7 @@ class Annotation(BaseField):
     @type_validator(list)
     def keypoints(self, v):
         if v and len(v) % 3 != 0 and len(v) < 2:
-            raise ValueError(
-                "the length of keypoints should be at least 2 and divisible by 3."
-            )
+            raise ValueError("the length of keypoints should be at least 2 and divisible by 3.")
         self.__keypoints = v
 
     @property
@@ -176,10 +177,7 @@ class Annotation(BaseField):
     @task.setter
     def task(self, v):
         if v is not None and v not in TaskType:
-            raise ValueError(
-                f"Invalid task type: {v}"
-                f"Available task types: {list(TaskType)}"
-            )
+            raise ValueError(f"Invalid task type: {v}" f"Available task types: {list(TaskType)}")
         self.__task = str(v).upper()
 
     # factories
@@ -190,7 +188,7 @@ class Annotation(BaseField):
         image_id: int = None,
         category_id: int = None,
         bbox: list[float] = None,
-        segmentation: list[float] = None,
+        segmentation: list[list[float]] = None,
         area: int = None,
         keypoints: list[float] = None,
         num_keypoints: int = None,
@@ -199,7 +197,7 @@ class Annotation(BaseField):
         iscrowd: int = None,
         score: float = None,
         task: Union[str, TaskType] = None,
-        **kwargs
+        **kwargs,
     ) -> "Annotation":
         """Annotation Format
 
@@ -208,7 +206,7 @@ class Annotation(BaseField):
             image_id (int): image id. natural number.
             category_id (int): category id. natural number.
             bbox (list[float]): [x1, y1, w, h].
-            segmentation (list[float]): [x1, y1, x2, y2, x3, y3, ...].
+            segmentation (list[list[float]]): [[[x1, y1, x2, y2, x3, y3, ...], [...]].
             area (int): bbox area.
             keypoints (list[float]):
                 [x1, y1, v1(visible flag), x2, y2, v2(visible flag), ...].
@@ -236,17 +234,17 @@ class Annotation(BaseField):
             value=value,
             iscrowd=iscrowd,
             score=score,
-            task=task
+            task=task,
         )
 
     @classmethod
     def classification(
-        cls, 
-        annotation_id: int = None, 
-        image_id: int = None, 
-        category_id: int = None, 
-        score: float = None, 
-        **kwargs
+        cls,
+        annotation_id: int = None,
+        image_id: int = None,
+        category_id: int = None,
+        score: float = None,
+        **kwargs,
     ) -> "Annotation":
         """Classification Annotation Format
 
@@ -259,7 +257,13 @@ class Annotation(BaseField):
         Returns:
             Annotation: annotation class
         """
-        return cls(annotation_id, image_id, category_id=category_id, score=score, task=TaskType.CLASSIFICATION)
+        return cls(
+            annotation_id,
+            image_id,
+            category_id=category_id,
+            score=score,
+            task=TaskType.CLASSIFICATION,
+        )
 
     @classmethod
     def object_detection(
@@ -271,7 +275,7 @@ class Annotation(BaseField):
         area: int = None,
         iscrowd: int = 0,
         score: float = None,
-        **kwargs
+        **kwargs,
     ) -> "Annotation":
         """Object Detection Annotation Format
 
@@ -295,21 +299,21 @@ class Annotation(BaseField):
             area=area,
             iscrowd=iscrowd,
             score=score,
-            task=TaskType.OBJECT_DETECTION
+            task=TaskType.OBJECT_DETECTION,
         )
 
     @classmethod
-    def segmentation(
+    def sementic_segmentation(
         cls,
         annotation_id: int = None,
         image_id: int = None,
         category_id: int = None,
         bbox: list[float] = None,
-        segmentation: list[float] = None,
+        segmentation: list[list[float]] = None,
         area: int = None,
         iscrowd: int = 0,
         score: float = None,
-        **kwargs
+        **kwargs,
     ) -> "Annotation":
         """Segmentation Annotation Format
 
@@ -318,7 +322,7 @@ class Annotation(BaseField):
             image_id (int): image id. natural number.
             category_id (int): category id. natural number.
             bbox (list[float]): [x1, y1, w, h].
-            segmentation (list[float]): [x1, y1, x2, y2, x3, y3, ...].
+            segmentation (list[list[float]]): [[x1, y1, x2, y2, x3, y3, ...], [polygon]].
             area (int): segmentation segmentation area.
             iscrowd (int, optional): is crowd or not. Default to 0.
             score (float, optional): prediction score. Default to None.
@@ -335,7 +339,7 @@ class Annotation(BaseField):
             area=area,
             iscrowd=iscrowd,
             score=score,
-            task=TaskType.SEGMENTATION
+            task=TaskType.SEGMENTATION,
         )
 
     @classmethod
@@ -348,10 +352,10 @@ class Annotation(BaseField):
         keypoints: list[float] = None,
         num_keypoints: int = None,
         area: int = None,
-        segmentation: list[float] = None,
+        segmentation: list[list[float]] = None,
         iscrowd: int = 0,
         score: list[float] = None,
-        **kwargs
+        **kwargs,
     ) -> "Annotation":
         """Keypoint Detection Annotation Format
 
@@ -365,7 +369,7 @@ class Annotation(BaseField):
                 visible flag is one of [0(Not labeled), 1(Labeled but not visible), 2(labeled and visible)]
             num_keypoints: number of labeled keypoints
             area (int): segmentation segmentation or bbox area.
-            segmentation (list[float], optional): [x1, y1, x2, y2, x3, y3, ...].
+            segmentation (list[list[float]], optional): [[x1, y1, x2, y2, x3, y3, ...], [polygon]].
             iscrowd (int, optional): is crowd or not. Default to 0.
             score (list[float], optional): prediction scores. Default to None.
 
@@ -383,16 +387,12 @@ class Annotation(BaseField):
             area=area,
             iscrowd=iscrowd,
             score=score,
-            task=TaskType.KEYPOINT_DETECTION
+            task=TaskType.KEYPOINT_DETECTION,
         )
 
     @classmethod
     def regression(
-        cls, 
-        annotation_id: int = None, 
-        image_id: int = None, 
-        value: float = None, 
-        **kwargs
+        cls, annotation_id: int = None, image_id: int = None, value: float = None, **kwargs
     ) -> "Annotation":
         """Regression Annotation Format
 
@@ -409,12 +409,12 @@ class Annotation(BaseField):
 
     @classmethod
     def text_recognition(
-        cls, 
-        annotation_id: int = None, 
-        image_id: int = None, 
-        caption: str = None, 
-        score: float = None, 
-        **kwargs
+        cls,
+        annotation_id: int = None,
+        image_id: int = None,
+        caption: str = None,
+        score: float = None,
+        **kwargs,
     ) -> "Annotation":
         """Text Recognition Annotation Format
 
@@ -428,7 +428,9 @@ class Annotation(BaseField):
         Returns:
             Annotation: annotation class
         """
-        return cls(annotation_id, image_id, caption=caption, score=score, task=TaskType.TEXT_RECOGNITION)
+        return cls(
+            annotation_id, image_id, caption=caption, score=score, task=TaskType.TEXT_RECOGNITION
+        )
 
     def to_dict(self) -> dict:
         """Get Dictionary of Annotation Data
