@@ -1,5 +1,6 @@
-__version__ = "0.1.8"
+__version__ = "0.1.9"
 
+import enum
 import importlib
 import warnings
 import enum
@@ -21,18 +22,18 @@ try:
         )
 except ModuleNotFoundError as e:
     # TODO: Generalize install strings
-    strings = [
-        "  - conda install pytorch==1.12.1 torchvision==0.13.1 torchaudio==0.12.1 cudatoolkit=11.3 -c pytorch",
-        "  - pip install torch==1.12.1+cu113 torchvision==0.13.1+cu113 torchaudio==0.12.1 --extra-index-url https://download.pytorch.org/whl/cu113",
-        "  - pip install torch==1.12.1 torchvision==0.13.1 torchaudio==0.12.1",
-    ]
+    strings = []
 
     e.msg = "Need to install torch\n" + "\n".join(strings)
     raise e
 
 # backend supports
 _backends = OrderedDict(
-    {"ultralytics": ["8.0.72"], "autocare_tx_model": ["0.2.0"]}
+    {
+        "ultralytics": ["8.0.87"],
+        "autocare_tx_model": ["0.2.0"],
+        "transformers": ["4.27.4"],
+    }
 )
 
 
@@ -63,9 +64,7 @@ def get_installed_backend_version(backend: str) -> str:
 
     except ModuleNotFoundError as e:
 
-        install_queries = "\n".join(
-            [f"- pip install {backend}=={version}" for version in versions]
-        )
+        install_queries = "\n".join([f"- pip install {backend}=={version}" for version in versions])
 
         e.msg = f"""
             Need to install {backend}.
@@ -97,9 +96,10 @@ class CustomEnumMeta(enum.EnumMeta):
         if isinstance(item, str):
             return item.upper() in cls._member_names_
         return super().__contains__(item)
-    
+
     def __upper__(self):
         return self.name.upper()
+
 
 class BaseEnum(enum.Enum, metaclass=CustomEnumMeta):
     """Base class for Enum
@@ -135,11 +135,17 @@ class BaseEnum(enum.Enum, metaclass=CustomEnumMeta):
 
 
 class DataType(BaseEnum):
+    # TODO: map to same value
+
     YOLO = enum.auto()
-    ULTRALYTICS = YOLO
+    ULTRALYTICS = enum.auto()
 
     COCO = enum.auto()
-    TX_MODEL = COCO
+    TX_MODEL = enum.auto()
+    AUTOCARE_TX_MODEL = enum.auto()
+
+    HUGGINGFACE = enum.auto()
+    TRANSFORMERS = enum.auto()
 
 
 class TaskType(BaseEnum):

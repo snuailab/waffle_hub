@@ -1,6 +1,6 @@
 """
-!!! DEPRECATED !!!
 Tx Model Hub
+See BaseHub documentation for more details about usage.
 """
 
 from waffle_hub import get_installed_backend_version
@@ -24,8 +24,9 @@ from waffle_hub.hub.adapter.tx_model.configs import (
     get_data_config,
     get_model_config,
 )
-from waffle_hub.hub.base_hub import BaseHub, TrainContext
-from waffle_hub.hub.model.wrapper import ModelWrapper, ResultParser
+from waffle_hub.hub.base_hub import BaseHub
+from waffle_hub.hub.model.wrapper import ModelWrapper
+from waffle_hub.schema.configs import TrainConfig
 from waffle_hub.utils.callback import TrainCallback
 
 
@@ -34,15 +35,13 @@ class TxModelHub(BaseHub):
     # Common
     MODEL_TYPES = {
         "object_detection": {"YOLOv5": list("sml")},
-        # "classification": {
-        #     "resnet": list("sml"),
-        #     "swin": list("sml")
-        # },
+        "classification": {"Classifier": list("sml")},
     }
 
     # Backend Specifics
     DATA_TYPE_MAP = {
         "object_detection": "COCODetectionDataset",
+        "classification": "COCOClassificationDataset",
     }
 
     WEIGHT_PATH = {
@@ -51,6 +50,13 @@ class TxModelHub(BaseHub):
                 "s": "temp/autocare_tx_model/detectors/small/model.pth",
                 "m": "temp/autocare_tx_model/detectors/medium/model.pth",
                 "l": "temp/autocare_tx_model/detectors/large/model.pth",
+            }
+        },
+        "classification": {
+            "Classifier": {
+                "s": "temp/autocare_tx_model/classifiers/small/model.pth",
+                "m": "temp/autocare_tx_model/classifiers/medium/model.pth",
+                "l": "temp/autocare_tx_model/classifiers/large/model.pth",
             }
         },
     }
@@ -69,9 +75,7 @@ class TxModelHub(BaseHub):
         """Create Tx Model Hub Class. Do not use this class directly. Use TxModelHub.new() instead."""
 
         if backend is not None and backend != BACKEND_NAME:
-            raise ValueError(
-                f"you've loaded {backend}. backend must be {BACKEND_NAME}"
-            )
+            raise ValueError(f"you've loaded {backend}. backend must be {BACKEND_NAME}")
 
         if version is not None and version != BACKEND_VERSION:
             warnings.warn(
@@ -128,6 +132,12 @@ class TxModelHub(BaseHub):
             def preprocess(x, *args, **kwargs):
                 return normalize(x)
 
+        elif task == "classification":
+            normalize = T.Normalize([0, 0, 0], [1, 1, 1], inplace=True)
+
+            def preprocess(x, *args, **kwargs):
+                return normalize(x)
+
         return preprocess
 
     def get_postprocess(self, task: str, *args, **kwargs):
@@ -135,6 +145,16 @@ class TxModelHub(BaseHub):
         if task == "object_detection":
 
             def inner(x: torch.Tensor, *args, **kwargs):
+                xyxy = x[0]
+                scores = x[1]
+                class_ids = x[2]
+
+                return xyxy, scores, class_ids
+
+        elif task == "classification":
+
+            def inner(x: torch.Tensor, *args, **kwargs):
+                x = [t.squeeze() for t in x]
                 return x
 
         return inner
@@ -161,73 +181,72 @@ class TxModelHub(BaseHub):
         metrics = (
             df.sort_values("step")
             .groupby("step")
-            .apply(
-                lambda x: [
-                    {"tag": s, "value": v} for s, v in zip(x.tag, x.value)
-                ]
-            )
+            .apply(lambda x: [{"tag": s, "value": v} for s, v in zip(x.tag, x.value)])
             .to_list()
         )
 
         return metrics
 
     # Train Hook
-    def on_train_start(self, ctx: TrainContext):
+    def on_train_start(self, cfg: TrainConfig):
         # set data
-        ctx.dataset_path: Path = Path(ctx.dataset_path)
-
+        cfg.dataset_path: Path = Path(cfg.dataset_path)
         data_config = get_data_config(
             self.DATA_TYPE_MAP[self.task],
-            [ctx.image_size, ctx.image_size],
-            ctx.batch_size,
-            ctx.workers,
-            str(ctx.dataset_path / "train.json"),
-            str(ctx.dataset_path / "images"),
-            str(ctx.dataset_path / "val.json"),
-            str(ctx.dataset_path / "images"),
-            str(ctx.dataset_path / "test.json"),
-            str(ctx.dataset_path / "images"),
+            [cfg.image_size, cfg.image_size],
+            cfg.batch_size,
+            cfg.workers,
+            str(cfg.dataset_path / "train.json"),
+            str(cfg.dataset_path / "images"),
+            str(cfg.dataset_path / "val.json"),
+            str(cfg.dataset_path / "images"),
+            str(cfg.dataset_path / "test.json"),
+            str(cfg.dataset_path / "images"),
         )
-        ctx.data_config = self.artifact_dir / "data.json"
-        io.save_json(data_config, ctx.data_config, create_directory=True)
+
+        cfg.data_config = self.artifact_dir / "data.json"
+        io.save_json(data_config, cfg.data_config, create_directory=True)
 
         model_config = get_model_config(
             self.model_type,
             self.model_size,
             [x["name"] for x in self.categories],
-            ctx.seed,
-            ctx.letter_box,
-            ctx.epochs,
+            cfg.seed,
+            cfg.learning_rate,
+            cfg.letter_box,
+            cfg.epochs,
         )
-        ctx.model_config = self.artifact_dir / "model.json"
-        io.save_json(model_config, ctx.model_config, create_directory=True)
+
+        cfg.model_config = self.artifact_dir / "model.json"
+        io.save_json(model_config, cfg.model_config, create_directory=True)
 
         # pretrained model
-        ctx.pretrained_model = (
-            ctx.pretrained_model
-            if ctx.pretrained_model is not None
+        cfg.pretrained_model = (
+            cfg.pretrained_model
+            if cfg.pretrained_model is not None
             else self.WEIGHT_PATH[self.task][self.model_type][self.model_size]
         )
-        if not Path(ctx.pretrained_model).exists():
-            ctx.pretrained_model = None
-            warnings.warn(
-                f"{ctx.pretrained_model} does not exists. Train from scratch."
-            )
+        if not Path(cfg.pretrained_model).exists():
+            cfg.pretrained_model = None
+            warnings.warn(f"{cfg.pretrained_model} does not exists. Train from scratch.")
 
-    def training(self, ctx: TrainContext, callback: TrainCallback):
+        cfg.dataset_path = str(cfg.dataset_path.absolute())
 
+    def training(self, cfg: TrainConfig, callback: TrainCallback):
         results = train.run(
             exp_name="train",
-            model_cfg=str(ctx.model_config),
-            data_cfg=str(ctx.data_config),
-            gpus="-1" if ctx.device == "cpu" else str(ctx.device),
+            model_cfg=str(cfg.model_config),
+            data_cfg=str(cfg.data_config),
+            gpus="-1" if cfg.device == "cpu" else str(cfg.device),
             output_dir=str(self.artifact_dir),
-            ckpt=ctx.pretrained_model,
+            ckpt=cfg.pretrained_model,
             overwrite=True,
         )
+        if results is None:
+            raise RuntimeError("Training failed")
         del results
 
-    def on_train_end(self, ctx: TrainContext):
+    def on_train_end(self, cfg: TrainConfig):
         io.copy_file(
             self.artifact_dir / "train" / "best_ckpt.pth",
             self.best_ckpt_file,
@@ -255,10 +274,9 @@ class TxModelHub(BaseHub):
         # get model
         categories = [x["name"] for x in self.categories]
         cfg = io.load_json(self.artifact_dir / "model.json")
-        cfg["model"]["head"]["num_categories"] = len(categories)
         cfg["ckpt"] = str(self.best_ckpt_file)
-        cfg["categories"] = categories
-        cfg["num_categories"] = (len(categories),)
+        cfg["model"]["head"]["num_classes"] = len(categories)
+        cfg["num_classes"] = len(categories)
         model, categories = build_model(AttrDict(cfg), strict=True)
 
         model = ModelWrapper(
