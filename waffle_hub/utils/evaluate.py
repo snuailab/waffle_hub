@@ -8,7 +8,7 @@ from waffle_hub import TaskType
 from waffle_hub.schema.evaluate import (
     ClassificationMetric,
     ObjectDetectionMetric,
-    SementicSegmentationMetric,
+    SemanticSegmentationMetric,
 )
 from waffle_hub.schema.fields import Annotation
 
@@ -37,7 +37,7 @@ def convert_to_torchmetric_format(total: list[Annotation], task: TaskType, predi
 
             datas.append(data)
 
-        elif task == TaskType.SEMENTIC_SEGMENTATION:
+        elif task == TaskType.SEMANTIC_SEGMENTATION:
             data = {
                 "boxes": [],
                 "labels": [],
@@ -91,7 +91,7 @@ def evaluate_object_detection(
 
 def evaluate_segmentation(
     preds: list[Annotation], labels: list[Annotation], num_classes: int
-) -> SementicSegmentationMetric:
+) -> SemanticSegmentationMetric:
 
     map_dict = mean_ap.MeanAveragePrecision(
         box_format="xywh",
@@ -100,7 +100,7 @@ def evaluate_segmentation(
         num_classes=num_classes,
     )(preds, labels)
 
-    return SementicSegmentationMetric(float(map_dict["map"]))
+    return SemanticSegmentationMetric(float(map_dict["map"]))
 
 
 def evaluate_function(
@@ -110,7 +110,7 @@ def evaluate_function(
     num_classes: int = None,
     *args,
     **kwargs
-) -> Union[ClassificationMetric, ObjectDetectionMetric, SementicSegmentationMetric]:
+) -> Union[ClassificationMetric, ObjectDetectionMetric, SemanticSegmentationMetric]:
     preds = convert_to_torchmetric_format(preds, task, prediction=True)
     labels = convert_to_torchmetric_format(labels, task)
 
@@ -118,7 +118,7 @@ def evaluate_function(
         return evaluate_classification(preds, labels, num_classes, *args, **kwargs)
     elif task == TaskType.OBJECT_DETECTION:
         return evaluate_object_detection(preds, labels, num_classes, *args, **kwargs)
-    elif task == TaskType.SEMENTIC_SEGMENTATION:
+    elif task == TaskType.SEMANTIC_SEGMENTATION:
         return evaluate_segmentation(preds, labels, num_classes, *args, **kwargs)
     else:
         raise NotImplementedError

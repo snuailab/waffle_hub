@@ -25,8 +25,8 @@ class BaseField(ABC):
             return cls.classification(**d)
         elif task == TaskType.OBJECT_DETECTION:
             return cls.object_detection(**d)
-        elif task == TaskType.SEMENTIC_SEGMENTATION:
-            return cls.sementic_segmentation(**d)
+        elif task == TaskType.SEMANTIC_SEGMENTATION:
+            return cls.semantic_segmentation(**d)
         elif task == TaskType.INSTANCE_SEGMENTATION:
             return cls.instance_segmentation(**d)
         elif task == TaskType.KEYPOINT_DETECTION:

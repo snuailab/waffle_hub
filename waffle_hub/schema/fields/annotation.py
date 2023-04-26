@@ -303,7 +303,7 @@ class Annotation(BaseField):
         )
 
     @classmethod
-    def sementic_segmentation(
+    def semantic_segmentation(
         cls,
         annotation_id: int = None,
         image_id: int = None,
@@ -339,7 +339,7 @@ class Annotation(BaseField):
             area=area,
             iscrowd=iscrowd,
             score=score,
-            task=TaskType.SEMENTIC_SEGMENTATION,
+            task=TaskType.SEMANTIC_SEGMENTATION,
         )
 
     @classmethod

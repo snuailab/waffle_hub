@@ -109,7 +109,7 @@ class ObjectDetectionResultParser(ResultParser):
         return parseds
 
 
-class SementicSegmentationResultParser(ObjectDetectionResultParser):
+class SemanticSegmentationResultParser(ObjectDetectionResultParser):
     def __init__(
         self, confidence_threshold: float = 0.25, iou_threshold: float = 0.5, *args, **kwargs
     ):
@@ -171,7 +171,7 @@ class SementicSegmentationResultParser(ObjectDetectionResultParser):
                 segment = convert_mask_to_polygon(mask)
 
                 parsed.append(
-                    Annotation.sementic_segmentation(
+                    Annotation.semantic_segmentation(
                         category_id=int(class_id) + 1,
                         bbox=[x1, y1, x2 - x1, y2 - y1],
                         area=float((x2 - x1) * (y2 - y1)),
@@ -188,8 +188,8 @@ def get_parser(task: str):
         return ClassificationResultParser
     elif task == "object_detection":
         return ObjectDetectionResultParser
-    elif task == "sementic_segmentation":
-        return SementicSegmentationResultParser
+    elif task == "semantic_segmentation":
+        return SemanticSegmentationResultParser
 
 
 class ModelWrapper(torch.nn.Module):

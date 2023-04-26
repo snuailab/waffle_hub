@@ -29,7 +29,7 @@ class UltralyticsHub(BaseHub):
     MODEL_TYPES = {
         "object_detection": {"yolov8": list("nsmlx")},
         "classification": {"yolov8": list("nsmlx")},
-        "sementic_segmentation": {"yolov8": list("nsmlx")},
+        "semantic_segmentation": {"yolov8": list("nsmlx")},
         # "keypoint_detection": {"yolov8": list("nsmlx")},
     }
 
@@ -37,7 +37,7 @@ class UltralyticsHub(BaseHub):
     TASK_MAP = {
         "object_detection": "detect",
         "classification": "classify",
-        "sementic_segmentation": "segment"
+        "semantic_segmentation": "segment"
         # "keypoint_detection": "pose"
     }
     TASK_SUFFIX = {
@@ -61,7 +61,7 @@ class UltralyticsHub(BaseHub):
             "letter_box": False,
             "batch_size": 16,
         },
-        "sementic_segmentation": {
+        "semantic_segmentation": {
             "epochs": 50,
             "image_size": [640, 640],
             "learning_rate": 0.01,
@@ -149,7 +149,7 @@ class UltralyticsHub(BaseHub):
             def preprocess(x, *args, **kwargs):
                 return normalize(x)
 
-        elif task == "sementic_segmentation":
+        elif task == "semantic_segmentation":
             normalize = T.Normalize([0, 0, 0], [1, 1, 1], inplace=True)
 
             def preprocess(x, *args, **kwargs):
@@ -188,7 +188,7 @@ class UltralyticsHub(BaseHub):
 
                 return xyxy, confidences, class_ids
 
-        elif task == "sementic_segmentation":
+        elif task == "semantic_segmentation":
 
             def inner(x: torch.Tensor, image_size: tuple[int, int], *args, **kwargs):
                 preds = x[0]  # x[0]: prediction, x[1]: TODO: what is this...?

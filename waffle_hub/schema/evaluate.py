@@ -14,5 +14,5 @@ class ClassificationMetric(BaseSchema):
 
 
 @dataclass
-class SementicSegmentationMetric(BaseSchema):
+class SemanticSegmentationMetric(BaseSchema):
     mAP: float

@@ -38,7 +38,7 @@ def test_annotation():
     )
 
     # segmentation
-    a = Annotation.sementic_segmentation(
+    a = Annotation.semantic_segmentation(
         annotation_id=1,
         image_id=1,
         category_id=1,
@@ -89,7 +89,7 @@ def test_category():
     )
 
     # segmentation
-    category = Category.sementic_segmentation(
+    category = Category.semantic_segmentation(
         category_id=1,
         name="test",
         supercategory="object",

@@ -151,7 +151,7 @@ class DataType(BaseEnum):
 class TaskType(BaseEnum):
     CLASSIFICATION = enum.auto()
     OBJECT_DETECTION = enum.auto()
-    SEMENTIC_SEGMENTATION = enum.auto()
+    SEMANTIC_SEGMENTATION = enum.auto()
     INSTANCE_SEGMENTATION = enum.auto()
     KEYPOINT_DETECTION = enum.auto()
     TEXT_RECOGNITION = enum.auto()

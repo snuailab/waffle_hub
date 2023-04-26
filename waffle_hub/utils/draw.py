@@ -103,7 +103,7 @@ def draw_results(
         result for result in results if result.task == TaskType.OBJECT_DETECTION
     ]
     segmentation_results = [
-        result for result in results if result.task == TaskType.SEMENTIC_SEGMENTATION
+        result for result in results if result.task == TaskType.SEMANTIC_SEGMENTATION
     ]
 
     for i, result in enumerate(classification_results, start=1):

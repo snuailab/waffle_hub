@@ -163,7 +163,7 @@ class Category(BaseField):
         )
 
     @classmethod
-    def sementic_segmentation(
+    def semantic_segmentation(
         cls, category_id: int, name: str, supercategory: str = None, **kwargs
     ) -> "Category":
         """Segmentation Category Format
@@ -180,7 +180,7 @@ class Category(BaseField):
             category_id=category_id,
             name=name,
             supercategory=supercategory,
-            task=TaskType.SEMENTIC_SEGMENTATION,
+            task=TaskType.SEMANTIC_SEGMENTATION,
         )
 
     @classmethod
