@@ -68,3 +68,5 @@ class ExportConfig(BaseSchema):
     input_name: list[str] = None
     output_name: list[str] = None
     opset_version: int = None
+    half: bool = False
+    device: str = None
