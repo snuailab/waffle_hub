@@ -61,10 +61,7 @@ def _train(hub, dataset: Dataset, image_size: int, hold: bool = True):
 
     if not hold:
         assert hasattr(result, "callback")
-        while (
-            not result.callback.is_finished()
-            and not result.callback.is_failed()
-        ):
+        while not result.callback.is_finished() and not result.callback.is_failed():
             time.sleep(1)
         assert result.callback.is_finished()
         assert not result.callback.is_failed()
@@ -89,10 +86,7 @@ def _evaluate(hub, dataset: Dataset, hold: bool = True):
 
     if not hold:
         assert hasattr(result, "callback")
-        while (
-            not result.callback.is_finished()
-            and not result.callback.is_failed()
-        ):
+        while not result.callback.is_finished() and not result.callback.is_failed():
             time.sleep(1)
         assert result.callback.is_finished()
         assert not result.callback.is_failed()
@@ -114,10 +108,7 @@ def _inference(hub, source: str, hold: bool = True):
 
     if not hold:
         assert hasattr(result, "callback")
-        while (
-            not result.callback.is_finished()
-            and not result.callback.is_failed()
-        ):
+        while not result.callback.is_finished() and not result.callback.is_failed():
             time.sleep(1)
         assert result.callback.is_finished()
         assert not result.callback.is_failed()
@@ -128,15 +119,16 @@ def _inference(hub, source: str, hold: bool = True):
     return result
 
 
-def _export(hub, hold: bool = True):
-    result: ExportResult = hub.export(hold=hold)
+def _export(hub, half: bool = False, hold: bool = True):
+    result: ExportResult = hub.export(
+        hold=hold,
+        half=half,
+        device="cpu",
+    )
 
     if not hold:
         assert hasattr(result, "callback")
-        while (
-            not result.callback.is_finished()
-            and not result.callback.is_failed()
-        ):
+        while not result.callback.is_finished() and not result.callback.is_failed():
             time.sleep(1)
         assert result.callback.is_finished()
         assert not result.callback.is_failed()
@@ -167,13 +159,12 @@ def _total(hub, dataset: Dataset, image_size: int, hold: bool = True):
     _train(hub, dataset, image_size, hold=hold)
     _evaluate(hub, dataset, hold=hold)
     _inference(hub, dataset.raw_image_dir, hold=hold)
-    _export(hub, hold=hold)
+    _export(hub, half=False, hold=hold)
+    # _export(hub, half=True, hold=hold)  # cpu cannot be half
     _feature_extraction(hub, image_size)
 
 
-def test_ultralytics_object_detection(
-    object_detection_dataset: Dataset, tmpdir: Path
-):
+def test_ultralytics_object_detection(object_detection_dataset: Dataset, tmpdir: Path):
     image_size = 32
     dataset = object_detection_dataset
 
@@ -197,9 +188,7 @@ def test_ultralytics_object_detection(
     _total(hub, dataset, image_size)
 
 
-def test_ultralytics_classification(
-    classification_dataset: Dataset, tmpdir: Path
-):
+def test_ultralytics_classification(classification_dataset: Dataset, tmpdir: Path):
     image_size = 32
     dataset = classification_dataset
 
