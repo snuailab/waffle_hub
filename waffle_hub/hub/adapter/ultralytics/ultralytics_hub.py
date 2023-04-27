@@ -149,10 +149,12 @@ class UltralyticsHub(BaseHub):
 
     def get_postprocess(self, task: str, *args, **kwargs):
 
+        id_mapper: list[int] = kwargs.get("id_mapper", [i for i in range(len(self.categories))])
+
         if task == "classification":
 
             def inner(x: torch.Tensor, *args, **kwargs):
-                return [x]
+                return [x[:, id_mapper]]
 
         elif task == "object_detection":
 
@@ -170,7 +172,7 @@ class UltralyticsHub(BaseHub):
 
                 xyxy[:, :, ::2] /= image_size[0]
                 xyxy[:, :, 1::2] /= image_size[1]
-                probs = x[:, :, 4:]
+                probs = x[:, :, 4:][:, :, id_mapper]
                 confidences, class_ids = torch.max(probs, dim=-1)
 
                 return xyxy, confidences, class_ids
@@ -229,14 +231,6 @@ class UltralyticsHub(BaseHub):
             else:
                 cfg.dataset_path = cfg.dataset_path.absolute()
         elif self.backend_task_name == "classify":
-
-            from torchvision.datasets.folder import ImageFolder
-
-            def find_categories(_, directory: str):
-                return directory, {v["name"]: i for i, v in enumerate(self.categories)}
-
-            ImageFolder.find_categories = find_categories
-
             if not cfg.dataset_path.is_dir():
                 raise ValueError(
                     f"Classification dataset should be directory. Not {cfg.dataset_path}"
@@ -297,13 +291,29 @@ class UltralyticsHub(BaseHub):
         """
         self.check_train_sanity()
 
-        # get adapt functions
-        preprocess = self.get_preprocess(self.task)
-        postprocess = self.get_postprocess(self.task)
-
         # get model
+        model = YOLO(self.best_ckpt_file).model.eval()
+
+        # get adapt functions
+        names: list[str] = list(map(lambda x: x["name"], self.categories))
+        yolo_names: dict[int, str] = model.names
+        if len(names) != len(yolo_names):
+            raise ValueError(
+                f"Number of categories is not matched. hub: {len(names)} != ultralytics: {len(yolo_names)}"
+            )
+
+        id_mapper: list[int] = [i for i in range(len(yolo_names))]
+
+        yolo_names_inv = {v: k for k, v in yolo_names.items()}
+        for i, name in enumerate(names):
+            id_mapper[i] = yolo_names_inv[name]
+
+        preprocess = self.get_preprocess(self.task)
+        postprocess = self.get_postprocess(self.task, id_mapper=id_mapper)
+
+        # wrap model
         model = ModelWrapper(
-            model=YOLO(self.best_ckpt_file).model.eval(),
+            model=model,
             preprocess=preprocess,
             postprocess=postprocess,
         )
