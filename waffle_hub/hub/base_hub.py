@@ -520,7 +520,7 @@ class BaseHub:
         Returns:
             TrainResult: train result
         """
-        
+
         if self.artifact_dir.exists():
             raise FileExistsError(
                 f"{self.artifact_dir}\n"
@@ -917,7 +917,8 @@ class BaseHub:
         image_size = cfg.image_size
         image_size = [image_size, image_size] if isinstance(image_size, int) else image_size
 
-        model = self.get_model()
+        model = self.get_model().half() if cfg.half else self.get_model()
+        model = model.to(cfg.device)
 
         input_name = ["inputs"]
         if self.task == "object_detection":
@@ -927,7 +928,10 @@ class BaseHub:
         else:
             raise NotImplementedError(f"{self.task} does not support export yet.")
 
-        dummy_input = torch.randn(cfg.batch_size, 3, *image_size)
+        dummy_input = torch.randn(
+            cfg.batch_size, 3, *image_size, dtype=torch.float16 if cfg.half else torch.float32
+        )
+        dummy_input = dummy_input.to(cfg.device)
 
         torch.onnx.export(
             model,
@@ -950,6 +954,8 @@ class BaseHub:
         image_size: Union[int, list[int]] = None,
         batch_size: int = 16,
         opset_version: int = 11,
+        half: bool = False,
+        device: str = "0",
         hold: bool = True,
     ) -> ExportResult:
         """Export Model
@@ -958,6 +964,8 @@ class BaseHub:
             image_size (Union[int, list[int]], optional): inference image size. None for same with train_config (recommended).
             batch_size (int, optional): dynamic batch size. Defaults to 16.
             opset_version (int, optional): onnx opset version. Defaults to 11.
+            half (bool, optional): half. Defaults to False.
+            device (str, optional): device. "cpu" or "gpu_id". Defaults to "0".
             hold (bool, optional): hold or not.
                 If True then it holds until task finished.
                 If False then return Inferece Callback and run in background. Defaults to True.
@@ -1001,6 +1009,8 @@ class BaseHub:
             image_size=image_size,
             batch_size=batch_size,
             opset_version=opset_version,
+            half=half,
+            device="cpu" if device == "cpu" else f"cuda:{device}",
         )
 
         callback = ExportCallback(1)
