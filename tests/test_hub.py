@@ -27,7 +27,7 @@ def object_detection_dataset(coco_path: Path, tmpdir: Path):
         coco_root_dir=coco_path / "images",
         root_dir=tmpdir,
     )
-    dataset.split(0.8)
+    dataset.split(0.1, 0.1, 0.8)
 
     return dataset
 
@@ -212,56 +212,52 @@ def test_ultralytics_classification(classification_dataset: Dataset, tmpdir: Pat
     _total(hub, dataset, image_size)
 
 
-# def test_huggingface_object_detection(
-#     object_detection_dataset: Dataset, tmpdir: Path
-# ):
-#     image_size = 32
-#     dataset = object_detection_dataset
+def test_huggingface_object_detection(object_detection_dataset: Dataset, tmpdir: Path):
+    image_size = 32
+    dataset = object_detection_dataset
 
-#     # test hub
-#     name = "test_det"
-#     hub = HuggingFaceHub.new(
-#         name=name,
-#         task=TaskType.OBJECT_DETECTION,
-#         model_type="YOLOS",
-#         model_size="tiny",
-#         categories=object_detection_dataset.category_names,
-#         root_dir=tmpdir,
-#     )
-#     hub = HuggingFaceHub.load(name=name, root_dir=tmpdir)
-#     hub: HuggingFaceHub = HuggingFaceHub.from_model_config(
-#         name=name,
-#         model_config_file=tmpdir / name / HuggingFaceHub.MODEL_CONFIG_FILE,
-#         root_dir=tmpdir,
-#     )
+    # test hub
+    name = "test_det"
+    hub = HuggingFaceHub.new(
+        name=name,
+        task=TaskType.OBJECT_DETECTION,
+        model_type="YOLOS",
+        model_size="tiny",
+        categories=object_detection_dataset.category_names,
+        root_dir=tmpdir,
+    )
+    hub = HuggingFaceHub.load(name=name, root_dir=tmpdir)
+    hub: HuggingFaceHub = HuggingFaceHub.from_model_config(
+        name=name,
+        model_config_file=tmpdir / name / HuggingFaceHub.MODEL_CONFIG_FILE,
+        root_dir=tmpdir,
+    )
 
-#     _total(hub, dataset, image_size)
+    _total(hub, dataset, image_size)
 
 
-# def test_huggingface_classification(
-#     classification_dataset: Dataset, tmpdir: Path
-# ):
-#     image_size = 224
-#     dataset = classification_dataset
+def test_huggingface_classification(classification_dataset: Dataset, tmpdir: Path):
+    image_size = 224
+    dataset = classification_dataset
 
-#     # test hub
-#     name = "test_cls"
-#     hub = HuggingFaceHub.new(
-#         name=name,
-#         task=TaskType.CLASSIFICATION,
-#         model_type="ViT",
-#         model_size="tiny",
-#         categories=classification_dataset.category_names,
-#         root_dir=tmpdir,
-#     )
-#     hub = HuggingFaceHub.load(name=name, root_dir=tmpdir)
-#     hub: HuggingFaceHub = HuggingFaceHub.from_model_config(
-#         name=name,
-#         model_config_file=tmpdir / name / HuggingFaceHub.MODEL_CONFIG_FILE,
-#         root_dir=tmpdir,
-#     )
+    # test hub
+    name = "test_cls"
+    hub = HuggingFaceHub.new(
+        name=name,
+        task=TaskType.CLASSIFICATION,
+        model_type="ViT",
+        model_size="tiny",
+        categories=classification_dataset.category_names,
+        root_dir=tmpdir,
+    )
+    hub = HuggingFaceHub.load(name=name, root_dir=tmpdir)
+    hub: HuggingFaceHub = HuggingFaceHub.from_model_config(
+        name=name,
+        model_config_file=tmpdir / name / HuggingFaceHub.MODEL_CONFIG_FILE,
+        root_dir=tmpdir,
+    )
 
-#     _total(hub, dataset, image_size)
+    _total(hub, dataset, image_size)
 
 
 def test_non_hold(classification_dataset: Dataset, tmpdir: Path):
