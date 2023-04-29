@@ -127,10 +127,10 @@ class ClassifierInputHelper(TrainInputHelper):
                 self.image_processor.size["width"],
             )
         )
-        if list(size) != list(self.image_size):
-            raise ValueError(
-                f"pretrained model's image size is {size}, but you set {self.image_size}."
-            )
+        # if list(size) != list(self.image_size):
+        #     raise ValueError(
+        #         f"pretrained model's image size is {size}, but you set {self.image_size}."
+        #     )
 
         _transforms = T.Compose([T.RandomResizedCrop(size), T.ToTensor(), normalize])
 
@@ -169,8 +169,8 @@ class ObjectDetectionInputHelper(TrainInputHelper):
             )
         )
 
-        if list(size) != list(self.image_size):
-            warnings.warn(f"pretrained model's image size is {size}, but you set {self.image_size}.")
+        # if list(size) != list(self.image_size):
+        #     warnings.warn(f"pretrained model's image size is {size}, but you set {self.image_size}.")
 
         _transforms = albumentations.Compose(
             [
