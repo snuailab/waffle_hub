@@ -11,6 +11,8 @@ BACKEND_VERSION = get_installed_backend_version(BACKEND_NAME)
 import os
 import warnings
 from copy import deepcopy
+from functools import cached_property
+from pathlib import Path
 from typing import Callable, Union
 
 import torch
@@ -57,6 +59,10 @@ class CustomCallback(TrainerCallback):
 
 
 class HuggingFaceHub(BaseHub):
+
+    # Override
+    LAST_CKPT_FILE = "weights/last_ckpt"
+    BEST_CKPT_FILE = "weights/best_ckpt"
 
     # Common
     MODEL_TYPES = {
@@ -129,9 +135,16 @@ class HuggingFaceHub(BaseHub):
             root_dir=root_dir,
         )
 
-        self.pretrained_model: str = self.MODEL_TYPES[self.task][self.model_type][self.model_size]
-        self.best_ckpt_dir = self.hub_dir / "weights" / "best_ckpt"
-        self.train_input = None
+    # Override
+    @cached_property
+    def best_ckpt_file(self) -> Path:
+        """Best Checkpoint File"""
+        return self.hub_dir / HuggingFaceHub.BEST_CKPT_FILE
+
+    @cached_property
+    def last_ckpt_file(self) -> Path:
+        """Last Checkpoint File"""
+        return self.hub_dir / HuggingFaceHub.LAST_CKPT_FILE
 
     @classmethod
     def new(
@@ -155,7 +168,7 @@ class HuggingFaceHub(BaseHub):
 
     def on_train_start(self, cfg: TrainConfig):
         # overwrite train config with default config
-        cfg.pretrained_model = self.pretrained_model
+        cfg.pretrained_model = self.MODEL_TYPES[self.task][self.model_type][self.model_size]
         for k, v in cfg.to_dict().items():
             if v is None:
                 setattr(cfg, k, self.DEFAULT_PARAMAS[self.task][k])
@@ -170,23 +183,23 @@ class HuggingFaceHub(BaseHub):
 
         if self.task == "classification":
             helper = ClassifierInputHelper(cfg.pretrained_model, cfg.image_size)
-            self.train_input = helper.get_train_input()
+            cfg.train_input = helper.get_train_input()
             categories = dataset["train"].features["label"].names
             id2label = {index: x for index, x in enumerate(categories, start=0)}
-            self.train_input.model = AutoModelForImageClassification.from_pretrained(
-                self.pretrained_model,
+            cfg.train_input.model = AutoModelForImageClassification.from_pretrained(
+                cfg.pretrained_model,
                 num_labels=len(id2label),
                 ignore_mismatched_sizes=True,
             )
 
         elif self.task == "object_detection":
             helper = ObjectDetectionInputHelper(cfg.pretrained_model, cfg.image_size)
-            self.train_input = helper.get_train_input()
+            cfg.train_input = helper.get_train_input()
             categories = dataset["train"].features["objects"].feature["category"].names
             id2label = {index: x for index, x in enumerate(categories, start=0)}
             label2id = {x: index for index, x in enumerate(categories, start=0)}
-            self.train_input.model = AutoModelForObjectDetection.from_pretrained(
-                self.pretrained_model,
+            cfg.train_input.model = AutoModelForObjectDetection.from_pretrained(
+                cfg.pretrained_model,
                 id2label=id2label,
                 label2id=label2id,
                 ignore_mismatched_sizes=True,
@@ -197,9 +210,9 @@ class HuggingFaceHub(BaseHub):
         transforms = helper.get_transforms()
         dataset["train"] = dataset["train"].with_transform(transforms)
         dataset["val"] = dataset["val"].with_transform(transforms)
-        self.train_input.dataset = dataset
+        cfg.train_input.dataset = dataset
 
-        self.train_input.training_args = TrainingArguments(
+        cfg.train_input.training_args = TrainingArguments(
             output_dir=str(self.artifact_dir),
             per_device_train_batch_size=cfg.batch_size,
             num_train_epochs=cfg.epochs,
@@ -216,13 +229,13 @@ class HuggingFaceHub(BaseHub):
     def training(self, cfg: TrainConfig, callback: TrainCallback):
 
         trainer = Trainer(
-            model=self.train_input.model,
-            args=self.train_input.training_args,
-            data_collator=self.train_input.collator,
-            train_dataset=self.train_input.dataset["train"],
-            eval_dataset=self.train_input.dataset["val"],
-            tokenizer=self.train_input.image_processor,
-            compute_metrics=self.train_input.compute_metrics,
+            model=cfg.train_input.model,
+            args=cfg.train_input.training_args,
+            data_collator=cfg.train_input.collator,
+            train_dataset=cfg.train_input.dataset["train"],
+            eval_dataset=cfg.train_input.dataset["val"],
+            tokenizer=cfg.train_input.image_processor,
+            compute_metrics=cfg.train_input.compute_metrics,
         )
         trainer.add_callback(CustomCallback(trainer))
         trainer.train()
@@ -249,12 +262,14 @@ class HuggingFaceHub(BaseHub):
     def on_train_end(self, cfg: TrainConfig):
         io.copy_files_to_directory(
             self.artifact_dir / "weights",
-            self.best_ckpt_dir,
+            self.best_ckpt_file,
             create_directory=True,
         )
         io.save_json(self.get_metrics(), self.metric_file)
 
-    def get_preprocess(self, task, pretrained_model: str) -> Callable:
+    def get_preprocess(self, task, pretrained_model: str = None) -> Callable:
+        if pretrained_model is None:
+            pretrained_model = self.best_ckpt_file
         image_processer = AutoImageProcessor.from_pretrained(pretrained_model)
 
         normalize = T.Normalize(image_processer.image_mean, image_processer.image_std, inplace=True)
@@ -264,26 +279,26 @@ class HuggingFaceHub(BaseHub):
 
         return preprocess
 
-    def get_postprocess(self, task: str) -> Callable:
+    def get_postprocess(self, task: str, pretrained_model: str = None) -> Callable:
+        if pretrained_model is None:
+            pretrained_model = self.best_ckpt_file
+        image_processer = AutoImageProcessor.from_pretrained(pretrained_model)
+
         if task == "classification":
 
             def inner(x: ModelOutput, *args, **kwargs) -> torch.Tensor:
                 return [x.logits]
 
         elif task == "object_detection":
+            post_process = image_processer.post_process_object_detection
 
             def inner(x: ModelOutput, *args, **kwargs) -> torch.Tensor:
 
-                if x.logits.shape[-1] != len(self.categories):
-                    x.logits = x.logits[:, :, :-1]  # remove background
-                confidences, category_ids = torch.max(x.logits[:, :, :], dim=-1)
-                cxcywh = x.pred_boxes[:, :, :4]
-                cx, cy, w, h = torch.unbind(cxcywh, dim=-1)
-                x1 = cx - w / 2
-                y1 = cy - h / 2
-                x2 = cx + w / 2
-                y2 = cy + h / 2
-                xyxy = torch.stack([x1, y1, x2, y2], dim=-1)
+                x = post_process(x, threshold=-1)
+
+                xyxy = list(map(lambda x: x["boxes"], x))
+                confidences = list(map(lambda x: x["scores"], x))
+                category_ids = list(map(lambda x: x["labels"], x))
 
                 return xyxy, confidences, category_ids
 
@@ -296,17 +311,17 @@ class HuggingFaceHub(BaseHub):
         self.check_train_sanity()
 
         # get adapt functions
-        preprocess = self.get_preprocess(self.task, self.pretrained_model)
+        preprocess = self.get_preprocess(self.task)
         postprocess = self.get_postprocess(self.task)
 
         # get model
         if self.task == "object_detection":
             model = AutoModelForObjectDetection.from_pretrained(
-                str(self.best_ckpt_dir),
+                str(self.best_ckpt_file),
             )
         elif self.task == "classification":
             model = AutoModelForImageClassification.from_pretrained(
-                str(self.best_ckpt_dir),
+                str(self.best_ckpt_file),
             )
 
         model = ModelWrapper(
@@ -316,8 +331,3 @@ class HuggingFaceHub(BaseHub):
         )
 
         return model
-
-    def check_train_sanity(self) -> bool:
-        if not (self.model_config_file.exists() and self.best_ckpt_dir.exists()):
-            raise FileNotFoundError("Train first! hub.train(...).")
-        return True

@@ -38,18 +38,14 @@ class TrainInputHelper(ABC):
     This class is designed to assist with passing arguments to the Hugging Face's Trainer function.
     """
 
-    def __init__(
-        self, pretrained_model: str, image_size: Union[int, list[int]]
-    ) -> None:
+    def __init__(self, pretrained_model: str, image_size: Union[int, list[int]]) -> None:
         self.pretrained_model = pretrained_model
         self.image_size = image_size
 
         if isinstance(image_size, int):
             self.image_size = (image_size, image_size)
 
-        self.image_processor: AutoImageProcessor = self.get_image_processor(
-            self.pretrained_model
-        )
+        self.image_processor: AutoImageProcessor = self.get_image_processor(self.pretrained_model)
         self.train_input = TrainInput()
 
     def get_image_processor(self, pretrained_model: str) -> AutoImageProcessor:
@@ -114,9 +110,7 @@ class TrainInputHelper(ABC):
 
 
 class ClassifierInputHelper(TrainInputHelper):
-    def __init__(
-        self, pretrained_model: str, image_size: Union[int, list[int]]
-    ) -> None:
+    def __init__(self, pretrained_model: str, image_size: Union[int, list[int]]) -> None:
         super().__init__(pretrained_model, image_size)
 
     def get_transforms(self) -> Callable:
@@ -133,19 +127,15 @@ class ClassifierInputHelper(TrainInputHelper):
                 self.image_processor.size["width"],
             )
         )
-        if size != self.image_size:
-            raise ValueError(
-                f"pretrained model's image size is {size}, but you set {self.image_size}."
-            )
+        # if list(size) != list(self.image_size):
+        #     raise ValueError(
+        #         f"pretrained model's image size is {size}, but you set {self.image_size}."
+        #     )
 
-        _transforms = T.Compose(
-            [T.RandomResizedCrop(size), T.ToTensor(), normalize]
-        )
+        _transforms = T.Compose([T.RandomResizedCrop(size), T.ToTensor(), normalize])
 
         def transforms(examples: dict) -> dict:
-            examples["pixel_values"] = [
-                _transforms(img.convert("RGB")) for img in examples["image"]
-            ]
+            examples["pixel_values"] = [_transforms(img.convert("RGB")) for img in examples["image"]]
             del examples["image"]
             return examples
 
@@ -166,9 +156,7 @@ class ClassifierInputHelper(TrainInputHelper):
 
 
 class ObjectDetectionInputHelper(TrainInputHelper):
-    def __init__(
-        self, pretrained_model: str, image_size: Union[int, list[int]]
-    ) -> None:
+    def __init__(self, pretrained_model: str, image_size: Union[int, list[int]]) -> None:
         super().__init__(pretrained_model, image_size)
 
     def get_transforms(self) -> Callable:
@@ -181,10 +169,8 @@ class ObjectDetectionInputHelper(TrainInputHelper):
             )
         )
 
-        if size != self.image_size:
-            warnings.warn(
-                f"pretrained model's image size is {size}, but you set {self.image_size}."
-            )
+        # if list(size) != list(self.image_size):
+        #     warnings.warn(f"pretrained model's image size is {size}, but you set {self.image_size}.")
 
         _transforms = albumentations.Compose(
             [
@@ -192,14 +178,10 @@ class ObjectDetectionInputHelper(TrainInputHelper):
                 albumentations.HorizontalFlip(p=1.0),
                 albumentations.RandomBrightnessContrast(p=1.0),
             ],
-            bbox_params=albumentations.BboxParams(
-                format="coco", label_fields=["category"]
-            ),
+            bbox_params=albumentations.BboxParams(format="coco", label_fields=["category"]),
         )
 
-        def formatted_anns(
-            image_id: int, category: list, area: list, bbox: list
-        ) -> list[dict]:
+        def formatted_anns(image_id: int, category: list, area: list, bbox: list) -> list[dict]:
             annotations = []
             for i in range(0, len(category)):
                 new_ann = {
@@ -234,14 +216,10 @@ class ObjectDetectionInputHelper(TrainInputHelper):
                     "image_id": id_,
                     "annotations": formatted_anns(id_, cat_, ar_, box_),
                 }
-                for id_, cat_, ar_, box_ in zip(
-                    image_ids, categories, area, bboxes
-                )
+                for id_, cat_, ar_, box_ in zip(image_ids, categories, area, bboxes)
             ]
 
-            return self.image_processor(
-                images=images, annotations=targets, return_tensors="pt"
-            )
+            return self.image_processor(images=images, annotations=targets, return_tensors="pt")
 
         return transforms
 
