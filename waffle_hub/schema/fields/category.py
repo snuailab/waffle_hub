@@ -184,6 +184,27 @@ class Category(BaseField):
         )
 
     @classmethod
+    def instance_segmentation(
+        cls, category_id: int, name: str, supercategory: str = None, **kwargs
+    ) -> "Category":
+        """Instance Category Format
+
+        Args:
+            category_id (int): category id. natural number.
+            name (str): category name.
+            supercategory (str): supercategory name.
+
+        Returns:
+            Category: category class
+        """
+        return cls(
+            category_id=category_id,
+            name=name,
+            supercategory=supercategory,
+            task=TaskType.INSTANCE_SEGMENTATION,
+        )
+
+    @classmethod
     def keypoint_detection(
         cls,
         category_id: int,

@@ -18,10 +18,10 @@ from waffle_hub.schema.result import (
 
 # from waffle_hub.hub.adapter.tx_model import TxModelHub
 @pytest.fixture
-def segmentation_dataset(coco_path: Path, tmpdir: Path):
+def instance_segmentation_dataset(coco_path: Path, tmpdir: Path):
     dataset: Dataset = Dataset.from_coco(
         name="seg",
-        task=TaskType.SEMANTIC_SEGMENTATION,
+        task=TaskType.INSTANCE_SEGMENTATION,
         coco_file=coco_path / "coco.json",
         coco_root_dir=coco_path / "images",
         root_dir=tmpdir,
@@ -176,15 +176,15 @@ def _total(hub, dataset: Dataset, image_size: int, hold: bool = True):
     _feature_extraction(hub, image_size)
 
 
-def test_ultralytics_segmentation(segmentation_dataset: Dataset, tmpdir: Path):
+def test_ultralytics_segmentation(instance_segmentation_dataset: Dataset, tmpdir: Path):
     image_size = 32
-    dataset = segmentation_dataset
+    dataset = instance_segmentation_dataset
 
     # test hub
     name = "test_seg"
     hub = UltralyticsHub.new(
         name=name,
-        task=TaskType.SEMANTIC_SEGMENTATION,
+        task=TaskType.INSTANCE_SEGMENTATION,
         model_type="yolov8",
         model_size="n",
         categories=dataset.category_names,

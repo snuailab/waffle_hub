@@ -29,7 +29,7 @@ class UltralyticsHub(BaseHub):
     MODEL_TYPES = {
         "object_detection": {"yolov8": list("nsmlx")},
         "classification": {"yolov8": list("nsmlx")},
-        "semantic_segmentation": {"yolov8": list("nsmlx")},
+        "instance_segmentation": {"yolov8": list("nsmlx")},
         # "keypoint_detection": {"yolov8": list("nsmlx")},
     }
 
@@ -37,7 +37,7 @@ class UltralyticsHub(BaseHub):
     TASK_MAP = {
         "object_detection": "detect",
         "classification": "classify",
-        "semantic_segmentation": "segment"
+        "instance_segmentation": "segment"
         # "keypoint_detection": "pose"
     }
     TASK_SUFFIX = {
@@ -61,7 +61,7 @@ class UltralyticsHub(BaseHub):
             "letter_box": False,
             "batch_size": 16,
         },
-        "semantic_segmentation": {
+        "instance_segmentation": {
             "epochs": 50,
             "image_size": [640, 640],
             "learning_rate": 0.01,
@@ -149,7 +149,7 @@ class UltralyticsHub(BaseHub):
             def preprocess(x, *args, **kwargs):
                 return normalize(x)
 
-        elif task == "semantic_segmentation":
+        elif task == "instance_segmentation":
             normalize = T.Normalize([0, 0, 0], [1, 1, 1], inplace=True)
 
             def preprocess(x, *args, **kwargs):
@@ -190,16 +190,22 @@ class UltralyticsHub(BaseHub):
 
                 return xyxy, confidences, class_ids
 
-        elif task == "semantic_segmentation":
+        elif task == "instance_segmentation":
+            num_category = len(self.categories)
 
             def inner(x: torch.Tensor, image_size: tuple[int, int], *args, **kwargs):
                 preds = x[0]  # x[0]: prediction, x[1]: TODO: what is this...?
                 preds = preds.transpose(1, 2)
 
-                protos = (
-                    x[1][-1] if len(x[1]) == 3 else x[1]
-                )  # [batch, mask_dim, mask_height, mask_width]
-                num_category = len(self.categories)
+                probs = preds[:, :, 4 : 4 + num_category]
+                confidences, class_ids = torch.max(probs, dim=-1)
+                _, indicies = torch.topk(
+                    confidences, k=min(100, confidences.shape[-1]), dim=-1, largest=True
+                )  # TODO: make k configurable
+
+                preds = torch.gather(preds, 1, indicies.unsqueeze(-1).repeat(1, 1, preds.shape[-1]))
+                confidences = torch.gather(confidences, 1, indicies)
+                class_ids = torch.gather(class_ids, 1, indicies)
 
                 cxcywh = preds[:, :, :4]
                 cx, cy, w, h = torch.unbind(cxcywh, dim=-1)
@@ -211,26 +217,17 @@ class UltralyticsHub(BaseHub):
 
                 xyxy[:, :, ::2] /= image_size[0]
                 xyxy[:, :, 1::2] /= image_size[1]
-                probs = preds[:, :, 4 : 4 + num_category]
-                confidences, class_ids = torch.max(probs, dim=-1)
 
-                pred_masks = preds[:, :, 4 + num_category :]  # [batch, n, mask_dim]
-                masks = []
+                # [batch, mask_dim, mask_height, mask_width] -> [batch, num_mask, mask_height * mask_width]
+                protos = x[1][-1] if len(x[1]) == 3 else x[1]
+                mask_size = (protos.shape[-2], protos.shape[-1])
+                protos = protos.view(
+                    protos.shape[0], -1, protos.shape[-2] * protos.shape[-1]
+                ).float()
 
-                # Remove masks outside the bounding box range.
-                for i, (mask, bbox) in enumerate(zip(pred_masks, xyxy)):
-                    c, mh, mw = protos[i].shape
-                    mask = (mask @ protos[i].float().view(c, -1)).sigmoid().view(-1, mh, mw)
-                    for m, b in zip(mask, bbox):
-                        x1, y1, x2, y2 = (b * torch.tensor([mw, mh, mw, mh]).to(mask.device)).int()
-                        m[:, :x1] = 0
-                        m[:, x2:] = 0
-                        m[:y1, :] = 0
-                        m[y2:, :] = 0
+                masks = preds[:, :, 4 + num_category :]
+                masks = torch.bmm(masks, protos).sigmoid().view(masks.shape[0], -1, *mask_size)
 
-                    masks.append(mask)
-
-                masks = torch.stack(masks)
                 return xyxy, confidences, class_ids, masks
 
         else:

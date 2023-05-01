@@ -343,6 +343,46 @@ class Annotation(BaseField):
         )
 
     @classmethod
+    def instance_segmentation(
+        cls,
+        annotation_id: int = None,
+        image_id: int = None,
+        category_id: int = None,
+        bbox: list[float] = None,
+        segmentation: list[list[float]] = None,
+        area: int = None,
+        iscrowd: int = 0,
+        score: float = None,
+        **kwargs,
+    ) -> "Annotation":
+        """Instance Annotation Format
+
+        Args:
+            annotation_id (int): annotaion id. natural number.
+            image_id (int): image id. natural number.
+            category_id (int): category id. natural number.
+            bbox (list[float]): [x1, y1, w, h].
+            segmentation (list[list[float]]): [[x1, y1, x2, y2, x3, y3, ...], [polygon]].
+            area (int): segmentation segmentation area.
+            iscrowd (int, optional): is crowd or not. Default to 0.
+            score (float, optional): prediction score. Default to None.
+
+        Returns:
+            Annotation: annotation class
+        """
+        return cls(
+            annotation_id,
+            image_id,
+            category_id=category_id,
+            bbox=bbox,
+            segmentation=segmentation,
+            area=area,
+            iscrowd=iscrowd,
+            score=score,
+            task=TaskType.INSTANCE_SEGMENTATION,
+        )
+
+    @classmethod
     def keypoint_detection(
         cls,
         annotation_id: int = None,

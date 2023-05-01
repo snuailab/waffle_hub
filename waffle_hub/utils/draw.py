@@ -70,7 +70,7 @@ def draw_object_detection(
     return image
 
 
-def draw_segmentation(
+def draw_instance_segmentation(
     image: np.ndarray,
     annotation: Annotation,
     names: list[str],
@@ -82,9 +82,16 @@ def draw_segmentation(
     if len(segments) == 0:
         return image
 
+    alpha = np.zeros_like(image)
     for segment in segments:
         segment = np.array(segment).reshape(-1, 2).astype(int)
-        image = cv2.polylines(image, [segment], True, colors[annotation.category_id - 1], THICKNESS)
+        alpha = cv2.fillPoly(
+            alpha,
+            [segment],
+            colors[annotation.category_id - 1],
+        )
+    mask = alpha > 0
+    image[mask] = cv2.addWeighted(alpha, 0.3, image, 0.7, 0)[mask]
 
     return image
 
@@ -102,8 +109,8 @@ def draw_results(
     object_detection_results = [
         result for result in results if result.task == TaskType.OBJECT_DETECTION
     ]
-    segmentation_results = [
-        result for result in results if result.task == TaskType.SEMANTIC_SEGMENTATION
+    instance_segmentation_results = [
+        result for result in results if result.task == TaskType.INSTANCE_SEGMENTATION
     ]
 
     for i, result in enumerate(classification_results, start=1):
@@ -118,7 +125,7 @@ def draw_results(
     for i, result in enumerate(object_detection_results, start=1):
         image = draw_object_detection(image, result, names=names)
 
-    for i, result in enumerate(segmentation_results, start=1):
-        image = draw_segmentation(image, result, names=names)
+    for i, result in enumerate(instance_segmentation_results, start=1):
+        image = draw_instance_segmentation(image, result, names=names)
 
     return image

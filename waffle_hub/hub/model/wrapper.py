@@ -109,7 +109,7 @@ class ObjectDetectionResultParser(ResultParser):
         return parseds
 
 
-class SemanticSegmentationResultParser(ObjectDetectionResultParser):
+class InstanceSegmentationResultParser(ObjectDetectionResultParser):
     def __init__(
         self, confidence_threshold: float = 0.25, iou_threshold: float = 0.5, *args, **kwargs
     ):
@@ -143,21 +143,23 @@ class SemanticSegmentationResultParser(ObjectDetectionResultParser):
             bboxes = bboxes[idxs, :].cpu()
             confs = confs[idxs].cpu()
             class_ids = class_ids[idxs].cpu()
-            masks = masks[idxs, :].cpu()
+
+            masks = masks[idxs, :]
+            masks = (
+                F.interpolate(
+                    input=masks.gt_(0.5).unsqueeze(1),
+                    size=image_info.ori_shape,
+                    mode="bilinear",
+                    align_corners=False,
+                )
+                .cpu()
+                .squeeze(1)
+            )
 
             W, H = image_info.input_shape
             left_pad, top_pad = image_info.pad
             ori_w, ori_h = image_info.ori_shape
             new_w, new_h = image_info.new_shape
-
-            if len(idxs) != 0:
-                masks = F.interpolate(
-                    input=masks.unsqueeze(0),
-                    size=image_info.ori_shape,
-                    mode="bilinear",
-                    align_corners=False,
-                )
-            masks = masks.squeeze(0).gt_(0.5)
 
             parsed = []
             for (x1, y1, x2, y2), conf, class_id, mask in zip(bboxes, confs, class_ids, masks):
@@ -167,11 +169,16 @@ class SemanticSegmentationResultParser(ObjectDetectionResultParser):
                 x2 = min(float((x2 * W - left_pad) / new_w * ori_w), ori_w)
                 y2 = min(float((y2 * H - top_pad) / new_h * ori_h), ori_h)
 
-                mask: np.ndarray = mask.int().cpu().numpy().astype("uint8")
-                segment = convert_mask_to_polygon(mask)
+                # clean non roi area
+                mask[:, : round(x1)] = 0
+                mask[:, round(x2) :] = 0
+                mask[: round(y1), :] = 0
+                mask[round(y2) :, :] = 0
+
+                segment = convert_mask_to_polygon(mask.numpy().astype(np.uint8))
 
                 parsed.append(
-                    Annotation.semantic_segmentation(
+                    Annotation.instance_segmentation(
                         category_id=int(class_id) + 1,
                         bbox=[x1, y1, x2 - x1, y2 - y1],
                         area=float((x2 - x1) * (y2 - y1)),
@@ -188,8 +195,8 @@ def get_parser(task: str):
         return ClassificationResultParser
     elif task == "object_detection":
         return ObjectDetectionResultParser
-    elif task == "semantic_segmentation":
-        return SemanticSegmentationResultParser
+    elif task == "instance_segmentation":
+        return InstanceSegmentationResultParser
 
 
 class ModelWrapper(torch.nn.Module):
