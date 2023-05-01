@@ -388,7 +388,7 @@ class Dataset:
         for i, category in enumerate(categories, start=1):
             coco_category_id = category.pop("id")
             coco_cat_id_to_waffle_cat_id[coco_category_id] = i
-            ds.add_categories([Category.from_dict({**category, "category_id": i})])
+            ds.add_categories([Category.from_dict({**category, "category_id": i}, task=ds.task)])
 
         # import coco dataset
         total_length = sum([len(coco.getImgIds()) for coco in cocos])
@@ -435,7 +435,8 @@ class Dataset:
                                     "category_id": coco_cat_id_to_waffle_cat_id[
                                         annotation_dict["category_id"]
                                     ],
-                                }
+                                },
+                                task=ds.task,
                             )
                         ]
                     )

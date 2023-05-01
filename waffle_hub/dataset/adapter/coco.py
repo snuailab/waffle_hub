@@ -1,12 +1,13 @@
-from typing import Union
 from pathlib import Path
+from typing import Union
 
 from waffle_utils.file import io
 
 from waffle_hub import TaskType
+from waffle_hub.utils.conversion import convert_rle_to_polygon
 
 
-def _export_coco_classification(
+def _export_coco(
     self,
     export_dir: Path,
     train_ids: list,
@@ -14,7 +15,7 @@ def _export_coco_classification(
     test_ids: list,
     unlabeled_ids: list,
 ):
-    """Export dataset to COCO format for classification task
+    """Export dataset to COCO format
 
     Args:
         export_dir (Path): Path to export directory
@@ -33,15 +34,18 @@ def _export_coco_classification(
     ):
         if len(image_ids) == 0:
             continue
-        
+
         coco = {
-            "categories": [{
-                "id": category.category_id,
-                "name": category.name,
-                "supercategory": category.supercategory,
-            } for category in self.categories.values()], 
-            "images": [], 
-            "annotations": []
+            "categories": [
+                {
+                    "id": category.category_id,
+                    "name": category.name,
+                    "supercategory": category.supercategory,
+                }
+                for category in self.categories.values()
+            ],
+            "images": [],
+            "annotations": [],
         }
 
         for image_id in image_ids:
@@ -57,9 +61,11 @@ def _export_coco_classification(
             annotations = self.image_to_annotations[image_id]
             for annotation in annotations:
                 d = annotation.to_dict()
+                if d.get("segmentation", None):
+                    d["segmentation"] = convert_rle_to_polygon(d["segmentation"])
                 annotation_id = d.pop("annotation_id")
                 coco["annotations"].append({"id": annotation_id, **d})
-        
+
         io.save_json(coco, export_dir / f"{split}.json", create_directory=True)
 
 
@@ -77,13 +83,11 @@ def export_coco(self, export_dir: Union[str, Path]) -> str:
     train_ids, val_ids, test_ids, unlabeled_ids = self.get_split_ids()
 
     if self.task == TaskType.CLASSIFICATION:
-        _export_coco_classification(
-            self, export_dir, train_ids, val_ids, test_ids, unlabeled_ids
-        )
+        _export_coco(self, export_dir, train_ids, val_ids, test_ids, unlabeled_ids)
     elif self.task == TaskType.OBJECT_DETECTION:
-        _export_coco_classification(
-            self, export_dir, train_ids, val_ids, test_ids, unlabeled_ids
-        )
+        _export_coco(self, export_dir, train_ids, val_ids, test_ids, unlabeled_ids)
+    elif self.task == TaskType.INSTANCE_SEGMENTATION:
+        _export_coco(self, export_dir, train_ids, val_ids, test_ids, unlabeled_ids)
     else:
         raise ValueError(f"Unsupported task type: {self.task_type}")
 

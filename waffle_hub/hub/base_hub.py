@@ -925,6 +925,8 @@ class BaseHub:
             output_names = ["bbox", "conf", "class_id"]
         elif self.task == "classification":
             output_names = ["predictions"]
+        elif self.task == "instance_segmentation":
+            output_names = ["bbox", "conf", "class_id", "masks"]
         else:
             raise NotImplementedError(f"{self.task} does not support export yet.")
 
