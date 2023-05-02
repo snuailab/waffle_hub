@@ -16,7 +16,7 @@ torchvision==0.14.1
 waffle-utils>=0.3.0
 
 # ultralytics
-ultralytics==8.0.87
+ultralytics==8.0.91
 
 # huggingface
 datasets==2.12.0
