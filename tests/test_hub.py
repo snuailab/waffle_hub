@@ -154,6 +154,10 @@ def _feature_extraction(
     assert len(feature_maps) == 1
 
 
+def _benchmark(hub, image_size):
+    hub.benchmark(device="cpu", half=False, image_size=image_size)
+
+
 def _total(hub, dataset: Dataset, image_size: int, hold: bool = True):
 
     _train(hub, dataset, image_size, hold=hold)
@@ -162,6 +166,7 @@ def _total(hub, dataset: Dataset, image_size: int, hold: bool = True):
     _export(hub, half=False, hold=hold)
     # _export(hub, half=True, hold=hold)  # cpu cannot be half
     _feature_extraction(hub, image_size)
+    _benchmark(hub, image_size)
 
 
 def test_ultralytics_object_detection(object_detection_dataset: Dataset, tmpdir: Path):
