@@ -28,7 +28,7 @@ DEFAULT_PARAMAS = {
                 "image_size": [800, 800],
                 "learning_rate": 5e-05,
                 "letter_box": True,  # TODO: implement letter_box
-                "batch_size": 16,
+                "batch_size": 1,
             },
         },
         "DETR": {
@@ -37,14 +37,14 @@ DEFAULT_PARAMAS = {
                 "image_size": [800, 800],
                 "learning_rate": 5e-05,
                 "letter_box": True,  # TODO: implement letter_box
-                "batch_size": 16,
+                "batch_size": 1,
             },
             "large": {
                 "epochs": 50,
                 "image_size": [800, 800],
                 "learning_rate": 5e-05,
                 "letter_box": True,  # TODO: implement letter_box
-                "batch_size": 16,
+                "batch_size": 1,
             },
         },
         "YOLOS": {
@@ -64,14 +64,14 @@ DEFAULT_PARAMAS = {
                 "image_size": [224, 224],
                 "learning_rate": 5e-05,
                 "letter_box": False,
-                "batch_size": 16,
+                "batch_size": 128,
             },
             "base": {
                 "epochs": 50,
-                "image_size": [800, 800],
+                "image_size": [224, 224],
                 "learning_rate": 5e-05,
                 "letter_box": True,  # TODO: implement letter_box
-                "batch_size": 16,
+                "batch_size": 64,
             },
         },
     },

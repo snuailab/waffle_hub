@@ -467,7 +467,7 @@ class BaseHub:
         letter_box: bool = None,
         pretrained_model: str = None,
         device: str = "0",
-        workers: int = 2,
+        workers: int = 4,
         seed: int = 0,
         verbose: bool = True,
         hold: bool = True,
