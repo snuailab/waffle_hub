@@ -1,6 +1,8 @@
+import json
 from dataclasses import asdict, dataclass
 from pathlib import Path
 
+import yaml
 from waffle_utils.file import io
 
 
@@ -16,10 +18,23 @@ class BaseSchema:
         return asdict(self)
 
     def save_json(self, save_path):
-        io.save_json(self.to_dict(), save_path, create_directory=True)
+        d = self.to_dict()
+        for k, v in d.items():
+            try:
+                json.dumps(v)
+            except:
+                d[k] = str(v)
+
+        io.save_json(d, save_path, create_directory=True)
 
     def save_yaml(self, save_path):
-        io.save_yaml(self.to_dict(), save_path, create_directory=True)
+        d = self.to_dict()
+        for k, v in d.items():
+            try:
+                json.dumps(v)  # yaml does not catch any error, so use json instead
+            except:
+                d[k] = str(v)
+        io.save_yaml(d, save_path, create_directory=True)
 
     @classmethod
     def load(cls, load_path):

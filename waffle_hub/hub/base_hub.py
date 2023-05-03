@@ -6,21 +6,6 @@ Hub is a multi-backend compatible interface for model training, evaluation, infe
 .. note::
     Check out docstrings for more details.
 
-Advanced Usage using threads
-----------------
-
-.. code-block:: python
-    import time
-
-    result = hub.some_job(..., hold=False)
-
-    while (
-        not result.callback.is_finished()
-        and not result.callback.is_failed()
-    ):
-        time.sleep(1)
-        print(result.callback.get_progress())
-
 """
 import logging
 import threading
@@ -559,7 +544,7 @@ class BaseHub:
             verbose=verbose,
         )
 
-        callback = TrainCallback(cfg.epochs, self.get_metrics)
+        callback = TrainCallback(cfg.epochs + 1, self.get_metrics)
         result = TrainResult()
         result.callback = callback
 
@@ -602,7 +587,7 @@ class BaseHub:
 
         result_parser = get_parser(self.task)(**cfg.to_dict())
 
-        callback._total_steps = len(dataloader)
+        callback._total_steps = len(dataloader) + 1
 
         preds = []
         labels = []
@@ -726,7 +711,7 @@ class BaseHub:
             dataset_root_dir=dataset_root_dir,
         )
 
-        callback = EvaluateCallback(0)
+        callback = EvaluateCallback(100)  # dummy step
         result = EvaluateResult()
         result.callback = callback
 
@@ -762,7 +747,7 @@ class BaseHub:
         result_parser = get_parser(self.task)(**cfg.to_dict())
 
         results = []
-        callback._total_steps = len(dataloader)
+        callback._total_steps = len(dataloader) + 1
         for i, (images, image_infos) in tqdm.tqdm(
             enumerate(dataloader, start=1), total=len(dataloader)
         ):
@@ -891,7 +876,7 @@ class BaseHub:
             draw=draw,
         )
 
-        callback = InferenceCallback(0)
+        callback = InferenceCallback(100)  # dummy step
         result = InferenceResult()
         result.callback = callback
 
@@ -927,6 +912,8 @@ class BaseHub:
             output_names = ["bbox", "conf", "class_id"]
         elif self.task == "classification":
             output_names = ["predictions"]
+        elif self.task == "instance_segmentation":
+            output_names = ["bbox", "conf", "class_id", "masks"]
         else:
             raise NotImplementedError(f"{self.task} does not support export yet.")
 

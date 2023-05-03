@@ -120,19 +120,19 @@ class ClassifierInputHelper(TrainInputHelper):
         )
 
         size = (
-            self.image_processor.size["shortest_edge"]
+            (self.image_processor.size["shortest_edge"],) * 2
             if "shortest_edge" in self.image_processor.size
             else (
-                self.image_processor.size["height"],
                 self.image_processor.size["width"],
+                self.image_processor.size["height"],
             )
         )
-        # if list(size) != list(self.image_size):
-        #     raise ValueError(
-        #         f"pretrained model's image size is {size}, but you set {self.image_size}."
-        #     )
+        if tuple(size) != tuple(self.image_size):
+            raise ValueError(
+                f"pretrained model's image size is {size}, but you set {self.image_size}."
+            )
 
-        _transforms = T.Compose([T.RandomResizedCrop(size), T.ToTensor(), normalize])
+        _transforms = T.Compose([T.RandomResizedCrop(size[::-1]), T.ToTensor(), normalize])
 
         def transforms(examples: dict) -> dict:
             examples["pixel_values"] = [_transforms(img.convert("RGB")) for img in examples["image"]]
@@ -161,22 +161,22 @@ class ObjectDetectionInputHelper(TrainInputHelper):
 
     def get_transforms(self) -> Callable:
         size = (
-            self.image_processor.size["shortest_edge"]
+            (self.image_processor.size["shortest_edge"],) * 2
             if "shortest_edge" in self.image_processor.size
             else (
-                self.image_processor.size["height"],
                 self.image_processor.size["width"],
+                self.image_processor.size["height"],
             )
         )
 
-        # if list(size) != list(self.image_size):
-        #     warnings.warn(f"pretrained model's image size is {size}, but you set {self.image_size}.")
+        if tuple(size) != tuple(self.image_size):
+            warnings.warn(f"pretrained model's image size is {size}, but you set {self.image_size}.")
 
         _transforms = albumentations.Compose(
             [
-                albumentations.Resize(size, size),
-                albumentations.HorizontalFlip(p=1.0),
-                albumentations.RandomBrightnessContrast(p=1.0),
+                albumentations.Resize(width=size[0], height=size[1]),
+                albumentations.HorizontalFlip(p=0.5),
+                albumentations.RandomBrightnessContrast(p=0.5),
             ],
             bbox_params=albumentations.BboxParams(format="coco", label_fields=["category"]),
         )
