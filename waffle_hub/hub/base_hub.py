@@ -262,6 +262,15 @@ class BaseHub:
             v = [{"supercategory": "object", "name": n} for n in v]
         self.__categories = v
 
+    @property
+    def default_values(self):
+        """Get default values from model.
+
+        Returns:
+            dict: default values
+        """
+        return self.DEFAULT_PARAMAS[self.task][self.model_type][self.model_size]
+
     @cached_property
     def hub_dir(self) -> Path:
         """Hub(Model) Directory"""

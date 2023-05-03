@@ -22,53 +22,14 @@ from waffle_hub.hub.model.wrapper import ModelWrapper
 from waffle_hub.schema.configs import TrainConfig
 from waffle_hub.utils.callback import TrainCallback
 
+from .config import DEFAULT_PARAMAS, MODEL_TYPES, TASK_MAP, TASK_SUFFIX
+
 
 class UltralyticsHub(BaseHub):
-
-    # Common
-    MODEL_TYPES = {
-        "object_detection": {"yolov8": list("nsmlx")},
-        "classification": {"yolov8": list("nsmlx")},
-        "instance_segmentation": {"yolov8": list("nsmlx")},
-        # "keypoint_detection": {"yolov8": list("nsmlx")},
-    }
-
-    # Backend Specifics
-    TASK_MAP = {
-        "object_detection": "detect",
-        "classification": "classify",
-        "instance_segmentation": "segment"
-        # "keypoint_detection": "pose"
-    }
-    TASK_SUFFIX = {
-        "detect": "",
-        "classify": "-cls",
-        "segment": "-seg",
-    }
-
-    DEFAULT_PARAMAS = {
-        "object_detection": {
-            "epochs": 50,
-            "image_size": [640, 640],
-            "learning_rate": 0.01,
-            "letter_box": True,
-            "batch_size": 16,
-        },
-        "classification": {
-            "epochs": 50,
-            "image_size": [224, 224],
-            "learning_rate": 0.01,
-            "letter_box": False,
-            "batch_size": 16,
-        },
-        "instance_segmentation": {
-            "epochs": 50,
-            "image_size": [640, 640],
-            "learning_rate": 0.01,
-            "letter_box": True,
-            "batch_size": 16,
-        },
-    }
+    MODEL_TYPES = MODEL_TYPES
+    TASK_MAP = TASK_MAP
+    TASK_SUFFIX = TASK_SUFFIX
+    DEFAULT_PARAMAS = DEFAULT_PARAMAS
 
     def __init__(
         self,
@@ -301,7 +262,7 @@ class UltralyticsHub(BaseHub):
         # overwrite train config with default config
         for k, v in cfg.to_dict().items():
             if v is None:
-                setattr(cfg, k, self.DEFAULT_PARAMAS[self.task][k])
+                setattr(cfg, k, self.DEFAULT_PARAMAS[self.task][self.model_type][self.model_size][k])
 
     def training(self, cfg: TrainConfig, callback: TrainCallback):
 

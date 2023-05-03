@@ -187,6 +187,10 @@ class TxModelHub(BaseHub):
 
         return metrics
 
+    @property
+    def default_values(self):
+        raise NotImplementedError
+
     # Train Hook
     def on_train_start(self, cfg: TrainConfig):
         # set data
