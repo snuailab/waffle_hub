@@ -132,7 +132,7 @@ class ClassifierInputHelper(TrainInputHelper):
                 f"pretrained model's image size is {size}, but you set {self.image_size}."
             )
 
-        _transforms = T.Compose([T.RandomResizedCrop(size), T.ToTensor(), normalize])
+        _transforms = T.Compose([T.RandomResizedCrop(size[::-1]), T.ToTensor(), normalize])
 
         def transforms(examples: dict) -> dict:
             examples["pixel_values"] = [_transforms(img.convert("RGB")) for img in examples["image"]]
@@ -175,8 +175,8 @@ class ObjectDetectionInputHelper(TrainInputHelper):
         _transforms = albumentations.Compose(
             [
                 albumentations.Resize(width=size[0], height=size[1]),
-                albumentations.HorizontalFlip(p=1.0),
-                albumentations.RandomBrightnessContrast(p=1.0),
+                albumentations.HorizontalFlip(p=0.5),
+                albumentations.RandomBrightnessContrast(p=0.5),
             ],
             bbox_params=albumentations.BboxParams(format="coco", label_fields=["category"]),
         )
