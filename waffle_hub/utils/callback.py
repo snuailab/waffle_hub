@@ -87,6 +87,7 @@ class ThreadProgressCallback:
     def force_finish(self):
         """Force the task to end."""
         self._finished = True
+        self._progress = 1.0
 
     def register_thread(self, thread: threading.Thread):
         """Register the thread that is running the task."""
@@ -111,12 +112,15 @@ class TrainCallback(ThreadProgressCallback):
 
     def get_progress(self) -> float:
         """Get the progress of the task. (0 ~ 1)"""
-        metrics = self._get_metric_func()
-        if len(metrics) == 0:
-            return 0
-        self.update(len(metrics))
-        self._progress = len(metrics) / self._total_steps
-        return self._progress
+        if not self._finished:
+            metrics = self._get_metric_func()
+            if len(metrics) == 0:
+                return 0
+            self.update(len(metrics))
+            self._progress = len(metrics) / self._total_steps
+            return self._progress
+        else:
+            return 1.0
 
 
 class EvaluateCallback(ThreadProgressCallback):

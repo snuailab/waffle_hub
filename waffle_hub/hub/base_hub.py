@@ -6,29 +6,16 @@ Hub is a multi-backend compatible interface for model training, evaluation, infe
 .. note::
     Check out docstrings for more details.
 
-Advanced Usage using threads
-----------------
-
-.. code-block:: python
-    import time
-
-    result = hub.some_job(..., hold=False)
-
-    while (
-        not result.callback.is_finished()
-        and not result.callback.is_failed()
-    ):
-        time.sleep(1)
-        print(result.callback.get_progress())
-
 """
 import logging
 import threading
+import time
 import warnings
 from functools import cached_property
 from pathlib import Path
 from typing import Union
 
+import cpuinfo
 import cv2
 import torch
 import tqdm
@@ -520,7 +507,7 @@ class BaseHub:
         Returns:
             TrainResult: train result
         """
-        
+
         if self.artifact_dir.exists():
             raise FileExistsError(
                 f"{self.artifact_dir}\n"
@@ -557,7 +544,7 @@ class BaseHub:
             verbose=verbose,
         )
 
-        callback = TrainCallback(cfg.epochs, self.get_metrics)
+        callback = TrainCallback(cfg.epochs + 1, self.get_metrics)
         result = TrainResult()
         result.callback = callback
 
@@ -600,7 +587,7 @@ class BaseHub:
 
         result_parser = get_parser(self.task)(**cfg.to_dict())
 
-        callback._total_steps = len(dataloader)
+        callback._total_steps = len(dataloader) + 1
 
         preds = []
         labels = []
@@ -724,7 +711,7 @@ class BaseHub:
             dataset_root_dir=dataset_root_dir,
         )
 
-        callback = EvaluateCallback(0)
+        callback = EvaluateCallback(100)  # dummy step
         result = EvaluateResult()
         result.callback = callback
 
@@ -760,7 +747,7 @@ class BaseHub:
         result_parser = get_parser(self.task)(**cfg.to_dict())
 
         results = []
-        callback._total_steps = len(dataloader)
+        callback._total_steps = len(dataloader) + 1
         for i, (images, image_infos) in tqdm.tqdm(
             enumerate(dataloader, start=1), total=len(dataloader)
         ):
@@ -889,7 +876,7 @@ class BaseHub:
             draw=draw,
         )
 
-        callback = InferenceCallback(0)
+        callback = InferenceCallback(100)  # dummy step
         result = InferenceResult()
         result.callback = callback
 
@@ -917,17 +904,23 @@ class BaseHub:
         image_size = cfg.image_size
         image_size = [image_size, image_size] if isinstance(image_size, int) else image_size
 
-        model = self.get_model()
+        model = self.get_model().half() if cfg.half else self.get_model()
+        model = model.to(cfg.device)
 
         input_name = ["inputs"]
         if self.task == "object_detection":
             output_names = ["bbox", "conf", "class_id"]
         elif self.task == "classification":
             output_names = ["predictions"]
+        elif self.task == "instance_segmentation":
+            output_names = ["bbox", "conf", "class_id", "masks"]
         else:
             raise NotImplementedError(f"{self.task} does not support export yet.")
 
-        dummy_input = torch.randn(cfg.batch_size, 3, *image_size)
+        dummy_input = torch.randn(
+            cfg.batch_size, 3, *image_size, dtype=torch.float16 if cfg.half else torch.float32
+        )
+        dummy_input = dummy_input.to(cfg.device)
 
         torch.onnx.export(
             model,
@@ -950,6 +943,8 @@ class BaseHub:
         image_size: Union[int, list[int]] = None,
         batch_size: int = 16,
         opset_version: int = 11,
+        half: bool = False,
+        device: str = "0",
         hold: bool = True,
     ) -> ExportResult:
         """Export Model
@@ -958,6 +953,8 @@ class BaseHub:
             image_size (Union[int, list[int]], optional): inference image size. None for same with train_config (recommended).
             batch_size (int, optional): dynamic batch size. Defaults to 16.
             opset_version (int, optional): onnx opset version. Defaults to 11.
+            half (bool, optional): half. Defaults to False.
+            device (str, optional): device. "cpu" or "gpu_id". Defaults to "0".
             hold (bool, optional): hold or not.
                 If True then it holds until task finished.
                 If False then return Inferece Callback and run in background. Defaults to True.
@@ -1001,6 +998,8 @@ class BaseHub:
             image_size=image_size,
             batch_size=batch_size,
             opset_version=opset_version,
+            half=half,
+            device="cpu" if device == "cpu" else f"cuda:{device}",
         )
 
         callback = ExportCallback(1)
@@ -1015,3 +1014,81 @@ class BaseHub:
             callback.start()
 
         return result
+
+    def benchmark(
+        self,
+        image_size: Union[int, list[int]] = None,
+        batch_size: int = 16,
+        device: str = "0",
+        half: bool = False,
+        trial: int = 100,
+    ) -> dict:
+        """Benchmark Model
+
+        Args:
+            image_size (Union[int, list[int]], optional): inference image size. None for same with train_config (recommended).
+            batch_size (int, optional): dynamic batch size. Defaults to 16.
+            device (str, optional): device. "cpu" or "gpu_id". Defaults to "0".
+            half (bool, optional): half. Defaults to False.
+            trial (int, optional): number of trials. Defaults to 100.
+
+        Example:
+            >>> hub.benchmark(
+                    image_size=640,
+                    batch_size=16,
+                    device="0",
+                    half=False,
+                    trial=100,
+                )
+            {
+                "inference_time": 0.123,
+                "fps": 123.123,
+                "image_size": [640, 640],
+                "batch_size": 16,
+                "device": "0",
+                "cpu_name": "Intel(R) Core(TM) i7-8700 CPU @ 3.20GHz",
+                "gpu_name": "GeForce GTX 1080 Ti",
+            }
+
+        Returns:
+            dict: benchmark result
+        """
+        self.check_train_sanity()
+
+        if half and (not torch.cuda.is_available() or device == "cpu"):
+            raise RuntimeError("half is not supported in cpu")
+
+        image_size = image_size or self.get_train_config().image_size
+        image_size = [image_size, image_size] if isinstance(image_size, int) else image_size
+
+        device = "cpu" if device == "cpu" else f"cuda:{device}"
+
+        model = self.get_model()
+        model = model.to(device) if not half else model.half().to(device)
+
+        dummy_input = torch.randn(
+            batch_size, 3, *image_size, dtype=torch.float32 if not half else torch.float16
+        )
+        dummy_input = dummy_input.to(device)
+
+        model.eval()
+        with torch.no_grad():
+            start = time.time()
+            for _ in tqdm.tqdm(range(trial)):
+                model(dummy_input)
+            end = time.time()
+            inference_time = end - start
+
+        del model
+
+        return {
+            "inference_time": inference_time,
+            # image throughput per second
+            "fps": trial * batch_size / inference_time,
+            "image_size": image_size,
+            "batch_size": batch_size,
+            "precision": "fp16" if half else "fp32",
+            "device": device,
+            "cpu_name": cpuinfo.get_cpu_info()["brand_raw"],
+            "gpu_name": torch.cuda.get_device_name(0) if device != "cpu" else None,
+        }

@@ -15,7 +15,20 @@ from waffle_hub.schema.result import (
     TrainResult,
 )
 
+
 # from waffle_hub.hub.adapter.tx_model import TxModelHub
+@pytest.fixture
+def instance_segmentation_dataset(coco_path: Path, tmpdir: Path):
+    dataset: Dataset = Dataset.from_coco(
+        name="seg",
+        task=TaskType.INSTANCE_SEGMENTATION,
+        coco_file=coco_path / "coco.json",
+        coco_root_dir=coco_path / "images",
+        root_dir=tmpdir,
+    )
+    dataset.split(0.8)
+
+    return dataset
 
 
 @pytest.fixture
@@ -27,7 +40,7 @@ def object_detection_dataset(coco_path: Path, tmpdir: Path):
         coco_root_dir=coco_path / "images",
         root_dir=tmpdir,
     )
-    dataset.split(0.8)
+    dataset.split(0.1, 0.1, 0.8)
 
     return dataset
 
@@ -47,7 +60,6 @@ def classification_dataset(coco_path: Path, tmpdir: Path):
 
 
 def _train(hub, dataset: Dataset, image_size: int, hold: bool = True):
-
     result: TrainResult = hub.train(
         dataset_path=dataset.export(hub.backend),
         epochs=1,
@@ -61,10 +73,7 @@ def _train(hub, dataset: Dataset, image_size: int, hold: bool = True):
 
     if not hold:
         assert hasattr(result, "callback")
-        while (
-            not result.callback.is_finished()
-            and not result.callback.is_failed()
-        ):
+        while not result.callback.is_finished() and not result.callback.is_failed():
             time.sleep(1)
         assert result.callback.is_finished()
         assert not result.callback.is_failed()
@@ -89,10 +98,7 @@ def _evaluate(hub, dataset: Dataset, hold: bool = True):
 
     if not hold:
         assert hasattr(result, "callback")
-        while (
-            not result.callback.is_finished()
-            and not result.callback.is_failed()
-        ):
+        while not result.callback.is_finished() and not result.callback.is_failed():
             time.sleep(1)
         assert result.callback.is_finished()
         assert not result.callback.is_failed()
@@ -114,10 +120,7 @@ def _inference(hub, source: str, hold: bool = True):
 
     if not hold:
         assert hasattr(result, "callback")
-        while (
-            not result.callback.is_finished()
-            and not result.callback.is_failed()
-        ):
+        while not result.callback.is_finished() and not result.callback.is_failed():
             time.sleep(1)
         assert result.callback.is_finished()
         assert not result.callback.is_failed()
@@ -128,15 +131,16 @@ def _inference(hub, source: str, hold: bool = True):
     return result
 
 
-def _export(hub, hold: bool = True):
-    result: ExportResult = hub.export(hold=hold)
+def _export(hub, half: bool = False, hold: bool = True):
+    result: ExportResult = hub.export(
+        hold=hold,
+        half=half,
+        device="cpu",
+    )
 
     if not hold:
         assert hasattr(result, "callback")
-        while (
-            not result.callback.is_finished()
-            and not result.callback.is_failed()
-        ):
+        while not result.callback.is_finished() and not result.callback.is_failed():
             time.sleep(1)
         assert result.callback.is_finished()
         assert not result.callback.is_failed()
@@ -162,18 +166,46 @@ def _feature_extraction(
     assert len(feature_maps) == 1
 
 
+def _benchmark(hub, image_size):
+    hub.benchmark(device="cpu", half=False, image_size=image_size)
+
+
 def _total(hub, dataset: Dataset, image_size: int, hold: bool = True):
 
     _train(hub, dataset, image_size, hold=hold)
     _evaluate(hub, dataset, hold=hold)
     _inference(hub, dataset.raw_image_dir, hold=hold)
-    _export(hub, hold=hold)
+    _export(hub, half=False, hold=hold)
+    # _export(hub, half=True, hold=hold)  # cpu cannot be half
     _feature_extraction(hub, image_size)
+    _benchmark(hub, image_size)
 
 
-def test_ultralytics_object_detection(
-    object_detection_dataset: Dataset, tmpdir: Path
-):
+def test_ultralytics_segmentation(instance_segmentation_dataset: Dataset, tmpdir: Path):
+    image_size = 32
+    dataset = instance_segmentation_dataset
+
+    # test hub
+    name = "test_seg"
+    hub = UltralyticsHub.new(
+        name=name,
+        task=TaskType.INSTANCE_SEGMENTATION,
+        model_type="yolov8",
+        model_size="n",
+        categories=dataset.category_names,
+        root_dir=tmpdir,
+    )
+    hub = UltralyticsHub.load(name=name, root_dir=tmpdir)
+    hub: UltralyticsHub = UltralyticsHub.from_model_config(
+        name=name,
+        model_config_file=tmpdir / name / UltralyticsHub.MODEL_CONFIG_FILE,
+        root_dir=tmpdir,
+    )
+
+    _total(hub, dataset, image_size)
+
+
+def test_ultralytics_object_detection(object_detection_dataset: Dataset, tmpdir: Path):
     image_size = 32
     dataset = object_detection_dataset
 
@@ -197,9 +229,7 @@ def test_ultralytics_object_detection(
     _total(hub, dataset, image_size)
 
 
-def test_ultralytics_classification(
-    classification_dataset: Dataset, tmpdir: Path
-):
+def test_ultralytics_classification(classification_dataset: Dataset, tmpdir: Path):
     image_size = 32
     dataset = classification_dataset
 
@@ -223,56 +253,52 @@ def test_ultralytics_classification(
     _total(hub, dataset, image_size)
 
 
-# def test_huggingface_object_detection(
-#     object_detection_dataset: Dataset, tmpdir: Path
-# ):
-#     image_size = 32
-#     dataset = object_detection_dataset
+def test_huggingface_object_detection(object_detection_dataset: Dataset, tmpdir: Path):
+    image_size = 32
+    dataset = object_detection_dataset
 
-#     # test hub
-#     name = "test_det"
-#     hub = HuggingFaceHub.new(
-#         name=name,
-#         task=TaskType.OBJECT_DETECTION,
-#         model_type="YOLOS",
-#         model_size="tiny",
-#         categories=object_detection_dataset.category_names,
-#         root_dir=tmpdir,
-#     )
-#     hub = HuggingFaceHub.load(name=name, root_dir=tmpdir)
-#     hub: HuggingFaceHub = HuggingFaceHub.from_model_config(
-#         name=name,
-#         model_config_file=tmpdir / name / HuggingFaceHub.MODEL_CONFIG_FILE,
-#         root_dir=tmpdir,
-#     )
+    # test hub
+    name = "test_det"
+    hub = HuggingFaceHub.new(
+        name=name,
+        task=TaskType.OBJECT_DETECTION,
+        model_type="YOLOS",
+        model_size="tiny",
+        categories=object_detection_dataset.category_names,
+        root_dir=tmpdir,
+    )
+    hub = HuggingFaceHub.load(name=name, root_dir=tmpdir)
+    hub: HuggingFaceHub = HuggingFaceHub.from_model_config(
+        name=name,
+        model_config_file=tmpdir / name / HuggingFaceHub.MODEL_CONFIG_FILE,
+        root_dir=tmpdir,
+    )
 
-#     _total(hub, dataset, image_size)
+    _total(hub, dataset, image_size)
 
 
-# def test_huggingface_classification(
-#     classification_dataset: Dataset, tmpdir: Path
-# ):
-#     image_size = 224
-#     dataset = classification_dataset
+def test_huggingface_classification(classification_dataset: Dataset, tmpdir: Path):
+    image_size = 224
+    dataset = classification_dataset
 
-#     # test hub
-#     name = "test_cls"
-#     hub = HuggingFaceHub.new(
-#         name=name,
-#         task=TaskType.CLASSIFICATION,
-#         model_type="ViT",
-#         model_size="tiny",
-#         categories=classification_dataset.category_names,
-#         root_dir=tmpdir,
-#     )
-#     hub = HuggingFaceHub.load(name=name, root_dir=tmpdir)
-#     hub: HuggingFaceHub = HuggingFaceHub.from_model_config(
-#         name=name,
-#         model_config_file=tmpdir / name / HuggingFaceHub.MODEL_CONFIG_FILE,
-#         root_dir=tmpdir,
-#     )
+    # test hub
+    name = "test_cls"
+    hub = HuggingFaceHub.new(
+        name=name,
+        task=TaskType.CLASSIFICATION,
+        model_type="ViT",
+        model_size="tiny",
+        categories=classification_dataset.category_names,
+        root_dir=tmpdir,
+    )
+    hub = HuggingFaceHub.load(name=name, root_dir=tmpdir)
+    hub: HuggingFaceHub = HuggingFaceHub.from_model_config(
+        name=name,
+        model_config_file=tmpdir / name / HuggingFaceHub.MODEL_CONFIG_FILE,
+        root_dir=tmpdir,
+    )
 
-#     _total(hub, dataset, image_size)
+    _total(hub, dataset, image_size)
 
 
 def test_non_hold(classification_dataset: Dataset, tmpdir: Path):

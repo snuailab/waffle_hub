@@ -83,10 +83,7 @@ class Category(BaseField):
     @task.setter
     def task(self, v):
         if v is not None and v not in TaskType:
-            raise ValueError(
-                f"Invalid task type: {v}"
-                f"Available task types: {list(TaskType)}"
-            )
+            raise ValueError(f"Invalid task type: {v}" f"Available task types: {list(TaskType)}")
         self.__task = str(v).upper()
 
     # factories
@@ -125,11 +122,7 @@ class Category(BaseField):
 
     @classmethod
     def classification(
-        cls, 
-        category_id: int, 
-        name: str, 
-        supercategory: str = None, 
-        **kwargs
+        cls, category_id: int, name: str, supercategory: str = None, **kwargs
     ) -> "Category":
         """Classification Category Format
 
@@ -147,15 +140,10 @@ class Category(BaseField):
             supercategory=supercategory,
             task=TaskType.CLASSIFICATION,
         )
-            
 
     @classmethod
     def object_detection(
-        cls, 
-        category_id: int, 
-        name: str, 
-        supercategory: str = None, 
-        **kwargs
+        cls, category_id: int, name: str, supercategory: str = None, **kwargs
     ) -> "Category":
         """Object Detection Category Format
 
@@ -175,12 +163,8 @@ class Category(BaseField):
         )
 
     @classmethod
-    def segmentation(
-        cls, 
-        category_id: int, 
-        name: str, 
-        supercategory: str = None, 
-        **kwargs
+    def semantic_segmentation(
+        cls, category_id: int, name: str, supercategory: str = None, **kwargs
     ) -> "Category":
         """Segmentation Category Format
 
@@ -196,7 +180,28 @@ class Category(BaseField):
             category_id=category_id,
             name=name,
             supercategory=supercategory,
-            task=TaskType.SEGMENTATION,
+            task=TaskType.SEMANTIC_SEGMENTATION,
+        )
+
+    @classmethod
+    def instance_segmentation(
+        cls, category_id: int, name: str, supercategory: str = None, **kwargs
+    ) -> "Category":
+        """Instance Category Format
+
+        Args:
+            category_id (int): category id. natural number.
+            name (str): category name.
+            supercategory (str): supercategory name.
+
+        Returns:
+            Category: category class
+        """
+        return cls(
+            category_id=category_id,
+            name=name,
+            supercategory=supercategory,
+            task=TaskType.INSTANCE_SEGMENTATION,
         )
 
     @classmethod
@@ -232,11 +237,7 @@ class Category(BaseField):
 
     @classmethod
     def text_recognition(
-        cls, 
-        category_id: int, 
-        name: str, 
-        supercategory: str = None, 
-        **kwargs
+        cls, category_id: int, name: str, supercategory: str = None, **kwargs
     ) -> "Category":
         """Text Recognition Category Format
 

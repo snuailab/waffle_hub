@@ -81,6 +81,7 @@ class Image(BaseField):
         width: int,
         height: int,
         date_captured: str = None,
+        **kwargs,
     ) -> "Image":
         """Image Format
 

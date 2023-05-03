@@ -1,9 +1,8 @@
-__version__ = "0.1.9"
+__version__ = "0.2.0"
 
 import enum
 import importlib
 import warnings
-import enum
 from collections import OrderedDict
 
 from tabulate import tabulate
@@ -91,6 +90,7 @@ def get_available_backends() -> str:
 
     return table
 
+
 class CustomEnumMeta(enum.EnumMeta):
     def __contains__(cls, item):
         if isinstance(item, str):
@@ -151,7 +151,8 @@ class DataType(BaseEnum):
 class TaskType(BaseEnum):
     CLASSIFICATION = enum.auto()
     OBJECT_DETECTION = enum.auto()
-    SEGMENTATION = enum.auto()
+    SEMANTIC_SEGMENTATION = enum.auto()
+    INSTANCE_SEGMENTATION = enum.auto()
     KEYPOINT_DETECTION = enum.auto()
     TEXT_RECOGNITION = enum.auto()
     REGRESSION = enum.auto()
