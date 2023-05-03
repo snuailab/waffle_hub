@@ -264,6 +264,15 @@ class BaseHub:
             v = [{"supercategory": "object", "name": n} for n in v]
         self.__categories = v
 
+    @property
+    def default_values(self):
+        """Get default values from model.
+
+        Returns:
+            dict: default values
+        """
+        return self.DEFAULT_PARAMAS[self.task][self.model_type][self.model_size]
+
     @cached_property
     def hub_dir(self) -> Path:
         """Hub(Model) Directory"""
@@ -543,11 +552,6 @@ class BaseHub:
             seed=seed,
             verbose=verbose,
         )
-
-        # overwrite train config with default config
-        for k, v in cfg.to_dict().items():
-            if v is None and k in self.DEFAULT_PARAMAS[self.task]:
-                setattr(cfg, k, self.DEFAULT_PARAMAS[self.task][k])
 
         callback = TrainCallback(cfg.epochs + 1, self.get_metrics)
         result = TrainResult()

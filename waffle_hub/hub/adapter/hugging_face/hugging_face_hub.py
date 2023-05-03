@@ -38,6 +38,8 @@ from waffle_hub.hub.model.wrapper import ModelWrapper
 from waffle_hub.schema.configs import TrainConfig
 from waffle_hub.utils.callback import TrainCallback
 
+from .config import DEFAULT_PARAMAS, MODEL_TYPES
+
 
 class CustomCallback(TrainerCallback):
     """
@@ -65,43 +67,8 @@ class HuggingFaceHub(BaseHub):
     BEST_CKPT_FILE = "weights/best_ckpt"
 
     # Common
-    MODEL_TYPES = {
-        "object_detection": {
-            "DETA": {
-                "base": "jozhang97/deta-resnet-50",
-            },
-            "DETR": {
-                "base": "facebook/detr-resnet-50",
-                "large": "facebook/detr-resnet-101",
-            },
-            "YOLOS": {
-                "tiny": "hustvl/yolos-tiny",
-            },
-        },
-        "classification": {
-            "ViT": {
-                "tiny": "WinKawaks/vit-tiny-patch16-224",
-                "base": "google/vit-base-patch16-224",
-            }
-        },
-    }
-
-    DEFAULT_PARAMAS = {
-        "object_detection": {
-            "epochs": 50,
-            "image_size": [800, 800],
-            "learning_rate": 5e-05,
-            "letter_box": True,  # TODO: implement letter_box
-            "batch_size": 16,
-        },
-        "classification": {
-            "epochs": 50,
-            "image_size": [224, 224],
-            "learning_rate": 5e-05,
-            "letter_box": False,
-            "batch_size": 16,
-        },
-    }
+    MODEL_TYPES = MODEL_TYPES
+    DEFAULT_PARAMAS = DEFAULT_PARAMAS
 
     def __init__(
         self,
@@ -169,6 +136,9 @@ class HuggingFaceHub(BaseHub):
     def on_train_start(self, cfg: TrainConfig):
         # overwrite train config with default config
         cfg.pretrained_model = self.MODEL_TYPES[self.task][self.model_type][self.model_size]
+        for k, v in cfg.to_dict().items():
+            if v is None:
+                setattr(cfg, k, self.DEFAULT_PARAMAS[self.task][self.model_type][self.model_size][k])
 
         # setting
         if cfg.device != "cpu":
