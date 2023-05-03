@@ -61,6 +61,23 @@ class TxModelHub(BaseHub):
         },
     }
 
+    DEFAULT_PARAMAS = {
+        "object_detection": {
+            "epochs": 50,
+            "image_size": [640, 640],
+            "learning_rate": 0.01,
+            "letter_box": True,
+            "batch_size": 16,
+        },
+        "classification": {
+            "epochs": 50,
+            "image_size": [224, 224],
+            "learning_rate": 0.01,
+            "letter_box": False,
+            "batch_size": 16,
+        },
+    }
+
     def __init__(
         self,
         name: str,
@@ -193,7 +210,7 @@ class TxModelHub(BaseHub):
         cfg.dataset_path: Path = Path(cfg.dataset_path)
         data_config = get_data_config(
             self.DATA_TYPE_MAP[self.task],
-            [cfg.image_size, cfg.image_size],
+            cfg.image_size if isinstance(cfg.image_size, list) else [cfg.image_size, cfg.image_size],
             cfg.batch_size,
             cfg.workers,
             str(cfg.dataset_path / "train.json"),

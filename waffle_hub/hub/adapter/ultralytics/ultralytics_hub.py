@@ -298,11 +298,6 @@ class UltralyticsHub(BaseHub):
             else self.model_type + self.model_size + self.TASK_SUFFIX[self.backend_task_name] + ".pt"
         )
 
-        # overwrite train config with default config
-        for k, v in cfg.to_dict().items():
-            if v is None:
-                setattr(cfg, k, self.DEFAULT_PARAMAS[self.task][k])
-
     def training(self, cfg: TrainConfig, callback: TrainCallback):
 
         model = YOLO(cfg.pretrained_model, task=self.backend_task_name)
