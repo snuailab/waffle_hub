@@ -5,7 +5,32 @@ from typing import Union
 from waffle_utils.file import io
 
 from waffle_hub import TaskType
+from waffle_hub.schema.fields.image import Image
 from waffle_hub.utils.conversion import merge_multi_segment
+
+
+def _check_valid_file_paths(images: list[Image]) -> bool:
+    """Check file paths are valid
+    If the file name includes the words "images" or "labels," an error occurs during training
+
+    Args:
+        images (list[Image]): List of Image
+
+    Returns:
+        bool: True if valid
+    """
+    for image in images.values():
+        file_path = Path(image.file_name)
+        if "images" in file_path.parts:
+            raise ValueError(
+                f"The file path '{file_path}' is not allowed. Please choose a file path that does not contain the word 'images'"
+            )
+        if "labels" in file_path.parts:
+            raise ValueError(
+                f"The file path '{file_path}' is not allowed. Please choose a file path that does not contain the word 'labels'"
+            )
+    else:
+        return True
 
 
 def _export_yolo_classification(
@@ -171,6 +196,8 @@ def export_yolo(self, export_dir: Union[str, Path]) -> str:
     Returns:
         str: Path to export directory
     """
+    _check_valid_file_paths(self.images)
+
     export_dir = Path(export_dir)
 
     train_ids, val_ids, test_ids, unlabeled_ids = self.get_split_ids()

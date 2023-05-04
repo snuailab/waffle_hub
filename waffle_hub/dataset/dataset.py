@@ -1055,7 +1055,8 @@ class Dataset:
             return export_dir
 
         except Exception as e:
-            io.remove_directory(export_dir)
+            if export_dir.exists():
+                io.remove_directory(export_dir)
             raise e
 
     def delete(self):
