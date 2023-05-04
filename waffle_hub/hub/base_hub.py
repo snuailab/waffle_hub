@@ -553,6 +553,14 @@ class BaseHub:
             verbose=verbose,
         )
 
+        # overwrite train config with default config
+        for k, v in cfg.to_dict().items():
+            if v is None:
+                field_value = getattr(
+                    self.DEFAULT_PARAMAS[self.task][self.model_type][self.model_size], k
+                )
+                setattr(cfg, k, field_value)
+
         callback = TrainCallback(cfg.epochs + 1, self.get_metrics)
         result = TrainResult()
         result.callback = callback

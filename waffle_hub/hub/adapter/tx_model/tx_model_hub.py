@@ -28,14 +28,15 @@ from waffle_hub.hub.base_hub import BaseHub
 from waffle_hub.hub.model.wrapper import ModelWrapper
 from waffle_hub.schema.configs import TrainConfig
 from waffle_hub.utils.callback import TrainCallback
-from .config import MODEL_TYPES, DATA_TYPE_MAP, WEIGHT_PATH, DEFAULT_PARAMAS
+
+from .config import DATA_TYPE_MAP, DEFAULT_PARAMAS, MODEL_TYPES, WEIGHT_PATH
 
 
 class TxModelHub(BaseHub):
-    MODEL_TYPES=MODEL_TYPES
-    DATA_TYPE_MAP=DATA_TYPE_MAP
-    WEIGHT_PATH=WEIGHT_PATH
-    DEFAULT_PARAMAS=DEFAULT_PARAMAS
+    MODEL_TYPES = MODEL_TYPES
+    DATA_TYPE_MAP = DATA_TYPE_MAP
+    WEIGHT_PATH = WEIGHT_PATH
+    DEFAULT_PARAMAS = DEFAULT_PARAMAS
 
     def __init__(
         self,
@@ -165,12 +166,6 @@ class TxModelHub(BaseHub):
 
     # Train Hook
     def on_train_start(self, cfg: TrainConfig):
-        # overwrite train config with default config
-        for k, v in cfg.to_dict().items():
-            if v is None:
-                field_value = getattr(self.DEFAULT_PARAMAS[self.task][self.model_type][self.model_size], k)
-                setattr(cfg, k, field_value)
-
         # set data
         cfg.dataset_path: Path = Path(cfg.dataset_path)
         data_config = get_data_config(
