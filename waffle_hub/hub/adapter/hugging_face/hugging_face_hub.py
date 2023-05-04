@@ -136,10 +136,6 @@ class HuggingFaceHub(BaseHub):
     def on_train_start(self, cfg: TrainConfig):
         # overwrite train config with default config
         cfg.pretrained_model = self.MODEL_TYPES[self.task][self.model_type][self.model_size]
-        for k, v in cfg.to_dict().items():
-            if v is None:
-                field_value = getattr(self.DEFAULT_PARAMAS[self.task][self.model_type][self.model_size], k)
-                setattr(cfg, k, field_value)
 
         # setting
         if cfg.device != "cpu":
