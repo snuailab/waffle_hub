@@ -265,7 +265,7 @@ class BaseHub:
         self.__categories = v
 
     @property
-    def default_values(self):
+    def default_params(self):
         """Get default values from model.
 
         Returns:

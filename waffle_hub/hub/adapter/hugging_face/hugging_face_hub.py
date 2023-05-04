@@ -138,7 +138,8 @@ class HuggingFaceHub(BaseHub):
         cfg.pretrained_model = self.MODEL_TYPES[self.task][self.model_type][self.model_size]
         for k, v in cfg.to_dict().items():
             if v is None:
-                setattr(cfg, k, self.DEFAULT_PARAMAS[self.task][self.model_type][self.model_size][k])
+                field_value = getattr(self.DEFAULT_PARAMAS[self.task][self.model_type][self.model_size], k)
+                setattr(cfg, k, field_value)
 
         # setting
         if cfg.device != "cpu":
