@@ -1,3 +1,5 @@
+from waffle_hub.schema.configs import TrainConfig
+
 # Common
 MODEL_TYPES = {
     "object_detection": {"yolov8": list("nsmlx")},
@@ -22,119 +24,119 @@ TASK_SUFFIX = {
 DEFAULT_PARAMAS = {
     "object_detection": {
         "yolov8": {
-            "n": {
-                "epochs": 50,
-                "image_size": [640, 640],
-                "learning_rate": 0.01,
-                "letter_box": True,
-                "batch_size": 64,
-            },
-            "s": {
-                "epochs": 50,
-                "image_size": [640, 640],
-                "learning_rate": 0.01,
-                "letter_box": True,
-                "batch_size": 32,
-            },
-            "m": {
-                "epochs": 50,
-                "image_size": [640, 640],
-                "learning_rate": 0.01,
-                "letter_box": True,
-                "batch_size": 16,
-            },
-            "l": {
-                "epochs": 50,
-                "image_size": [640, 640],
-                "learning_rate": 0.01,
-                "letter_box": True,
-                "batch_size": 8,
-            },
-            "x": {
-                "epochs": 50,
-                "image_size": [640, 640],
-                "learning_rate": 0.01,
-                "letter_box": True,
-                "batch_size": 8,
-            },
+            "n": TrainConfig(
+                    epochs=50,
+                    image_size=[640, 640],
+                    learning_rate=0.01,
+                    letter_box=True,
+                    batch_size=64,
+                ),
+            "s": TrainConfig(
+                    epochs=50,
+                    image_size=[640, 640],
+                    learning_rate=0.01,
+                    letter_box=True,
+                    batch_size=32,
+                ),
+            "m": TrainConfig(
+                    epochs=50,
+                    image_size=[640, 640],
+                    learning_rate=0.01,
+                    letter_box=True,
+                    batch_size=16,
+                ),
+            "l": TrainConfig(
+                    epochs=50,
+                    image_size=[640, 640],
+                    learning_rate=0.01,
+                    letter_box=True,
+                    batch_size=8,
+                ),
+            "x": TrainConfig(
+                    epochs=50,
+                    image_size=[640, 640],
+                    learning_rate=0.01,
+                    letter_box=True,
+                    batch_size=8,
+                )
         }
     },
     "classification": {
         "yolov8": {
-            "n": {
-                "epochs": 50,
-                "image_size": [224, 224],
-                "learning_rate": 0.01,
-                "letter_box": False,
-                "batch_size": 512,
-            },
-            "s": {
-                "epochs": 50,
-                "image_size": [224, 224],
-                "learning_rate": 0.01,
-                "letter_box": False,
-                "batch_size": 256,
-            },
-            "m": {
-                "epochs": 50,
-                "image_size": [224, 224],
-                "learning_rate": 0.01,
-                "letter_box": False,
-                "batch_size": 128,
-            },
-            "l": {
-                "epochs": 50,
-                "image_size": [224, 224],
-                "learning_rate": 0.01,
-                "letter_box": False,
-                "batch_size": 64,
-            },
-            "x": {
-                "epochs": 50,
-                "image_size": [224, 224],
-                "learning_rate": 0.01,
-                "letter_box": False,
-                "batch_size": 64,
-            },
+            "n": TrainConfig(
+                    epochs=50,
+                    image_size=[224, 224],
+                    learning_rate=0.01,
+                    letter_box=False,
+                    batch_size=512,
+            ),
+            "s": TrainConfig(
+                    epochs=50,
+                    image_size=[224, 224],
+                    learning_rate=0.01,
+                    letter_box=False,
+                    batch_size=256,
+            ),
+            "m": TrainConfig(
+                    epochs=50,
+                    image_size=[224, 224],
+                    learning_rate=0.01,
+                    letter_box=False,
+                    batch_size=128,
+            ),
+            "l": TrainConfig(
+                    epochs=50,
+                    image_size=[224, 224],
+                    learning_rate=0.01,
+                    letter_box=False,
+                    batch_size=64,
+            ),
+            "x": TrainConfig(
+                    epochs=50,
+                    image_size=[224, 224],
+                    learning_rate=0.01,
+                    letter_box=False,
+                    batch_size=64,
+            ),
         }
     },
     "instance_segmentation": {
         "yolov8": {
-            "n": {
-                "epochs": 50,
-                "image_size": [640, 640],
-                "learning_rate": 0.01,
-                "letter_box": True,
-                "batch_size": 32,
-            },
-            "s": {
-                "epochs": 50,
-                "image_size": [640, 640],
-                "learning_rate": 0.01,
-                "letter_box": True,
-                "batch_size": 16,
-            },
-            "m": {
-                "epochs": 50,
-                "image_size": [640, 640],
-                "learning_rate": 0.01,
-                "letter_box": True,
-                "batch_size": 8,
-            },
-            "l": {
-                "epochs": 50,
-                "image_size": [640, 640],
-                "learning_rate": 0.01,
-                "letter_box": True,
-                "batch_size": 4,
-            },
-            "x": {
-                "epochs": 50,
-                "image_size": [640, 640],
-                "learning_rate": 0.01,
-                "letter_box": True,
-                "batch_size": 4,
-            },
+            "n": TrainConfig(
+                    epochs=50,
+                    image_size=[640, 640],
+                    learning_rate=0.01,
+                    letter_box=True,
+                    batch_size=32,
+            ),
+            "s": TrainConfig(
+                    epochs=50,
+                    image_size=[640, 640],
+                    learning_rate=0.01,
+                    letter_box=True,
+                    batch_size=16,
+            ),
+            "m": TrainConfig(
+                    epochs=50,
+                    image_size=[640, 640],
+                    learning_rate=0.01,
+                    letter_box=True,
+                    batch_size=8,
+            ),
+            "l": TrainConfig(
+                    epochs=50,
+                    image_size=[640, 640],
+                    learning_rate=0.01,
+                    letter_box=True,
+                    batch_size=4,
+            ),
+            "x": TrainConfig(
+                    epochs=50,
+                    image_size=[640, 640],
+                    learning_rate=0.01,
+                    letter_box=True,
+                    batch_size=4,
+            ),
         }
     },
 }

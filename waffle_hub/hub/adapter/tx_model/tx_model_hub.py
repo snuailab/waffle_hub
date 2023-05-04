@@ -28,55 +28,14 @@ from waffle_hub.hub.base_hub import BaseHub
 from waffle_hub.hub.model.wrapper import ModelWrapper
 from waffle_hub.schema.configs import TrainConfig
 from waffle_hub.utils.callback import TrainCallback
+from .config import MODEL_TYPES, DATA_TYPE_MAP, WEIGHT_PATH, DEFAULT_PARAMAS
 
 
 class TxModelHub(BaseHub):
-
-    # Common
-    MODEL_TYPES = {
-        "object_detection": {"YOLOv5": list("sml")},
-        "classification": {"Classifier": list("sml")},
-    }
-
-    # Backend Specifics
-    DATA_TYPE_MAP = {
-        "object_detection": "COCODetectionDataset",
-        "classification": "COCOClassificationDataset",
-    }
-
-    WEIGHT_PATH = {
-        "object_detection": {
-            "YOLOv5": {
-                "s": "temp/autocare_tx_model/detectors/small/model.pth",
-                "m": "temp/autocare_tx_model/detectors/medium/model.pth",
-                "l": "temp/autocare_tx_model/detectors/large/model.pth",
-            }
-        },
-        "classification": {
-            "Classifier": {
-                "s": "temp/autocare_tx_model/classifiers/small/model.pth",
-                "m": "temp/autocare_tx_model/classifiers/medium/model.pth",
-                "l": "temp/autocare_tx_model/classifiers/large/model.pth",
-            }
-        },
-    }
-
-    DEFAULT_PARAMAS = {
-        "object_detection": {
-            "epochs": 50,
-            "image_size": [640, 640],
-            "learning_rate": 0.01,
-            "letter_box": True,
-            "batch_size": 16,
-        },
-        "classification": {
-            "epochs": 50,
-            "image_size": [224, 224],
-            "learning_rate": 0.01,
-            "letter_box": False,
-            "batch_size": 16,
-        },
-    }
+    MODEL_TYPES=MODEL_TYPES
+    DATA_TYPE_MAP=DATA_TYPE_MAP
+    WEIGHT_PATH=WEIGHT_PATH
+    DEFAULT_PARAMAS=DEFAULT_PARAMAS
 
     def __init__(
         self,
@@ -204,12 +163,14 @@ class TxModelHub(BaseHub):
 
         return metrics
 
-    @property
-    def default_values(self):
-        raise NotImplementedError
-
     # Train Hook
     def on_train_start(self, cfg: TrainConfig):
+        # overwrite train config with default config
+        for k, v in cfg.to_dict().items():
+            if v is None:
+                field_value = getattr(self.DEFAULT_PARAMAS[self.task][self.model_type][self.model_size], k)
+                setattr(cfg, k, field_value)
+
         # set data
         cfg.dataset_path: Path = Path(cfg.dataset_path)
         data_config = get_data_config(
