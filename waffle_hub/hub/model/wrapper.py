@@ -308,7 +308,7 @@ class ModelWrapper(torch.nn.Module):
 
         def hook(name):
             def hook_fn(m, i, o):
-                feature_maps[name] = self._convert_to_feature_map(o)
+                feature_maps[name] = o
 
             return hook_fn
 
