@@ -29,6 +29,8 @@ from transformers.utils import ModelOutput
 from waffle_utils.file import io
 
 from datasets import load_from_disk
+
+from waffle_hub import TaskType
 from waffle_hub.hub.adapter.hugging_face.train_input_helper import (
     ClassifierInputHelper,
     ObjectDetectionInputHelper,
@@ -231,7 +233,7 @@ class HuggingFaceHub(BaseHub):
         )
         io.save_json(self.get_metrics(), self.metric_file)
 
-    def get_preprocess(self, task, pretrained_model: str = None) -> Callable:
+    def get_preprocess(self, pretrained_model: str = None) -> Callable:
         if pretrained_model is None:
             pretrained_model = self.best_ckpt_file
         image_processer = AutoImageProcessor.from_pretrained(pretrained_model)
@@ -243,17 +245,17 @@ class HuggingFaceHub(BaseHub):
 
         return preprocess
 
-    def get_postprocess(self, task: str, pretrained_model: str = None) -> Callable:
+    def get_postprocess(self: str, pretrained_model: str = None) -> Callable:
         if pretrained_model is None:
             pretrained_model = self.best_ckpt_file
         image_processer = AutoImageProcessor.from_pretrained(pretrained_model)
 
-        if task == "classification":
+        if self.task == TaskType.CLASSIFICATION:
 
             def inner(x: ModelOutput, *args, **kwargs) -> torch.Tensor:
                 return [x.logits]
 
-        elif task == "object_detection":
+        elif self.task == TaskType.OBJECT_DETECTION:
             post_process = image_processer.post_process_object_detection
 
             def inner(x: ModelOutput, *args, **kwargs) -> torch.Tensor:
@@ -267,7 +269,7 @@ class HuggingFaceHub(BaseHub):
                 return xyxy, confidences, category_ids
 
         else:
-            raise NotImplementedError(f"Task {task} is not implemented.")
+            raise NotImplementedError(f"Task {self.task} is not implemented.")
 
         return inner
 
@@ -275,15 +277,15 @@ class HuggingFaceHub(BaseHub):
         self.check_train_sanity()
 
         # get adapt functions
-        preprocess = self.get_preprocess(self.task)
-        postprocess = self.get_postprocess(self.task)
+        preprocess = self.get_preprocess()
+        postprocess = self.get_postprocess()
 
         # get model
-        if self.task == "object_detection":
+        if self.task == TaskType.OBJECT_DETECTION:
             model = AutoModelForObjectDetection.from_pretrained(
                 str(self.best_ckpt_file),
             )
-        elif self.task == "classification":
+        elif self.task == TaskType.CLASSIFICATION:
             model = AutoModelForImageClassification.from_pretrained(
                 str(self.best_ckpt_file),
             )

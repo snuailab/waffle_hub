@@ -19,6 +19,8 @@ import cpuinfo
 import cv2
 import torch
 import tqdm
+import numpy as np
+
 from waffle_utils.file import io
 from waffle_utils.utils import type_validator
 
@@ -38,13 +40,14 @@ from waffle_hub.schema.result import (
     InferenceResult,
     TrainResult,
 )
+from waffle_hub.schema.data import ImageInfo
 from waffle_hub.utils.callback import (
     EvaluateCallback,
     ExportCallback,
     InferenceCallback,
     TrainCallback,
 )
-from waffle_hub.utils.data import ImageDataset, LabeledDataset
+from waffle_hub.utils.data import ImageDataset, LabeledDataset, get_image_transform
 from waffle_hub.utils.draw import draw_results
 from waffle_hub.utils.evaluate import evaluate_function
 
@@ -437,6 +440,28 @@ class BaseHub:
         if not self.inference_file.exists():
             return []
         return io.load_json(self.inference_file)
+    
+    # Hub Utils
+    def get_input_transform(self) -> tuple[torch.Tensor, ImageInfo]:
+        """Get input transform function.
+
+        Returns:
+            tuple[torch.Tensor, ImageInfo]: input transform function
+        
+        Example:
+            >>> transform = hub.get_input_transform()
+            >>> image, image_info = transform("path/to/image.jpg")
+            >>> model = hub.get_model()
+            >>> output = model(image.unsqueeze(0))
+        """
+        train_config: TrainConfig = self.get_train_config()
+        transform = get_image_transform(train_config.image_size, train_config.letter_box)
+        preprocess = self.get_preprocess()
+        def inner(x: Union[np.ndarray, str]):
+            image, image_info = transform(x)
+            image = preprocess(image)
+            return image, image_info
+        return inner
 
     # Train Hook
     def before_train(self, cfg: TrainConfig):

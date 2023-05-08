@@ -20,6 +20,7 @@ from autocare_tx_model.tools import train
 from torchvision import transforms as T
 from waffle_utils.file import io
 
+from waffle_hub import TaskType
 from waffle_hub.hub.adapter.tx_model.configs import (
     get_data_config,
     get_model_config,
@@ -101,15 +102,15 @@ class TxModelHub(BaseHub):
         )
 
     # Hub Utils
-    def get_preprocess(self, task: str, *args, **kwargs):
+    def get_preprocess(self, *args, **kwargs):
 
-        if task == "object_detection":
+        if self.task == TaskType.OBJECT_DETECTION:
             normalize = T.Normalize([0, 0, 0], [1, 1, 1], inplace=True)
 
             def preprocess(x, *args, **kwargs):
                 return normalize(x)
 
-        elif task == "classification":
+        elif self.task == TaskType.CLASSIFICATION:
             normalize = T.Normalize([0, 0, 0], [1, 1, 1], inplace=True)
 
             def preprocess(x, *args, **kwargs):
@@ -117,9 +118,9 @@ class TxModelHub(BaseHub):
 
         return preprocess
 
-    def get_postprocess(self, task: str, *args, **kwargs):
+    def get_postprocess(self, *args, **kwargs):
 
-        if task == "object_detection":
+        if self.task == TaskType.OBJECT_DETECTION:
 
             def inner(x: torch.Tensor, *args, **kwargs):
                 xyxy = x[0]
@@ -128,7 +129,7 @@ class TxModelHub(BaseHub):
 
                 return xyxy, scores, class_ids
 
-        elif task == "classification":
+        elif self.task == TaskType.CLASSIFICATION:
 
             def inner(x: torch.Tensor, *args, **kwargs):
                 x = [t.squeeze() for t in x]
@@ -245,8 +246,8 @@ class TxModelHub(BaseHub):
         self.check_train_sanity()
 
         # get adapt functions
-        preprocess = self.get_preprocess(self.task)
-        postprocess = self.get_postprocess(self.task)
+        preprocess = self.get_preprocess()
+        postprocess = self.get_postprocess()
 
         # get model
         categories = [x["name"] for x in self.categories]
