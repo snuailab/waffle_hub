@@ -442,21 +442,20 @@ class BaseHub:
         return io.load_json(self.inference_file)
     
     # Hub Utils
-    def get_input_transform(self) -> tuple[torch.Tensor, ImageInfo]:
-        """Get input transform function.
+    def get_image_loader(self) -> tuple[torch.Tensor, ImageInfo]:
+        """Get image loader function.
 
         Returns:
             tuple[torch.Tensor, ImageInfo]: input transform function
         
         Example:
-            >>> transform = hub.get_input_transform()
+            >>> transform = hub.get_image_loader()
             >>> image, image_info = transform("path/to/image.jpg")
             >>> model = hub.get_model()
             >>> output = model(image.unsqueeze(0))
         """
         train_config: TrainConfig = self.get_train_config()
         transform = get_image_transform(train_config.image_size, train_config.letter_box)
-        preprocess = self.get_preprocess()
         def inner(x: Union[np.ndarray, str]):
             """Input Transform Function
             
@@ -467,7 +466,6 @@ class BaseHub:
                 tuple[torch.Tensor, ImageInfo]: image and image info
             """
             image, image_info = transform(x)
-            image = preprocess(image)
             return image, image_info
         return inner
 
