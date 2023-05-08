@@ -1,46 +1,53 @@
-# TODO: add cli tool
-# import typer
-# from rich import print
+from typing import List
 
-# from waffle_hub.hub import UltralyticsHub
+import typer
+from rich import print
 
-# from waffle_utils.dataset import Dataset
+from waffle_hub.dataset.dataset import Dataset
+from waffle_hub.hub.adapter.ultralytics import UltralyticsHub
 
-# app = typer.Typer()
+dataset = typer.Typer(name="dataset")
+hub = typer.Typer(name="hub")
+app = typer.Typer()
+app.add_typer(dataset)
+app.add_typer(hub)
 
-# BACKEND_MAP = {
-#     "ultralytics": UltralyticsHub,
-# }
-
-# @app.command(name="create", )
-# def _create(
-#     backend: str = typer.Option(..., help='One of [' + ', '.join(BACKEND_MAP.keys()) + ']'),
-#     name: str = type.Option(..., help="model name"),
-#     task: str = type.Option(..., help="task"),
-#     model_type: str = type.Option(..., help="model type"),
-#     model_size: str = type.Option(..., help="model size"),
-#     pretrained_model: str = type.Option(None, help="pretrained model"),
-#     model_root_dir: str = type.Option(None, help="pretrained model"),
-#     dataset_
-#     epochs: int,
-#     batch_size: int,
-#     image_size: int,
-#     device: str = "0",
-#     workers: int = 2,
-#     seed: int = 0,
-#     verbose: bool = True,
-# ):
-#     if backend not in BACKEND_MAP:
-#         raise ValueError(f"""
-#         Backend {backend} is not supported.
-#         Choose one of {list(BACKEND_MAP.keys())}
-#         """)
-
-#     # hub = BACKEND_MAP[backend](
-#     #     name=name,
-#     #     task=task
-#     # )
+BACKEND_MAP = {
+    "ultralytics": UltralyticsHub,
+}
 
 
-# if __name__ == "__main__":
-#     app()
+@dataset.command(name="get_file_from_url")
+def _get_file_from_url(url):
+    print("get_file_from_url")
+
+
+@hub.command(name="train")
+def _train(backend):
+    print("train")
+
+
+@hub.command(name="new")
+def _new(
+    backend: str = typer.Option(..., help="Backend to use"),
+    name: str = typer.Option(..., help="Name of the hub"),
+    task: str = typer.Option(..., help="Task type"),
+    model_type: str = typer.Option(..., help="Model type"),
+    model_size: str = typer.Option(..., help="Model size"),
+    categories: List[str] = typer.Option(..., help="Categories"),
+    root_dir: str = typer.Option(..., help="Root directory"),
+):
+    print(backend, name, task, model_type, model_size, categories, root_dir)
+    print(categories)
+    BACKEND_MAP[backend].new(
+        name=name,
+        task=task,
+        model_type=model_type,
+        model_size=model_size,
+        categories=categories,
+        root_dir=root_dir,
+    )
+
+
+if __name__ == "__main__":
+    app()
