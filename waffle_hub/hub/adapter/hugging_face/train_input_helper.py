@@ -132,7 +132,9 @@ class ClassifierInputHelper(TrainInputHelper):
                 f"pretrained model's image size is {size}, but you set {self.image_size}."
             )
 
-        _transforms = T.Compose([T.RandomResizedCrop(size[::-1]), T.ToTensor(), normalize])
+        _transforms = T.Compose(
+            [T.RandomResizedCrop(self.image_size[::-1]), T.ToTensor(), normalize]
+        )
 
         def transforms(examples: dict) -> dict:
             examples["pixel_values"] = [_transforms(img.convert("RGB")) for img in examples["image"]]
@@ -160,17 +162,24 @@ class ObjectDetectionInputHelper(TrainInputHelper):
         super().__init__(pretrained_model, image_size)
 
     def get_transforms(self) -> Callable:
-        size = (
-            (self.image_processor.size["shortest_edge"],) * 2
-            if "shortest_edge" in self.image_processor.size
-            else (
-                self.image_processor.size["width"],
-                self.image_processor.size["height"],
-            )
-        )
+        if "shortest_edge" in self.image_processor.size:
+            shortest_size = self.image_processor.size["shortest_edge"]
+            longest_size = self.image_processor.size["longest_edge"]
+            if min(self.image_size) < shortest_size:
+                warnings.warn(
+                    f"pretrained model's shortest edge is {shortest_size}, but you set {self.image_size}."
+                )
+            if max(self.image_size) > longest_size:
+                warnings.warn(
+                    f"pretrained model's longest edge is {longest_size}, but you set {self.image_size}."
+                )
+        else:
+            size = (self.image_processor.size["width"], self.image_processor.size["height"])
 
-        if tuple(size) != tuple(self.image_size):
-            warnings.warn(f"pretrained model's image size is {size}, but you set {self.image_size}.")
+            if tuple(size) != tuple(self.image_size):
+                warnings.warn(
+                    f"pretrained model's image size is {size}, but you set {self.image_size}."
+                )
 
         _transforms = albumentations.Compose(
             [
