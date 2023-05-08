@@ -20,6 +20,7 @@ from autocare_tx_model.tools import train
 from torchvision import transforms as T
 from waffle_utils.file import io
 
+from waffle_hub import TaskType
 from waffle_hub.hub.adapter.tx_model.configs import (
     get_data_config,
     get_model_config,
@@ -29,54 +30,14 @@ from waffle_hub.hub.model.wrapper import ModelWrapper
 from waffle_hub.schema.configs import TrainConfig
 from waffle_hub.utils.callback import TrainCallback
 
+from .config import DATA_TYPE_MAP, DEFAULT_PARAMAS, MODEL_TYPES, WEIGHT_PATH
+
 
 class TxModelHub(BaseHub):
-
-    # Common
-    MODEL_TYPES = {
-        "object_detection": {"YOLOv5": list("sml")},
-        "classification": {"Classifier": list("sml")},
-    }
-
-    # Backend Specifics
-    DATA_TYPE_MAP = {
-        "object_detection": "COCODetectionDataset",
-        "classification": "COCOClassificationDataset",
-    }
-
-    WEIGHT_PATH = {
-        "object_detection": {
-            "YOLOv5": {
-                "s": "temp/autocare_tx_model/detectors/small/model.pth",
-                "m": "temp/autocare_tx_model/detectors/medium/model.pth",
-                "l": "temp/autocare_tx_model/detectors/large/model.pth",
-            }
-        },
-        "classification": {
-            "Classifier": {
-                "s": "temp/autocare_tx_model/classifiers/small/model.pth",
-                "m": "temp/autocare_tx_model/classifiers/medium/model.pth",
-                "l": "temp/autocare_tx_model/classifiers/large/model.pth",
-            }
-        },
-    }
-
-    DEFAULT_PARAMAS = {
-        "object_detection": {
-            "epochs": 50,
-            "image_size": [640, 640],
-            "learning_rate": 0.01,
-            "letter_box": True,
-            "batch_size": 16,
-        },
-        "classification": {
-            "epochs": 50,
-            "image_size": [224, 224],
-            "learning_rate": 0.01,
-            "letter_box": False,
-            "batch_size": 16,
-        },
-    }
+    MODEL_TYPES = MODEL_TYPES
+    DATA_TYPE_MAP = DATA_TYPE_MAP
+    WEIGHT_PATH = WEIGHT_PATH
+    DEFAULT_PARAMAS = DEFAULT_PARAMAS
 
     def __init__(
         self,
@@ -141,15 +102,15 @@ class TxModelHub(BaseHub):
         )
 
     # Hub Utils
-    def get_preprocess(self, task: str, *args, **kwargs):
+    def get_preprocess(self, *args, **kwargs):
 
-        if task == "object_detection":
+        if self.task == TaskType.OBJECT_DETECTION:
             normalize = T.Normalize([0, 0, 0], [1, 1, 1], inplace=True)
 
             def preprocess(x, *args, **kwargs):
                 return normalize(x)
 
-        elif task == "classification":
+        elif self.task == TaskType.CLASSIFICATION:
             normalize = T.Normalize([0, 0, 0], [1, 1, 1], inplace=True)
 
             def preprocess(x, *args, **kwargs):
@@ -157,9 +118,9 @@ class TxModelHub(BaseHub):
 
         return preprocess
 
-    def get_postprocess(self, task: str, *args, **kwargs):
+    def get_postprocess(self, *args, **kwargs):
 
-        if task == "object_detection":
+        if self.task == TaskType.OBJECT_DETECTION:
 
             def inner(x: torch.Tensor, *args, **kwargs):
                 xyxy = x[0]
@@ -168,7 +129,7 @@ class TxModelHub(BaseHub):
 
                 return xyxy, scores, class_ids
 
-        elif task == "classification":
+        elif self.task == TaskType.CLASSIFICATION:
 
             def inner(x: torch.Tensor, *args, **kwargs):
                 x = [t.squeeze() for t in x]
@@ -285,8 +246,8 @@ class TxModelHub(BaseHub):
         self.check_train_sanity()
 
         # get adapt functions
-        preprocess = self.get_preprocess(self.task)
-        postprocess = self.get_postprocess(self.task)
+        preprocess = self.get_preprocess()
+        postprocess = self.get_postprocess()
 
         # get model
         categories = [x["name"] for x in self.categories]

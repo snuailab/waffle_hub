@@ -17,58 +17,20 @@ from torchvision import transforms as T
 from ultralytics import YOLO
 from waffle_utils.file import io
 
+from waffle_hub import TaskType
 from waffle_hub.hub.base_hub import BaseHub
 from waffle_hub.hub.model.wrapper import ModelWrapper
 from waffle_hub.schema.configs import TrainConfig
 from waffle_hub.utils.callback import TrainCallback
 
+from .config import DEFAULT_PARAMAS, MODEL_TYPES, TASK_MAP, TASK_SUFFIX
+
 
 class UltralyticsHub(BaseHub):
-
-    # Common
-    MODEL_TYPES = {
-        "object_detection": {"yolov8": list("nsmlx")},
-        "classification": {"yolov8": list("nsmlx")},
-        "instance_segmentation": {"yolov8": list("nsmlx")},
-        # "keypoint_detection": {"yolov8": list("nsmlx")},
-    }
-
-    # Backend Specifics
-    TASK_MAP = {
-        "object_detection": "detect",
-        "classification": "classify",
-        "instance_segmentation": "segment"
-        # "keypoint_detection": "pose"
-    }
-    TASK_SUFFIX = {
-        "detect": "",
-        "classify": "-cls",
-        "segment": "-seg",
-    }
-
-    DEFAULT_PARAMAS = {
-        "object_detection": {
-            "epochs": 50,
-            "image_size": [640, 640],
-            "learning_rate": 0.01,
-            "letter_box": True,
-            "batch_size": 16,
-        },
-        "classification": {
-            "epochs": 50,
-            "image_size": [224, 224],
-            "learning_rate": 0.01,
-            "letter_box": False,
-            "batch_size": 16,
-        },
-        "instance_segmentation": {
-            "epochs": 50,
-            "image_size": [640, 640],
-            "learning_rate": 0.01,
-            "letter_box": True,
-            "batch_size": 16,
-        },
-    }
+    MODEL_TYPES = MODEL_TYPES
+    TASK_MAP = TASK_MAP
+    TASK_SUFFIX = TASK_SUFFIX
+    DEFAULT_PARAMAS = DEFAULT_PARAMAS
 
     def __init__(
         self,
@@ -135,41 +97,41 @@ class UltralyticsHub(BaseHub):
         )
 
     # Hub Utils
-    def get_preprocess(self, task: str, *args, **kwargs):
+    def get_preprocess(self, *args, **kwargs):
 
-        if task == "classification":
+        if self.task == TaskType.CLASSIFICATION:
             normalize = T.Normalize([0, 0, 0], [1, 1, 1], inplace=True)
 
             def preprocess(x, *args, **kwargs):
                 return normalize(x)
 
-        elif task == "object_detection":
+        elif self.task == TaskType.OBJECT_DETECTION:
             normalize = T.Normalize([0, 0, 0], [1, 1, 1], inplace=True)
 
             def preprocess(x, *args, **kwargs):
                 return normalize(x)
 
-        elif task == "instance_segmentation":
+        elif self.task == TaskType.INSTANCE_SEGMENTATION:
             normalize = T.Normalize([0, 0, 0], [1, 1, 1], inplace=True)
 
             def preprocess(x, *args, **kwargs):
                 return normalize(x)
 
         else:
-            raise NotImplementedError(f"Task {task} is not implemented.")
+            raise NotImplementedError(f"Task {self.task} is not implemented.")
 
         return preprocess
 
-    def get_postprocess(self, task: str, *args, **kwargs):
+    def get_postprocess(self, *args, **kwargs):
 
         id_mapper: list[int] = kwargs.get("id_mapper", [i for i in range(len(self.categories))])
 
-        if task == "classification":
+        if self.task == TaskType.CLASSIFICATION:
 
             def inner(x: torch.Tensor, *args, **kwargs):
                 return [x[:, id_mapper]]
 
-        elif task == "object_detection":
+        elif self.task == TaskType.OBJECT_DETECTION:
 
             def inner(x: torch.Tensor, image_size: tuple[int, int], *args, **kwargs):
                 x = x[0]  # x[0]: prediction, x[1]: TODO: what is this...?
@@ -190,7 +152,7 @@ class UltralyticsHub(BaseHub):
 
                 return xyxy, confidences, class_ids
 
-        elif task == "instance_segmentation":
+        elif self.task == TaskType.INSTANCE_SEGMENTATION:
             num_category = len(self.categories)
 
             def inner(x: torch.Tensor, image_size: tuple[int, int], *args, **kwargs):
@@ -231,7 +193,7 @@ class UltralyticsHub(BaseHub):
                 return xyxy, confidences, class_ids, masks
 
         else:
-            raise NotImplementedError(f"Task {task} is not implemented.")
+            raise NotImplementedError(f"Task {self.task} is not implemented.")
 
         return inner
 
@@ -356,8 +318,8 @@ class UltralyticsHub(BaseHub):
         for i, name in enumerate(names):
             id_mapper[i] = yolo_names_inv[name]
 
-        preprocess = self.get_preprocess(self.task)
-        postprocess = self.get_postprocess(self.task, id_mapper=id_mapper)
+        preprocess = self.get_preprocess()
+        postprocess = self.get_postprocess(id_mapper=id_mapper)
 
         # wrap model
         model = ModelWrapper(

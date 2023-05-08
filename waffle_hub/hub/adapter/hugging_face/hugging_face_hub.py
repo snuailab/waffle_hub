@@ -29,6 +29,8 @@ from transformers.utils import ModelOutput
 from waffle_utils.file import io
 
 from datasets import load_from_disk
+
+from waffle_hub import TaskType
 from waffle_hub.hub.adapter.hugging_face.train_input_helper import (
     ClassifierInputHelper,
     ObjectDetectionInputHelper,
@@ -37,6 +39,8 @@ from waffle_hub.hub.base_hub import BaseHub
 from waffle_hub.hub.model.wrapper import ModelWrapper
 from waffle_hub.schema.configs import TrainConfig
 from waffle_hub.utils.callback import TrainCallback
+
+from .config import DEFAULT_PARAMAS, MODEL_TYPES
 
 
 class CustomCallback(TrainerCallback):
@@ -65,43 +69,8 @@ class HuggingFaceHub(BaseHub):
     BEST_CKPT_FILE = "weights/best_ckpt"
 
     # Common
-    MODEL_TYPES = {
-        "object_detection": {
-            "DETA": {
-                "base": "jozhang97/deta-resnet-50",
-            },
-            "DETR": {
-                "base": "facebook/detr-resnet-50",
-                "large": "facebook/detr-resnet-101",
-            },
-            "YOLOS": {
-                "tiny": "hustvl/yolos-tiny",
-            },
-        },
-        "classification": {
-            "ViT": {
-                "tiny": "WinKawaks/vit-tiny-patch16-224",
-                "base": "google/vit-base-patch16-224",
-            }
-        },
-    }
-
-    DEFAULT_PARAMAS = {
-        "object_detection": {
-            "epochs": 50,
-            "image_size": [800, 800],
-            "learning_rate": 5e-05,
-            "letter_box": True,  # TODO: implement letter_box
-            "batch_size": 16,
-        },
-        "classification": {
-            "epochs": 50,
-            "image_size": [224, 224],
-            "learning_rate": 5e-05,
-            "letter_box": False,
-            "batch_size": 16,
-        },
-    }
+    MODEL_TYPES = MODEL_TYPES
+    DEFAULT_PARAMAS = DEFAULT_PARAMAS
 
     def __init__(
         self,
@@ -217,10 +186,14 @@ class HuggingFaceHub(BaseHub):
             push_to_hub=False,
             logging_strategy="epoch" if cfg.verbose else "no",
             evaluation_strategy="epoch",
+            save_strategy="epoch",
             learning_rate=cfg.learning_rate,
             dataloader_num_workers=cfg.workers,
             seed=cfg.seed,
-            greater_is_better=True,
+            metric_for_best_model="eval_loss",
+            greater_is_better=False,
+            save_total_limit=1,
+            load_best_model_at_end=False,
         )
 
     def training(self, cfg: TrainConfig, callback: TrainCallback):
@@ -236,7 +209,10 @@ class HuggingFaceHub(BaseHub):
         )
         trainer.add_callback(CustomCallback(trainer))
         trainer.train()
-        trainer.save_model(str(self.artifact_dir / "weights"))
+        trainer.save_model(str(self.artifact_dir / "weights" / "last_ckpt"))
+        trainer._load_best_model()
+        trainer.save_model(str(self.artifact_dir / "weights" / "best_ckpt"))
+
         self.train_log = trainer.state.log_history
 
     def get_metrics(self) -> list[list[dict]]:
@@ -258,13 +234,18 @@ class HuggingFaceHub(BaseHub):
 
     def on_train_end(self, cfg: TrainConfig):
         io.copy_files_to_directory(
-            self.artifact_dir / "weights",
+            self.artifact_dir / "weights" / "best_ckpt",
             self.best_ckpt_file,
+            create_directory=True,
+        )
+        io.copy_files_to_directory(
+            self.artifact_dir / "weights" / "last_ckpt",
+            self.last_ckpt_file,
             create_directory=True,
         )
         io.save_json(self.get_metrics(), self.metric_file)
 
-    def get_preprocess(self, task, pretrained_model: str = None) -> Callable:
+    def get_preprocess(self, pretrained_model: str = None) -> Callable:
         if pretrained_model is None:
             pretrained_model = self.best_ckpt_file
         image_processer = AutoImageProcessor.from_pretrained(pretrained_model)
@@ -276,17 +257,17 @@ class HuggingFaceHub(BaseHub):
 
         return preprocess
 
-    def get_postprocess(self, task: str, pretrained_model: str = None) -> Callable:
+    def get_postprocess(self: str, pretrained_model: str = None) -> Callable:
         if pretrained_model is None:
             pretrained_model = self.best_ckpt_file
         image_processer = AutoImageProcessor.from_pretrained(pretrained_model)
 
-        if task == "classification":
+        if self.task == TaskType.CLASSIFICATION:
 
             def inner(x: ModelOutput, *args, **kwargs) -> torch.Tensor:
                 return [x.logits]
 
-        elif task == "object_detection":
+        elif self.task == TaskType.OBJECT_DETECTION:
             post_process = image_processer.post_process_object_detection
 
             def inner(x: ModelOutput, *args, **kwargs) -> torch.Tensor:
@@ -300,7 +281,7 @@ class HuggingFaceHub(BaseHub):
                 return xyxy, confidences, category_ids
 
         else:
-            raise NotImplementedError(f"Task {task} is not implemented.")
+            raise NotImplementedError(f"Task {self.task} is not implemented.")
 
         return inner
 
@@ -308,15 +289,15 @@ class HuggingFaceHub(BaseHub):
         self.check_train_sanity()
 
         # get adapt functions
-        preprocess = self.get_preprocess(self.task)
-        postprocess = self.get_postprocess(self.task)
+        preprocess = self.get_preprocess()
+        postprocess = self.get_postprocess()
 
         # get model
-        if self.task == "object_detection":
+        if self.task == TaskType.OBJECT_DETECTION:
             model = AutoModelForObjectDetection.from_pretrained(
                 str(self.best_ckpt_file),
             )
-        elif self.task == "classification":
+        elif self.task == TaskType.CLASSIFICATION:
             model = AutoModelForImageClassification.from_pretrained(
                 str(self.best_ckpt_file),
             )

@@ -19,6 +19,8 @@ import cpuinfo
 import cv2
 import torch
 import tqdm
+import numpy as np
+
 from waffle_utils.file import io
 from waffle_utils.utils import type_validator
 
@@ -38,13 +40,14 @@ from waffle_hub.schema.result import (
     InferenceResult,
     TrainResult,
 )
+from waffle_hub.schema.data import ImageInfo
 from waffle_hub.utils.callback import (
     EvaluateCallback,
     ExportCallback,
     InferenceCallback,
     TrainCallback,
 )
-from waffle_hub.utils.data import ImageDataset, LabeledDataset
+from waffle_hub.utils.data import ImageDataset, LabeledDataset, get_image_transform
 from waffle_hub.utils.draw import draw_results
 from waffle_hub.utils.evaluate import evaluate_function
 
@@ -264,6 +267,15 @@ class BaseHub:
             v = [{"supercategory": "object", "name": n} for n in v]
         self.__categories = v
 
+    @property
+    def default_params(self):
+        """Get default values from model.
+
+        Returns:
+            dict: default values
+        """
+        return self.DEFAULT_PARAMAS[self.task][self.model_type][self.model_size]
+
     @cached_property
     def hub_dir(self) -> Path:
         """Hub(Model) Directory"""
@@ -428,6 +440,34 @@ class BaseHub:
         if not self.inference_file.exists():
             return []
         return io.load_json(self.inference_file)
+    
+    # Hub Utils
+    def get_image_loader(self) -> tuple[torch.Tensor, ImageInfo]:
+        """Get image loader function.
+
+        Returns:
+            tuple[torch.Tensor, ImageInfo]: input transform function
+        
+        Example:
+            >>> transform = hub.get_image_loader()
+            >>> image, image_info = transform("path/to/image.jpg")
+            >>> model = hub.get_model()
+            >>> output = model(image.unsqueeze(0))
+        """
+        train_config: TrainConfig = self.get_train_config()
+        transform = get_image_transform(train_config.image_size, train_config.letter_box)
+        def inner(x: Union[np.ndarray, str]):
+            """Input Transform Function
+            
+            Args:
+                x (Union[np.ndarray, str]): opencv image or image path
+                
+            Returns:
+                tuple[torch.Tensor, ImageInfo]: image and image info
+            """
+            image, image_info = transform(x)
+            return image, image_info
+        return inner
 
     # Train Hook
     def before_train(self, cfg: TrainConfig):
@@ -546,8 +586,11 @@ class BaseHub:
 
         # overwrite train config with default config
         for k, v in cfg.to_dict().items():
-            if v is None and k in self.DEFAULT_PARAMAS[self.task]:
-                setattr(cfg, k, self.DEFAULT_PARAMAS[self.task][k])
+            if v is None:
+                field_value = getattr(
+                    self.DEFAULT_PARAMAS[self.task][self.model_type][self.model_size], k
+                )
+                setattr(cfg, k, field_value)
 
         callback = TrainCallback(cfg.epochs + 1, self.get_metrics)
         result = TrainResult()
