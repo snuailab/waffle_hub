@@ -458,6 +458,14 @@ class BaseHub:
         transform = get_image_transform(train_config.image_size, train_config.letter_box)
         preprocess = self.get_preprocess()
         def inner(x: Union[np.ndarray, str]):
+            """Input Transform Function
+            
+            Args:
+                x (Union[np.ndarray, str]): opencv image or image path
+                
+            Returns:
+                tuple[torch.Tensor, ImageInfo]: image and image info
+            """
             image, image_info = transform(x)
             image = preprocess(image)
             return image, image_info
