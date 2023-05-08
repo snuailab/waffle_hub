@@ -174,7 +174,7 @@ class ObjectDetectionInputHelper(TrainInputHelper):
 
         _transforms = albumentations.Compose(
             [
-                albumentations.Resize(width=size[0], height=size[1]),
+                albumentations.Resize(width=self.image_size[0], height=self.image_size[1]),
                 albumentations.HorizontalFlip(p=0.5),
                 albumentations.RandomBrightnessContrast(p=0.5),
             ],
