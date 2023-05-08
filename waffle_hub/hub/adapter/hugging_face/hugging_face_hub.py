@@ -186,6 +186,7 @@ class HuggingFaceHub(BaseHub):
             push_to_hub=False,
             logging_strategy="epoch" if cfg.verbose else "no",
             evaluation_strategy="epoch",
+            save_strategy="no",
             learning_rate=cfg.learning_rate,
             dataloader_num_workers=cfg.workers,
             seed=cfg.seed,
