@@ -186,11 +186,14 @@ class HuggingFaceHub(BaseHub):
             push_to_hub=False,
             logging_strategy="epoch" if cfg.verbose else "no",
             evaluation_strategy="epoch",
-            save_strategy="no",
+            save_strategy="epoch",
             learning_rate=cfg.learning_rate,
             dataloader_num_workers=cfg.workers,
             seed=cfg.seed,
-            greater_is_better=True,
+            metric_for_best_model="eval_loss",
+            greater_is_better=False,
+            save_total_limit=1,
+            load_best_model_at_end=False,
         )
 
     def training(self, cfg: TrainConfig, callback: TrainCallback):
@@ -206,7 +209,10 @@ class HuggingFaceHub(BaseHub):
         )
         trainer.add_callback(CustomCallback(trainer))
         trainer.train()
-        trainer.save_model(str(self.artifact_dir / "weights"))
+        trainer.save_model(str(self.artifact_dir / "weights" / "last_ckpt"))
+        trainer._load_best_model()
+        trainer.save_model(str(self.artifact_dir / "weights" / "best_ckpt"))
+
         self.train_log = trainer.state.log_history
 
     def get_metrics(self) -> list[list[dict]]:
@@ -228,8 +234,13 @@ class HuggingFaceHub(BaseHub):
 
     def on_train_end(self, cfg: TrainConfig):
         io.copy_files_to_directory(
-            self.artifact_dir / "weights",
+            self.artifact_dir / "weights" / "best_ckpt",
             self.best_ckpt_file,
+            create_directory=True,
+        )
+        io.copy_files_to_directory(
+            self.artifact_dir / "weights" / "last_ckpt",
+            self.last_ckpt_file,
             create_directory=True,
         )
         io.save_json(self.get_metrics(), self.metric_file)
