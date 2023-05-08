@@ -169,10 +169,12 @@ class ObjectDetectionInputHelper(TrainInputHelper):
                 warnings.warn(
                     f"pretrained model's shortest edge is {shortest_size}, but you set {self.image_size}."
                 )
+                self.image_processor.size["shortest_edge"] = min(self.image_size)
             if max(self.image_size) > longest_size:
                 warnings.warn(
                     f"pretrained model's longest edge is {longest_size}, but you set {self.image_size}."
                 )
+                self.image_processor.size["longest_edge"] = max(self.image_size)
         else:
             size = (self.image_processor.size["width"], self.image_processor.size["height"])
 
@@ -180,6 +182,8 @@ class ObjectDetectionInputHelper(TrainInputHelper):
                 warnings.warn(
                     f"pretrained model's image size is {size}, but you set {self.image_size}."
                 )
+                self.image_processor.size["width"] = self.image_size[0]
+                self.image_processor.size["height"] = self.image_size[1]
 
         _transforms = albumentations.Compose(
             [
