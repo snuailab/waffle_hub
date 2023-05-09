@@ -1,4 +1,3 @@
-from pathlib import Path
 from typing import List
 
 import typer
@@ -21,19 +20,15 @@ BACKEND_MAP = {
     "tx_model": TxModelHub,
 }
 
-
-@dataset.command(name="get_file_from_url")
-def _get_file_from_url(url):
-    print("get_file_from_url")
-
-
-@hub.command(name="train")
-def _train(backend):
-    print("train")
+EXPORT_MAP = {
+    "ultralytics": "YOLO",
+    "huggingface": "HUGGINGFACE",
+    "tx_model": "TX_MODEL",
+}
 
 
 @hub.command(name="new")
-def _new(
+def _new_hub(
     backend: str = typer.Option(..., help="Backend to use"),
     name: str = typer.Option(..., help="Name of the hub"),
     task: str = typer.Option(..., help="Task type"),
@@ -56,7 +51,7 @@ def _new(
 
 
 @hub.command(name="train")
-def _train(
+def _train_hub(
     backend: str = typer.Option(..., help="Backend to use"),
     name: str = typer.Option(..., help="Name of the hub"),
     root_dir: str = typer.Option(..., help="Root directory"),
@@ -98,18 +93,225 @@ def _train(
 
 
 @hub.command(name="inference")
-def _inference():
-    pass
+def _inference_hub(
+    backend: str = typer.Option(..., help="Backend to use"),
+    name: str = typer.Option(..., help="Name of the hub"),
+    root_dir: str = typer.Option(..., help="Root directory"),
+    source: str = typer.Option(..., help="Source"),
+    recursive: bool = typer.Option(False, help="Recursive"),
+    image_size: int = typer.Option(None, help="Image size"),
+    letter_box: bool = typer.Option(None, help="Letter box"),
+    batch_size: int = typer.Option(4, help="Batch size"),
+    confidence_threshold: float = typer.Option(0.25, help="Confidence threshold"),
+    iou_threshold: float = typer.Option(0.5, help="IOU threshold"),
+    half: bool = typer.Option(False, help="Half"),
+    device: str = typer.Option("0", help="Device"),
+    workers: int = typer.Option(2, help="Number of workers"),
+    draw: bool = typer.Option(True, help="Draw"),
+    hold: bool = typer.Option(True, help="Hold"),
+):
+    if backend not in BACKEND_MAP:
+        raise ValueError(f"Backend {backend} not found")
+
+    hub = BACKEND_MAP[backend].load(
+        name=name,
+        root_dir=root_dir,
+    )
+
+    hub.inference(
+        source=source,
+        recursive=recursive,
+        image_size=image_size,
+        letter_box=letter_box,
+        batch_size=batch_size,
+        confidence_threshold=confidence_threshold,
+        iou_threshold=iou_threshold,
+        half=half,
+        device=device,
+        workers=workers,
+        draw=draw,
+        hold=hold,
+    )
 
 
 @hub.command(name="evaluate")
-def _evalute():
-    pass
+def _evalute_hub(
+    backend: str = typer.Option(..., help="Backend to use"),
+    name: str = typer.Option(..., help="Name of the hub"),
+    root_dir: str = typer.Option(..., help="Root directory"),
+    dataset_root_dir: str = typer.Option(..., help="Dataset root directory"),
+    dataset_name: str = typer.Option(..., help="Dataset name"),
+    set_name: str = typer.Option("test", help="Set name"),
+    batch_size: int = typer.Option(4, help="Batch size"),
+    image_size: int = typer.Option(None, help="Image size"),
+    letter_box: bool = typer.Option(None, help="Letter box"),
+    confidence_threshold: float = typer.Option(0.25, help="Confidence threshold"),
+    iou_threshold: float = typer.Option(0.5, help="IOU threshold"),
+    half: bool = typer.Option(False, help="Half"),
+    device: str = typer.Option("0", help="Device"),
+    workers: int = typer.Option(2, help="Number of workers"),
+    draw: bool = typer.Option(True, help="Draw"),
+    hold: bool = typer.Option(True, help="Hold"),
+):
+    if backend not in BACKEND_MAP:
+        raise ValueError(f"Backend {backend} not found")
+
+    hub = BACKEND_MAP[backend].load(
+        name=name,
+        root_dir=root_dir,
+    )
+
+    hub.evaluate(
+        dataset_name=dataset_name,
+        dataset_root_dir=dataset_root_dir,
+        set_name=set_name,
+        batch_size=batch_size,
+        image_size=image_size,
+        letter_box=letter_box,
+        confidence_threshold=confidence_threshold,
+        iou_threshold=iou_threshold,
+        half=half,
+        device=device,
+        workers=workers,
+        draw=draw,
+        hold=hold,
+    )
 
 
 @hub.command(name="export")
-def _export():
-    pass
+def _export_hub(
+    backend: str = typer.Option(..., help="Backend to use"),
+    name: str = typer.Option(..., help="Name of the hub"),
+    root_dir: str = typer.Option(..., help="Root directory"),
+    image_size: int = typer.Option(None, help="Image size"),
+    batch_size: int = typer.Option(16, help="Batch size"),
+    opset_version: int = typer.Option(11, help="Opset version"),
+    half: bool = typer.Option(False, help="Half"),
+    device: str = typer.Option("0", help="Device"),
+    hold: bool = typer.Option(True, help="Hold"),
+):
+    if backend not in BACKEND_MAP:
+        raise ValueError(f"Backend {backend} not found")
+
+    hub = BACKEND_MAP[backend].load(
+        name=name,
+        root_dir=root_dir,
+    )
+
+    hub.export(
+        image_size=image_size,
+        batch_size=batch_size,
+        opset_version=opset_version,
+        half=half,
+        device=device,
+        hold=hold,
+    )
+
+
+@dataset.command(name="new")
+def _new_dataset(
+    name: str = typer.Option(..., help="Name of the dataset"),
+    root_dir: str = typer.Option(..., help="Root directory"),
+    task: str = typer.Option(..., help="Task"),
+):
+    ds = Dataset.new(
+        name=name,
+        root_dir=root_dir,
+        task=task,
+    )
+
+
+@dataset.command(name="split")
+def _split_dataset(
+    name: str = typer.Option(..., help="Name of the dataset"),
+    root_dir: str = typer.Option(..., help="Root directory"),
+    train_ratio: float = typer.Option(0, help="Train ratio"),
+    val_ratio: float = typer.Option(0, help="Validation ratio"),
+    test_ratio: float = typer.Option(0, help="Test ratio"),
+    seed: int = typer.Option(0, help="Seed"),
+):
+    ds = Dataset.load(
+        name=name,
+        root_dir=root_dir,
+    )
+
+    ds.split(train_ratio, val_ratio, test_ratio, seed)
+
+
+@dataset.command(name="from_coco")
+def _from_coco_dataset(
+    name: str = typer.Option(..., help="Name of the dataset"),
+    root_dir: str = typer.Option(..., help="Root directory"),
+    task: str = typer.Option(..., help="Task"),
+    coco_file: str = typer.Option(..., help="COCO file"),
+    coco_root_dir: str = typer.Option(..., help="COCO root directory"),
+):
+    Dataset.from_coco(
+        name=name,
+        root_dir=root_dir,
+        coco_file=coco_file,
+        coco_root_dir=coco_root_dir,
+        task=task,
+    )
+
+
+@dataset.command(name="from_yolo")
+def _from_yolo_dataset(
+    name: str = typer.Option(..., help="Name of the dataset"),
+    root_dir: str = typer.Option(..., help="Root directory"),
+    task: str = typer.Option(..., help="Task"),
+    yaml_path: str = typer.Option(..., help="YOLO YAML path"),
+):
+    Dataset.from_yolo(
+        name=name,
+        root_dir=root_dir,
+        yaml_path=yaml_path,
+        task=task,
+    )
+
+
+@dataset.command(name="from_huggingface")
+def _from_huggingface_dataset(
+    name: str = typer.Option(..., help="Name of the dataset"),
+    root_dir: str = typer.Option(..., help="Root directory"),
+    task: str = typer.Option(..., help="Task"),
+    dataset_dir: str = typer.Option(..., help="Dataset directory"),
+):
+    Dataset.from_huggingface(
+        name=name,
+        root_dir=root_dir,
+        task=task,
+        dataset_dir=dataset_dir,
+    )
+
+
+@dataset.command(name="clone")
+def _clone_dataset(
+    src_name: str = typer.Option(..., help="Source name of the dataset"),
+    src_root_dir: str = typer.Option(..., help="Source root directory"),
+    name: str = typer.Option(..., help="Name of the dataset"),
+    root_dir: str = typer.Option(..., help="Root directory"),
+):
+    Dataset.clone(
+        src_name=src_name,
+        src_root_dir=src_root_dir,
+        name=name,
+        root_dir=root_dir,
+    )
+
+
+@dataset.command(name="export")
+def _export_dataset(
+    data_type: str = typer.Option(..., help="Data type"),
+    name: str = typer.Option(..., help="Name of the dataset"),
+    root_dir: str = typer.Option(..., help="Root directory"),
+):
+    ds = Dataset.load(
+        name=name,
+        root_dir=root_dir,
+    )
+
+    ds.export(data_type)
 
 
 if __name__ == "__main__":
