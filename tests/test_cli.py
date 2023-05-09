@@ -7,7 +7,6 @@ from waffle_utils.file.network import get_file_from_url
 
 
 def run_cli(cmd):
-    cmd = cmd.replace("\\", " ")
     ret = subprocess.run(cmd, check=True, shell=True)
     return ret
 
