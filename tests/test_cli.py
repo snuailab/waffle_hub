@@ -163,6 +163,7 @@ def test_hub_inference(test_dir: Path):
         --source {test_dir / "datasets" / "mnist" / "exports" / "YOLO" / "test" / "images" } \
         --confidence-threshold 0.25 \
         --device cpu \
+        --workers 0 \
     '
     ret = run_cli(cmd)
     assert ret.returncode == 0
@@ -178,6 +179,7 @@ def test_hub_evaluate(test_dir: Path):
         --dataset-root-dir {test_dir / "datasets"} \
         --set-name test \
         --device cpu \
+        --workers 0 \
     '
     ret = run_cli(cmd)
     assert ret.returncode == 0
