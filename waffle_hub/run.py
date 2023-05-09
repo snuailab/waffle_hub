@@ -5,8 +5,9 @@ from rich import print
 
 from waffle_hub.dataset.dataset import Dataset
 from waffle_hub.hub.adapter.hugging_face import HuggingFaceHub
-from waffle_hub.hub.adapter.tx_model import TxModelHub
 from waffle_hub.hub.adapter.ultralytics import UltralyticsHub
+
+# from waffle_hub.hub.adapter.tx_model import TxModelHub
 
 dataset = typer.Typer(name="dataset")
 hub = typer.Typer(name="hub")
@@ -17,13 +18,13 @@ app.add_typer(hub)
 BACKEND_MAP = {
     "ultralytics": UltralyticsHub,
     "huggingface": HuggingFaceHub,
-    "tx_model": TxModelHub,
+    # "tx_model": TxModelHub,
 }
 
 EXPORT_MAP = {
     "ultralytics": "YOLO",
     "huggingface": "HUGGINGFACE",
-    "tx_model": "TX_MODEL",
+    # "tx_model": "TX_MODEL",
 }
 
 
