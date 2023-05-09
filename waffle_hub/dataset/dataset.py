@@ -276,6 +276,11 @@ class Dataset:
         ds.initialize()
         io.copy_files_to_directory(src_ds.dataset_dir, ds.dataset_dir, create_directory=True)
 
+        info = io.load_yaml(ds.dataset_info_file)
+        info["name"] = name
+        info["created"] = ds.created
+        io.save_yaml(info, ds.dataset_info_file)
+
         return ds
 
     @classmethod
