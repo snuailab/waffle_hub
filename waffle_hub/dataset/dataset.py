@@ -17,7 +17,7 @@ from waffle_utils.utils import type_validator
 
 from datasets import Dataset as HFDataset
 from datasets import DatasetDict, load_from_disk
-from waffle_hub import DataType, TaskType
+from waffle_hub import DataType, SplitMethod, TaskType
 from waffle_hub.dataset.adapter import (
     export_coco,
     export_huggingface,
@@ -533,6 +533,8 @@ class Dataset:
             image_dir = set_dir / "images"
             label_dir = set_dir / "labels"
 
+            global annotation_num  # XXX: fix global
+
             if not image_dir.exists():
                 warnings.warn(f"{image_dir} does not exist.")
                 return
@@ -551,7 +553,6 @@ class Dataset:
                     ]
                 )
 
-            annotation_num = 0
             for image_id, image_path, label_path in zip(
                 image_ids,
                 get_image_files(image_dir),
@@ -571,7 +572,8 @@ class Dataset:
                 # annotation
                 with open(label_path) as f:  # TODO: use load_txt of waffle_utils after implementing
                     txt = f.readlines()
-                for i, t in enumerate(txt, start=1):
+                for t in txt:
+                    annotation_num += 1
                     category_id, x, y, w, h = list(map(float, t.split()))
                     category_id = int(category_id) + 1
                     x *= width
@@ -584,14 +586,13 @@ class Dataset:
 
                     x, y, w, h = int(x), int(y), int(w), int(h)
                     annotation = Annotation.object_detection(
-                        annotation_id=annotation_num + i,
+                        annotation_id=annotation_num,
                         image_id=image_id,
                         category_id=category_id,
                         bbox=[x, y, w, h],
                         area=w * h,
                     )
                     ds.add_annotations([annotation])
-                annotation_num += len(txt)
 
                 # raw
                 dst = ds.raw_image_dir / f"{image_id}{image_path.suffix}"
@@ -599,6 +600,8 @@ class Dataset:
 
         if task == "object_detection":
             _import = _import_object_detection
+            global annotation_num
+            annotation_num = 0
         elif task == "classification":
             _import = _import_classification
         else:
@@ -905,6 +908,7 @@ class Dataset:
         train_ratio: float,
         val_ratio: float = 0.0,
         test_ratio: float = 0.0,
+        method: Union[str, SplitMethod] = SplitMethod.STRATIFIED,
         seed: int = 0,
     ):
         """
@@ -914,6 +918,7 @@ class Dataset:
             train_ratio (float): train num ratio (0 ~ 1).
             val_ratio (float, optional): val num ratio (0 ~ 1).
             test_ratio (float, optional): test num ratio (0 ~ 1).
+            method (Union[str, SplitMethod], optional): split method. Defaults to SplitMethod.RANDOM.
             seed (int, optional): random seed. Defaults to 0.
 
         Raises:
@@ -942,6 +947,7 @@ class Dataset:
             )
 
         image_ids = list(self.images.keys())
+
         random.seed(seed)
         random.shuffle(image_ids)
 
@@ -949,17 +955,59 @@ class Dataset:
         if image_num <= 2:
             raise ValueError("image_num must be greater than 2\n" f"given image_num: {image_num}")
 
-        train_num = int(image_num * train_ratio)
-        val_num = int(image_num * val_ratio)
+        if method == SplitMethod.RANDOM:
+            train_num = int(image_num * train_ratio)
+            val_num = int(image_num * val_ratio)
 
-        if test_ratio == 0.0:
-            train_ids = image_ids[:train_num]
-            val_ids = image_ids[train_num:]
-            test_ids = val_ids
+            if test_ratio == 0.0:
+                train_ids = image_ids[:train_num]
+                val_ids = image_ids[train_num:]
+                test_ids = val_ids
+            else:
+                train_ids = image_ids[:train_num]
+                val_ids = image_ids[train_num : train_num + val_num]
+                test_ids = image_ids[train_num + val_num :]
+
+        elif method == SplitMethod.STRATIFIED:
+            from itertools import combinations
+            from math import ceil, floor
+
+            train_ids = []
+            val_ids = []
+            test_ids = []
+
+            num_category = len(self.categories)
+            category_combinations = []
+            for comb in [combinations(self.categories, num) for num in range(1, num_category + 1)]:
+                category_combinations.extend(comb)
+
+            train_round_method = floor
+            val_round_method = ceil
+            for comb in category_combinations:
+                image_ids_by_categories = list(
+                    filter(
+                        lambda image_id: set(comb)
+                        == {ann.category_id for ann in self.image_to_annotations[image_id]},
+                        image_ids,
+                    )
+                )
+
+                num_images = len(image_ids_by_categories)
+                train_num = train_round_method(num_images * train_ratio)
+                val_num = val_round_method(num_images * val_ratio)
+                train_round_method, val_round_method = val_round_method, train_round_method
+
+                if test_ratio == 0.0:
+                    train_ids += image_ids_by_categories[:train_num]
+                    val_ids += image_ids_by_categories[train_num:]
+                    test_ids += image_ids_by_categories[train_num:]
+                else:
+                    train_ids += image_ids_by_categories[:train_num]
+                    val_ids += image_ids_by_categories[train_num : train_num + val_num]
+                    test_ids += image_ids_by_categories[train_num + val_num :]
+
         else:
-            train_ids = image_ids[:train_num]
-            val_ids = image_ids[train_num : train_num + val_num]
-            test_ids = image_ids[train_num + val_num :]
+            raise ValueError(f"Unknown split method: {method}")
 
         logger.info(
             f"train num: {len(train_ids)}  val num: {len(val_ids)}  test num: {len(test_ids)}"
