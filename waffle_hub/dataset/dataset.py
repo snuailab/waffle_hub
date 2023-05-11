@@ -5,6 +5,7 @@ from collections import OrderedDict
 from functools import cached_property
 from pathlib import Path
 from typing import Union
+from collections import defaultdict
 
 import cv2
 import PIL.Image
@@ -188,17 +189,12 @@ class Dataset:
 
     @cached_property
     def image_to_annotations(self) -> dict[int, list[Annotation]]:
-        return OrderedDict(
-            {
-                image_id: list(
-                    filter(
-                        lambda a: a.image_id == image_id,
-                        self.annotations.values(),
-                    )
-                )
-                for image_id in self.images.keys()
-            }
-        )
+        if not hasattr(self, '_image_to_annotations'):
+            image_to_annotations = defaultdict(list)
+            for annotation in tqdm.tqdm(self.annotations.values(), desc="Building image to annotation index"):
+                image_to_annotations[annotation.image_id].append(annotation)
+            self._image_to_annotations = dict(image_to_annotations)
+        return self._image_to_annotations
 
     # factories
     @classmethod
