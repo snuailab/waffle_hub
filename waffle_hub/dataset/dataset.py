@@ -535,8 +535,6 @@ class Dataset:
             image_dir = set_dir / "images"
             label_dir = set_dir / "labels"
 
-            global annotation_num  # XXX: fix global
-
             if not image_dir.exists():
                 warnings.warn(f"{image_dir} does not exist.")
                 return
@@ -574,8 +572,9 @@ class Dataset:
                 # annotation
                 with open(label_path) as f:  # TODO: use load_txt of waffle_utils after implementing
                     txt = f.readlines()
-                for t in txt:
-                    annotation_num += 1
+
+                current_annotation_id = len(ds.get_annotations())
+                for i, t in enumerate(txt, start=1):
                     category_id, x, y, w, h = list(map(float, t.split()))
                     category_id = int(category_id) + 1
                     x *= width
@@ -588,7 +587,7 @@ class Dataset:
 
                     x, y, w, h = int(x), int(y), int(w), int(h)
                     annotation = Annotation.object_detection(
-                        annotation_id=annotation_num,
+                        annotation_id=current_annotation_id + i,
                         image_id=image_id,
                         category_id=category_id,
                         bbox=[x, y, w, h],
@@ -602,8 +601,6 @@ class Dataset:
 
         if task == "object_detection":
             _import = _import_object_detection
-            global annotation_num
-            annotation_num = 0
         elif task == "classification":
             _import = _import_classification
         else:
