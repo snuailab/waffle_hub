@@ -3,6 +3,8 @@ import random
 import warnings
 from collections import OrderedDict
 from functools import cached_property
+from itertools import combinations
+from math import ceil, floor
 from pathlib import Path
 from typing import Union
 
@@ -969,20 +971,47 @@ class Dataset:
                 test_ids = image_ids[train_num + val_num :]
 
         elif method == SplitMethod.STRATIFIED:
-            from itertools import combinations
-            from math import ceil, floor
+            """
+            Given a dataset of image annotations, find the set of categories associated with each image and stratify them by categories.
+            For example, if the dataset has annotations with the following image and category IDs:
+
+            datasets: [
+                {"annotation_id": 1, "image_id": 1, "category_id": 1},
+                {"annotation_id": 2, "image_id": 1, "category_id": 2},
+                {"annotation_id": 3, "image_id": 2, "category_id": 1},
+                {"annotation_id": 4, "image_id": 2, "category_id": 2},
+                {"annotation_id": 5, "image_id": 3, "category_id": 1},
+                {"annotation_id": 6, "image_id": 4, "category_id": 1},
+                {"annotation_id": 7, "image_id": 5, "category_id": 2},
+                {"annotation_id": 8, "image_id": 6, "category_id": 2},
+            ],
+
+            the output should be stratified by categories:
+
+            Categories 1 and 2 are associated with images 1, 2, 3, and 4.
+            Category 1 is associated with images 3 and 4.
+            Category 2 is associated with images 5 and 6.
+            If the train_ratio : val_ratio is 0.5 : 0.5, a valid output would be:
+
+            The training set consists of images 1, 3, and 5.
+            The test set consists of images 2, 4, and 6.
+            """
 
             train_ids = []
             val_ids = []
             test_ids = []
 
+            # find set of categories
             num_category = len(self.categories)
             category_combinations = []
             for comb in [combinations(self.categories, num) for num in range(1, num_category + 1)]:
                 category_combinations.extend(comb)
 
+            # for round error handling
             train_round_method = floor
             val_round_method = ceil
+
+            # split by categories
             for comb in category_combinations:
                 image_ids_by_categories = list(
                     filter(
