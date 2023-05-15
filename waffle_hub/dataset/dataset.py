@@ -1,4 +1,5 @@
 import logging
+import os
 import random
 import warnings
 from collections import OrderedDict
@@ -305,6 +306,77 @@ class Dataset:
             raise FileNotFoundError(f"{dataset_info_file} has not been created.")
         dataset_info = DatasetInfo.load(dataset_info_file)
         return cls(**dataset_info.to_dict(), root_dir=root_dir)
+
+    @classmethod
+    def merge(
+        cls,
+        name: str,
+        root_dir: str,
+        src_names: list[str],
+        src_root_dirs: list[str],
+    ):
+        if len(src_names) != len(src_root_dirs):
+            raise ValueError("Length of src_names and src_root_dirs should be same.")
+
+        # clone
+        src_ds = Dataset.load(src_names[0], src_root_dirs[0])
+        if not src_ds.initialized():
+            raise FileNotFoundError(f"{src_ds.dataset_dir} has not been created by Waffle.")
+
+        ds = Dataset.new(name, src_ds.task, root_dir)
+        ds.initialize()
+
+        io.copy_files_to_directory(src_ds.annotation_dir, ds.annotation_dir, create_directory=True)
+        io.copy_files_to_directory(src_ds.category_dir, ds.category_dir, create_directory=True)
+        io.copy_files_to_directory(
+            src_ds.raw_image_dir, ds.raw_image_dir / f"0_{src_names[0]}", create_directory=True
+        )
+        for image in src_ds.images.values():
+            image.file_name = f"0_{src_names[0]}/{image.file_name}"
+        ds.add_images(src_ds.images.values())
+
+        task = ds.task
+
+        try:
+            for i, (src_name, src_root_dir) in enumerate(
+                zip(src_names[1:], src_root_dirs[1:]), start=1
+            ):
+                src_ds = Dataset.load(src_name, src_root_dir)
+                if ds.task != task:
+                    raise ValueError(
+                        f"Task of {src_name} is different compared to another datasets."
+                    )
+
+                # merge
+                start_image_id = len(ds.images)
+                start_annotation_id = len(ds.annotations)
+
+                for category in src_ds.categories.values():
+                    if category.name not in ds.category_names:
+                        category.category_id = len(ds.get_categories()) + 1
+                        ds.add_categories([category])
+                category2id = {
+                    category.name: category.category_id for category in ds.get_categories()
+                }
+                for image in src_ds.images.values():
+                    image.image_id += start_image_id
+                    image.file_name = os.path.join(f"{i}_{src_name}", image.file_name)
+                    ds.add_images([image])
+                for annotation in src_ds.annotations.values():
+                    annotation.image_id += start_image_id
+                    annotation.annotation_id += start_annotation_id
+                    category_name = src_ds.categories[annotation.category_id].name
+                    annotation.category_id = category2id[category_name]
+                    ds.add_annotations([annotation])
+
+                io.copy_files_to_directory(
+                    src_ds.raw_image_dir, f"{ds.raw_image_dir}/{i}_{src_name}", create_directory=True
+                )
+
+        except Exception as e:
+            if ds.dataset_dir.exists():
+                io.remove_directory(ds.dataset_dir)
+            raise e
 
     @classmethod
     def from_coco(
