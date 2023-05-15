@@ -1,6 +1,7 @@
 from pathlib import Path
 
 import pytest
+from waffle_utils.file.io import load_json, save_json
 
 from waffle_hub import TaskType
 from waffle_hub.dataset import Dataset
@@ -311,3 +312,75 @@ def test_labled_dataloader(coco_path, tmpdir):
 
     image, image_info, annotations = labeled_dataset[0]
     assert hasattr(annotations[0], "bbox")
+
+
+def test_merge(coco_path, tmpdir):
+    ds1 = Dataset.from_coco(
+        name="ds1",
+        task=TaskType.OBJECT_DETECTION,
+        coco_file=coco_path / "coco.json",
+        coco_root_dir=coco_path / "images",
+        root_dir=tmpdir,
+    )
+    ds2 = Dataset.from_coco(
+        name="ds2",
+        task=TaskType.OBJECT_DETECTION,
+        coco_file=coco_path / "coco.json",
+        coco_root_dir=coco_path / "images",
+        root_dir=tmpdir,
+    )
+
+    category_1_num = len(
+        [0 for annotation in ds1.annotations.values() if annotation.category_id == 1]
+    )
+    category_2_num = len(
+        [0 for annotation in ds1.annotations.values() if annotation.category_id == 2]
+    )
+
+    ds = Dataset.merge(
+        name="merge",
+        src_names=["ds1", "ds2"],
+        src_root_dirs=[tmpdir, tmpdir],
+        root_dir=tmpdir,
+    )
+
+    assert (ds.raw_image_dir / "0_ds1").exists()
+    assert (ds.raw_image_dir / "1_ds2").exists()
+    assert len(ds.images) == 200
+    assert len(ds.annotations) == 200
+    assert len(ds.categories) == 2
+    assert (
+        len([0 for annotation in ds.annotations.values() if annotation.category_id == 1])
+        == category_1_num * 2
+    )
+    assert (
+        len([0 for annotation in ds.annotations.values() if annotation.category_id == 2])
+        == category_2_num * 2
+    )
+
+    category = load_json(ds1.category_dir / "1.json")
+    category["name"] = "one"
+    save_json(category, ds1.category_dir / "1.json")
+
+    ds = Dataset.merge(
+        name="merge2",
+        src_names=["ds1", "ds2"],
+        src_root_dirs=[tmpdir, tmpdir],
+        root_dir=tmpdir,
+    )
+
+    assert len(ds.images) == 200
+    assert len(ds.annotations) == 200
+    assert len(ds.categories) == 3
+    assert (
+        len([0 for annotation in ds.annotations.values() if annotation.category_id == 1])
+        == category_1_num
+    )
+    assert (
+        len([0 for annotation in ds.annotations.values() if annotation.category_id == 2])
+        == category_2_num * 2
+    )
+    assert (
+        len([0 for annotation in ds.annotations.values() if annotation.category_id == 3])
+        == category_1_num
+    )

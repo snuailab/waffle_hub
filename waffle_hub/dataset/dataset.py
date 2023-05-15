@@ -314,7 +314,21 @@ class Dataset:
         root_dir: str,
         src_names: list[str],
         src_root_dirs: list[str],
-    ):
+    ) -> "Dataset":
+        """
+        Merge Datasets.
+        This method merges multiple datasets into one dataset.
+
+        Args:
+            name (str): New Dataset name
+            root_dir (str): New Dataset root directory
+            src_names (list[str]): Source Dataset names
+            src_root_dirs (list[str]): Source Dataset root directories
+
+        Returns:
+            Dataset: Dataset Class
+
+        """
         if len(src_names) != len(src_root_dirs):
             raise ValueError("Length of src_names and src_root_dirs should be same.")
 
@@ -377,6 +391,8 @@ class Dataset:
             if ds.dataset_dir.exists():
                 io.remove_directory(ds.dataset_dir)
             raise e
+
+        return Dataset.load(name, root_dir)
 
     @classmethod
     def from_coco(
