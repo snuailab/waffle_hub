@@ -9,7 +9,7 @@ tbparse==0.0.7
 
 # pytorch
 torch==1.13.1
-torchaudio==0.13.1
+torchaudio==2.0.2
 torchvision==0.14.1
 
 # waffle dependencies
