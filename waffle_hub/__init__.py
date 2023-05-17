@@ -156,3 +156,8 @@ class TaskType(BaseEnum):
     KEYPOINT_DETECTION = enum.auto()
     TEXT_RECOGNITION = enum.auto()
     REGRESSION = enum.auto()
+
+
+class SplitMethod(BaseEnum):
+    RANDOM = enum.auto()
+    STRATIFIED = enum.auto()
