@@ -396,13 +396,17 @@ class Dataset:
                 # merge - sets
                 if src_ds.set_dir.exists():
                     for set_file in ["train.json", "val.json", "test.json"]:
+                        src_set_file_path = src_ds.set_dir / set_file
                         tar_set_file_path = ds.set_dir / set_file
+
+                        if not src_set_file_path.exists():
+                            continue
+
                         if tar_set_file_path.exists():
                             set_ids = io.load_json(tar_set_file_path)
                         else:
                             set_ids = []
 
-                        src_set_file_path = src_ds.set_dir / set_file
                         src_set_ids = io.load_json(src_set_file_path)
                         src_set_ids = [set_id + start_image_id for set_id in src_set_ids]
                         set_ids.extend(src_set_ids)
