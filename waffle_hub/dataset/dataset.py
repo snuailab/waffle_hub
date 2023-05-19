@@ -2,13 +2,12 @@ import logging
 import os
 import random
 import warnings
-from collections import OrderedDict
+from collections import OrderedDict, defaultdict
 from functools import cached_property
 from itertools import combinations
 from math import ceil, floor
 from pathlib import Path
 from typing import Union
-from collections import defaultdict
 
 import cv2
 import PIL.Image
@@ -192,9 +191,11 @@ class Dataset:
 
     @cached_property
     def image_to_annotations(self) -> dict[int, list[Annotation]]:
-        if not hasattr(self, '_image_to_annotations'):
+        if not hasattr(self, "_image_to_annotations"):
             image_to_annotations = defaultdict(list)
-            for annotation in tqdm.tqdm(self.annotations.values(), desc="Building image to annotation index"):
+            for annotation in tqdm.tqdm(
+                self.annotations.values(), desc="Building image to annotation index"
+            ):
                 image_to_annotations[annotation.image_id].append(annotation)
             self._image_to_annotations = dict(image_to_annotations)
         return self._image_to_annotations
@@ -343,6 +344,7 @@ class Dataset:
         io.copy_files_to_directory(
             src_ds.raw_image_dir, ds.raw_image_dir / f"0_{src_names[0]}", create_directory=True
         )
+        io.copy_files_to_directory(src_ds.set_dir, ds.set_dir, create_directory=True)
         for image in src_ds.images.values():
             image.file_name = f"0_{src_names[0]}/{image.file_name}"
         ds.add_images(src_ds.images.values())
@@ -363,6 +365,7 @@ class Dataset:
                 start_image_id = len(ds.images)
                 start_annotation_id = len(ds.annotations)
 
+                # merge - categories
                 for category in src_ds.categories.values():
                     if category.name not in ds.category_names:
                         category.category_id = len(ds.get_categories()) + 1
@@ -370,10 +373,14 @@ class Dataset:
                 category2id = {
                     category.name: category.category_id for category in ds.get_categories()
                 }
+
+                # merge - images
                 for image in src_ds.images.values():
                     image.image_id += start_image_id
                     image.file_name = os.path.join(f"{i}_{src_name}", image.file_name)
                     ds.add_images([image])
+
+                # merge - annotations
                 for annotation in src_ds.annotations.values():
                     annotation.image_id += start_image_id
                     annotation.annotation_id += start_annotation_id
@@ -381,9 +388,26 @@ class Dataset:
                     annotation.category_id = category2id[category_name]
                     ds.add_annotations([annotation])
 
+                # merge - raw images
                 io.copy_files_to_directory(
                     src_ds.raw_image_dir, f"{ds.raw_image_dir}/{i}_{src_name}", create_directory=True
                 )
+
+                # merge - sets
+                if src_ds.set_dir.exists():
+                    for set_file in ["train.json", "val.json", "test.json"]:
+                        tar_set_file_path = ds.set_dir / set_file
+                        if tar_set_file_path.exists():
+                            set_ids = io.load_json(tar_set_file_path)
+                        else:
+                            set_ids = []
+
+                        src_set_file_path = src_ds.set_dir / set_file
+                        src_set_ids = io.load_json(src_set_file_path)
+                        src_set_ids = [set_id + start_image_id for set_id in src_set_ids]
+                        set_ids.extend(src_set_ids)
+
+                        io.save_json(set_ids, tar_set_file_path, True)
 
         except Exception as e:
             if ds.dataset_dir.exists():
