@@ -273,13 +273,8 @@ class Dataset:
             raise FileNotFoundError(f"{src_ds.dataset_dir} has not been created by Waffle.")
 
         ds = Dataset.new(name, src_ds.task, root_dir)
-        ds.initialize()
         io.copy_files_to_directory(src_ds.dataset_dir, ds.dataset_dir, create_directory=True)
-
-        info = io.load_yaml(ds.dataset_info_file)
-        info["name"] = name
-        info["created"] = ds.created
-        io.save_yaml(info, ds.dataset_info_file)
+        ds.initialize()
 
         return ds
 
