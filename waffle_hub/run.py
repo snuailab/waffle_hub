@@ -229,6 +229,7 @@ def _split_dataset(
     train_ratio: float = typer.Option(0, help="Train ratio"),
     val_ratio: float = typer.Option(0, help="Validation ratio"),
     test_ratio: float = typer.Option(0, help="Test ratio"),
+    method: str = typer.Option("random", help="Split Method"),
     seed: int = typer.Option(0, help="Seed"),
 ):
     ds = Dataset.load(
@@ -236,7 +237,7 @@ def _split_dataset(
         root_dir=root_dir,
     )
 
-    ds.split(train_ratio, val_ratio, test_ratio, seed)
+    ds.split(train_ratio, val_ratio, test_ratio, method, seed)
 
 
 @dataset.command(name="from_coco")
