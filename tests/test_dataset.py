@@ -45,6 +45,7 @@ def test_annotation():
         segmentation=segmentation,
         area=10000,
     )
+    assert a.bbox == [110, 110, 20, 20]
 
     # keypoint detection
     a = Annotation.keypoint_detection(

@@ -103,6 +103,16 @@ class Annotation(BaseField):
             for segment in v:
                 if len(segment) % 2 != 0:
                     raise ValueError("the length of segmentation should be divisible by 2.")
+
+            if self.bbox is None:
+                xs = [x for segment in v for x in segment[::2]]
+                ys = [y for segment in v for y in segment[1::2]]
+                x1 = min(xs)
+                y1 = min(ys)
+                w = max(xs) - x1
+                h = max(ys) - y1
+                self.bbox = [x1, y1, w, h]
+
         self.__segmentation = v
 
     @property
