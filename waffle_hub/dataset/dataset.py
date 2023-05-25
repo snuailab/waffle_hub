@@ -3,8 +3,11 @@ import random
 import warnings
 from collections import OrderedDict
 from functools import cached_property
+from itertools import combinations
+from math import ceil, floor
 from pathlib import Path
 from typing import Union
+from collections import defaultdict
 
 import cv2
 import PIL.Image
@@ -17,7 +20,7 @@ from waffle_utils.utils import type_validator
 
 from datasets import Dataset as HFDataset
 from datasets import DatasetDict, load_from_disk
-from waffle_hub import DataType, TaskType
+from waffle_hub import DataType, SplitMethod, TaskType
 from waffle_hub.dataset.adapter import (
     export_coco,
     export_huggingface,
@@ -188,17 +191,12 @@ class Dataset:
 
     @cached_property
     def image_to_annotations(self) -> dict[int, list[Annotation]]:
-        return OrderedDict(
-            {
-                image_id: list(
-                    filter(
-                        lambda a: a.image_id == image_id,
-                        self.annotations.values(),
-                    )
-                )
-                for image_id in self.images.keys()
-            }
-        )
+        if not hasattr(self, '_image_to_annotations'):
+            image_to_annotations = defaultdict(list)
+            for annotation in tqdm.tqdm(self.annotations.values(), desc="Building image to annotation index"):
+                image_to_annotations[annotation.image_id].append(annotation)
+            self._image_to_annotations = dict(image_to_annotations)
+        return self._image_to_annotations
 
     # factories
     @classmethod
@@ -551,7 +549,6 @@ class Dataset:
                     ]
                 )
 
-            annotation_num = 0
             for image_id, image_path, label_path in zip(
                 image_ids,
                 get_image_files(image_dir),
@@ -571,6 +568,8 @@ class Dataset:
                 # annotation
                 with open(label_path) as f:  # TODO: use load_txt of waffle_utils after implementing
                     txt = f.readlines()
+
+                current_annotation_id = len(ds.get_annotations())
                 for i, t in enumerate(txt, start=1):
                     category_id, x, y, w, h = list(map(float, t.split()))
                     category_id = int(category_id) + 1
@@ -584,14 +583,13 @@ class Dataset:
 
                     x, y, w, h = int(x), int(y), int(w), int(h)
                     annotation = Annotation.object_detection(
-                        annotation_id=annotation_num + i,
+                        annotation_id=current_annotation_id + i,
                         image_id=image_id,
                         category_id=category_id,
                         bbox=[x, y, w, h],
                         area=w * h,
                     )
                     ds.add_annotations([annotation])
-                annotation_num += len(txt)
 
                 # raw
                 dst = ds.raw_image_dir / f"{image_id}{image_path.suffix}"
@@ -905,6 +903,7 @@ class Dataset:
         train_ratio: float,
         val_ratio: float = 0.0,
         test_ratio: float = 0.0,
+        method: Union[str, SplitMethod] = SplitMethod.STRATIFIED,
         seed: int = 0,
     ):
         """
@@ -914,6 +913,7 @@ class Dataset:
             train_ratio (float): train num ratio (0 ~ 1).
             val_ratio (float, optional): val num ratio (0 ~ 1).
             test_ratio (float, optional): test num ratio (0 ~ 1).
+            method (Union[str, SplitMethod], optional): split method. Defaults to SplitMethod.RANDOM.
             seed (int, optional): random seed. Defaults to 0.
 
         Raises:
@@ -942,6 +942,7 @@ class Dataset:
             )
 
         image_ids = list(self.images.keys())
+
         random.seed(seed)
         random.shuffle(image_ids)
 
@@ -949,17 +950,86 @@ class Dataset:
         if image_num <= 2:
             raise ValueError("image_num must be greater than 2\n" f"given image_num: {image_num}")
 
-        train_num = int(image_num * train_ratio)
-        val_num = int(image_num * val_ratio)
+        if method == SplitMethod.RANDOM:
+            train_num = int(image_num * train_ratio)
+            val_num = int(image_num * val_ratio)
 
-        if test_ratio == 0.0:
-            train_ids = image_ids[:train_num]
-            val_ids = image_ids[train_num:]
-            test_ids = val_ids
+            if test_ratio == 0.0:
+                train_ids = image_ids[:train_num]
+                val_ids = image_ids[train_num:]
+                test_ids = val_ids
+            else:
+                train_ids = image_ids[:train_num]
+                val_ids = image_ids[train_num : train_num + val_num]
+                test_ids = image_ids[train_num + val_num :]
+
+        elif method == SplitMethod.STRATIFIED:
+            """
+            Given a dataset of image annotations, find the set of categories associated with each image and stratify them by categories.
+            For example, if the dataset has annotations with the following image and category IDs:
+
+            datasets: [
+                {"annotation_id": 1, "image_id": 1, "category_id": 1},
+                {"annotation_id": 2, "image_id": 1, "category_id": 2},
+                {"annotation_id": 3, "image_id": 2, "category_id": 1},
+                {"annotation_id": 4, "image_id": 2, "category_id": 2},
+                {"annotation_id": 5, "image_id": 3, "category_id": 1},
+                {"annotation_id": 6, "image_id": 4, "category_id": 1},
+                {"annotation_id": 7, "image_id": 5, "category_id": 2},
+                {"annotation_id": 8, "image_id": 6, "category_id": 2},
+            ],
+
+            the output should be stratified by categories:
+
+            Categories 1 and 2 are associated with images 1, 2, 3, and 4.
+            Category 1 is associated with images 3 and 4.
+            Category 2 is associated with images 5 and 6.
+            If the train_ratio : val_ratio is 0.5 : 0.5, a valid output would be:
+
+            The training set consists of images 1, 3, and 5.
+            The test set consists of images 2, 4, and 6.
+            """
+
+            train_ids = []
+            val_ids = []
+            test_ids = []
+
+            # find set of categories
+            num_category = len(self.categories)
+            category_combinations = []
+            for comb in [combinations(self.categories, num) for num in range(1, num_category + 1)]:
+                category_combinations.extend(comb)
+
+            # for round error handling
+            train_round_method = floor
+            val_round_method = ceil
+
+            # split by categories
+            for comb in category_combinations:
+                image_ids_by_categories = list(
+                    filter(
+                        lambda image_id: set(comb)
+                        == {ann.category_id for ann in self.image_to_annotations[image_id]},
+                        image_ids,
+                    )
+                )
+
+                num_images = len(image_ids_by_categories)
+                train_num = train_round_method(num_images * train_ratio)
+                val_num = val_round_method(num_images * val_ratio)
+                train_round_method, val_round_method = val_round_method, train_round_method
+
+                if test_ratio == 0.0:
+                    train_ids += image_ids_by_categories[:train_num]
+                    val_ids += image_ids_by_categories[train_num:]
+                    test_ids += image_ids_by_categories[train_num:]
+                else:
+                    train_ids += image_ids_by_categories[:train_num]
+                    val_ids += image_ids_by_categories[train_num : train_num + val_num]
+                    test_ids += image_ids_by_categories[train_num + val_num :]
+
         else:
-            train_ids = image_ids[:train_num]
-            val_ids = image_ids[train_num : train_num + val_num]
-            test_ids = image_ids[train_num + val_num :]
+            raise ValueError(f"Unknown split method: {method}")
 
         logger.info(
             f"train num: {len(train_ids)}  val num: {len(val_ids)}  test num: {len(test_ids)}"
