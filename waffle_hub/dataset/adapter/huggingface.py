@@ -109,9 +109,7 @@ def _export_huggingface_detection(
                     {
                         "id": annotation.annotation_id,
                         "area": annotation.area,
-                        "category": self.category_names[
-                            annotation.category_id - 1
-                        ],
+                        "category": self.category_names[annotation.category_id - 1],
                         "bbox": annotation.bbox,
                     }
                 )
@@ -161,10 +159,8 @@ def export_huggingface(self, export_dir: Union[str, Path]) -> str:
             self, export_dir, train_ids, val_ids, test_ids, unlabeled_ids
         )
     elif self.task == TaskType.OBJECT_DETECTION:
-        _export_huggingface_detection(
-            self, export_dir, train_ids, val_ids, test_ids, unlabeled_ids
-        )
+        _export_huggingface_detection(self, export_dir, train_ids, val_ids, test_ids, unlabeled_ids)
     else:
-        raise ValueError(f"Unsupported task type: {self.task_type}")
+        raise ValueError(f"Unsupported task type: {self.task}")
 
     return str(export_dir)
