@@ -13,7 +13,7 @@ def convert_rle_to_polygon(rle: dict) -> list:
     return convert_mask_to_polygon(mask)
 
 
-def convert_mask_to_polygon(mask: np.ndarray) -> list:
+def convert_mask_to_polygon(mask: np.ndarray) -> list[list]:
     contours, _ = cv2.findContours(mask, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE)
     polygon = []
 

@@ -45,6 +45,7 @@ def test_annotation():
         segmentation=segmentation,
         area=10000,
     )
+    assert a.bbox == [110, 110, 20, 20]
 
     # keypoint detection
     a = Annotation.keypoint_detection(
@@ -114,174 +115,147 @@ def test_dataset(tmpdir):
     assert not Path(dataset.dataset_dir).exists()
 
 
-def test_dataset_coco(coco_path, tmpdir):
+def _load(dataset_name, root_dir):
+    Dataset.load(dataset_name, root_dir=root_dir)
 
-    ds = Dataset.from_coco(
-        name="from_coco",
-        task=TaskType.OBJECT_DETECTION,
+
+def _clone(dataset_name, root_dir):
+    Dataset.clone(
+        src_name=dataset_name,
+        name="clone_" + dataset_name,
+        src_root_dir=root_dir,
+        root_dir=root_dir,
+    )
+
+
+def _split(dataset_name, root_dir):
+    dataset = Dataset.load(dataset_name, root_dir=root_dir)
+
+    dataset.split(0.8)
+    train_ids, val_ids, test_ids, unlabeled_ids = dataset.get_split_ids()
+    assert len(train_ids) + len(val_ids) == len(dataset.images)
+
+    dataset.split(0.445446, 0.554554)
+    train_ids, val_ids, test_ids, unlabeled_ids = dataset.get_split_ids()
+    assert len(train_ids) + len(val_ids) == len(dataset.images)
+
+    dataset.split(0.4, 0.4, 0.2)
+    train_ids, val_ids, test_ids, unlabeled_ids = dataset.get_split_ids()
+    assert len(train_ids) + len(val_ids) + len(test_ids) == len(dataset.images)
+
+    dataset.split(0.99999999999999, 0.0)
+    train_ids, val_ids, test_ids, unlabeled_ids = dataset.get_split_ids()
+    assert len(train_ids) == 99 and len(val_ids) == 1 and len(test_ids) == 1
+
+    dataset.split(0.00000000000001, 0.0)
+    train_ids, val_ids, test_ids, unlabeled_ids = dataset.get_split_ids()
+    assert len(train_ids) == 1 and len(val_ids) == 99 and len(test_ids) == 99
+
+    with pytest.raises(ValueError):
+        dataset.split(0.0, 0.2)
+
+    with pytest.raises(ValueError):
+        dataset.split(0.9, 0.2)
+
+
+def _export(dataset_name, task: TaskType, root_dir):
+    dataset = Dataset.load(dataset_name, root_dir=root_dir)
+
+    if task in [TaskType.OBJECT_DETECTION, TaskType.INSTANCE_SEGMENTATION, TaskType.CLASSIFICATION]:
+        dataset.export("coco")
+    if task in [TaskType.OBJECT_DETECTION, TaskType.INSTANCE_SEGMENTATION, TaskType.CLASSIFICATION]:
+        dataset.export("yolo")
+    if task in [TaskType.OBJECT_DETECTION, TaskType.CLASSIFICATION]:
+        dataset.export("huggingface")
+
+
+# test coco
+def _from_coco(dataset_name, task: TaskType, coco_path, root_dir):
+    dataset = Dataset.from_coco(
+        name=dataset_name,
+        task=task,
         coco_file=coco_path / "coco.json",
         coco_root_dir=coco_path / "images",
-        root_dir=tmpdir,
+        root_dir=root_dir,
     )
-    assert ds.dataset_info_file.exists()
+    assert dataset.dataset_info_file.exists()
 
-    ds = Dataset.from_coco(
-        name="import_train_val",
-        task=TaskType.OBJECT_DETECTION,
+    dataset = Dataset.from_coco(
+        name=f"{task}_import_train_val",
+        task=task,
         coco_file=[coco_path / "train.json", coco_path / "val.json"],
         coco_root_dir=coco_path / "images",
-        root_dir=tmpdir,
+        root_dir=root_dir,
     )
-    train_ids, val_ids, test_ids, unlabeled_ids = ds.get_split_ids()
+    train_ids, val_ids, test_ids, unlabeled_ids = dataset.get_split_ids()
     assert len(train_ids) == 60
     assert len(val_ids) == 20
     assert len(val_ids) == len(test_ids)
-    assert len(ds.images) == 80
+    assert len(dataset.images) == 80
 
-    ds = Dataset.from_coco(
-        name="import_train_val_test",
-        task=TaskType.OBJECT_DETECTION,
+    dataset = Dataset.from_coco(
+        name=f"{task}_import_train_val_test",
+        task=task,
         coco_file=[coco_path / "train.json", coco_path / "val.json", coco_path / "test.json"],
         coco_root_dir=coco_path / "images",
-        root_dir=tmpdir,
+        root_dir=root_dir,
     )
-    train_ids, val_ids, test_ids, unlabeled_ids = ds.get_split_ids()
+    train_ids, val_ids, test_ids, unlabeled_ids = dataset.get_split_ids()
     assert len(train_ids) == 60
     assert len(val_ids) == 20
     assert len(test_ids) == 20
-    assert len(ds.images) == 100
-
-    ds = Dataset.load("from_coco", root_dir=tmpdir)
-
-    ds = Dataset.clone(
-        src_name="from_coco",
-        name="clone_coco",
-        src_root_dir=tmpdir,
-        root_dir=tmpdir,
-    )
-
-    with pytest.raises(FileNotFoundError):
-        ds.export("coco")
-
-    ds.split(0.8)
-    train_ids, val_ids, test_ids, unlabeled_ids = ds.get_split_ids()
-    assert len(train_ids) + len(val_ids) == len(ds.images)
-
-    ds.split(0.445446, 0.554554)
-    train_ids, val_ids, test_ids, unlabeled_ids = ds.get_split_ids()
-    assert len(train_ids) + len(val_ids) == len(ds.images)
-
-    ds.split(0.4, 0.4, 0.2)
-    train_ids, val_ids, test_ids, unlabeled_ids = ds.get_split_ids()
-    assert len(train_ids) + len(val_ids) + len(test_ids) == len(ds.images)
-
-    ds.split(0.99999999999999, 0.0)
-    train_ids, val_ids, test_ids, unlabeled_ids = ds.get_split_ids()
-    assert len(val_ids) == 1 and len(test_ids) == 1
-
-    with pytest.raises(ValueError):
-        ds.split(0.0, 0.2)
-
-    with pytest.raises(ValueError):
-        ds.split(0.9, 0.2)
-
-    ds.export("coco")
+    assert len(dataset.images) == 100
 
 
-def test_dataset_yolo(yolo_path, tmpdir):
-
-    ds = Dataset.from_yolo(
-        name="from_yolo",
-        task=TaskType.OBJECT_DETECTION,
-        yaml_path=yolo_path / "data.yaml",
-        root_dir=tmpdir,
-    )
-    assert ds.dataset_info_file.exists()
-
-    ds = Dataset.load("from_yolo", root_dir=tmpdir)
-
-    ds = Dataset.clone(
-        src_name="from_yolo",
-        name="clone_yolo",
-        src_root_dir=tmpdir,
-        root_dir=tmpdir,
-    )
-
-    with pytest.raises(FileNotFoundError):
-        ds.export("yolo")
-
-    ds.split(0.8)
-    train_ids, val_ids, test_ids, unlabeled_ids = ds.get_split_ids()
-    assert len(train_ids) + len(val_ids) == len(ds.images)
-
-    ds.split(0.445446, 0.554554)
-    train_ids, val_ids, test_ids, unlabeled_ids = ds.get_split_ids()
-    assert len(train_ids) + len(val_ids) == len(ds.images)
-
-    ds.split(0.4, 0.4, 0.2)
-    train_ids, val_ids, test_ids, unlabeled_ids = ds.get_split_ids()
-    assert len(train_ids) + len(val_ids) + len(test_ids) == len(ds.images)
-
-    ds.split(0.99999999999999, 0.0)
-    train_ids, val_ids, test_ids, unlabeled_ids = ds.get_split_ids()
-    assert len(val_ids) == 1 and len(test_ids) == 1
-
-    with pytest.raises(ValueError):
-        ds.split(0.0, 0.2)
-
-    with pytest.raises(ValueError):
-        ds.split(0.9, 0.2)
-
-    ds.export("yolo")
+def _total_coco(dataset_name, task: TaskType, coco_path, root_dir):
+    _from_coco(dataset_name, task, coco_path, root_dir)
+    _load(dataset_name, root_dir)
+    _clone(dataset_name, root_dir)
+    _split(dataset_name, root_dir)
+    _export(dataset_name, task, root_dir)
 
 
-def test_dataset_huggingface(huggingface_path, tmpdir):
+def test_coco(coco_path, tmpdir):
+    for task in [TaskType.CLASSIFICATION, TaskType.OBJECT_DETECTION, TaskType.INSTANCE_SEGMENTATION]:
+        _total_coco(f"coco_{task}", task, coco_path, tmpdir)
 
-    ds = Dataset.from_huggingface(
-        name="from_huggingface",
-        task=TaskType.OBJECT_DETECTION,
+
+# test huggingface
+def _from_huggingface(dataset_name, task: TaskType, huggingface_path, root_dir):
+    dataset = Dataset.from_huggingface(
+        name=dataset_name,
+        task=task,
         dataset_dir=huggingface_path,
-        root_dir=tmpdir,
+        root_dir=root_dir,
     )
-    assert ds.dataset_info_file.exists()
+    assert dataset.dataset_info_file.exists()
 
-    ds = Dataset.load("from_huggingface", root_dir=tmpdir)
+    train_ids, val_ids, test_ids, unlabeled_ids = dataset.get_split_ids()
+    assert len(train_ids) == 80
+    assert len(dataset.images) == 100
 
-    ds = Dataset.clone(
-        src_name="from_huggingface",
-        name="clone_huggingface",
-        src_root_dir=tmpdir,
-        root_dir=tmpdir,
+
+def _total_huggingface(dataset_name, task: TaskType, huggingface_path, root_dir):
+    _from_huggingface(dataset_name, task, huggingface_path, root_dir)
+    _load(dataset_name, root_dir)
+    _clone(dataset_name, root_dir)
+    _split(dataset_name, root_dir)
+    _export(dataset_name, task, root_dir)
+
+
+def test_huggingface(huggingface_detection_path, huggingface_classification_path, tmpdir):
+    _total_huggingface(
+        "huggingface_object_detection", TaskType.OBJECT_DETECTION, huggingface_detection_path, tmpdir
+    )
+    _total_huggingface(
+        "huggingface_classification",
+        TaskType.CLASSIFICATION,
+        huggingface_classification_path,
+        tmpdir,
     )
 
-    with pytest.raises(FileNotFoundError):
-        ds.export("huggingface")
 
-    ds.split(0.8)
-    train_ids, val_ids, test_ids, unlabeled_ids = ds.get_split_ids()
-    assert len(train_ids) + len(val_ids) == len(ds.images)
-
-    ds.split(0.445446, 0.554554)
-    train_ids, val_ids, test_ids, unlabeled_ids = ds.get_split_ids()
-    assert len(train_ids) + len(val_ids) == len(ds.images)
-
-    ds.split(0.4, 0.4, 0.2)
-    train_ids, val_ids, test_ids, unlabeled_ids = ds.get_split_ids()
-    assert len(train_ids) + len(val_ids) + len(test_ids) == len(ds.images)
-
-    ds.split(0.99999999999999, 0.0)
-    train_ids, val_ids, test_ids, unlabeled_ids = ds.get_split_ids()
-    assert len(val_ids) == 1 and len(test_ids) == 1
-
-    with pytest.raises(ValueError):
-        ds.split(0.0, 0.2)
-
-    with pytest.raises(ValueError):
-        ds.split(0.9, 0.2)
-
-    ds.export("huggingface")
-
-
+# dataloader
 def test_image_dataloader(coco_path, tmpdir):
 
     image_dataset = ImageDataset(coco_path / "images", 224)
