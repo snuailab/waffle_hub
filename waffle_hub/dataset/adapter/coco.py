@@ -62,7 +62,8 @@ def _export_coco(
             for annotation in annotations:
                 d = annotation.to_dict()
                 if d.get("segmentation", None):
-                    d["segmentation"] = convert_rle_to_polygon(d["segmentation"])
+                    if isinstance(d["segmentation"], dict):
+                        d["segmentation"] = convert_rle_to_polygon(d["segmentation"])
                 annotation_id = d.pop("annotation_id")
                 coco["annotations"].append({"id": annotation_id, **d})
 
@@ -89,6 +90,6 @@ def export_coco(self, export_dir: Union[str, Path]) -> str:
     elif self.task == TaskType.INSTANCE_SEGMENTATION:
         _export_coco(self, export_dir, train_ids, val_ids, test_ids, unlabeled_ids)
     else:
-        raise ValueError(f"Unsupported task type: {self.task_type}")
+        raise ValueError(f"Unsupported task type: {self.task}")
 
     return str(export_dir)
