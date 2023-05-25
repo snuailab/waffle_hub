@@ -88,6 +88,7 @@ def test_dataset_split(test_dir: Path):
         --train-ratio 0.8 \
         --val-ratio 0.1 \
         --test-ratio 0.1 \
+        --method random \
         --seed 42 \
     "
     ret = run_cli(cmd)
