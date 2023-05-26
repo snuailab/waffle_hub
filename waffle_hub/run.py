@@ -7,7 +7,9 @@ from waffle_hub.dataset.dataset import Dataset
 from waffle_hub.hub.adapter.hugging_face import HuggingFaceHub
 from waffle_hub.hub.adapter.ultralytics import UltralyticsHub
 
+
 from waffle_hub.hub.adapter.autocare_dlt import AutocareDLTHub
+
 
 dataset = typer.Typer(name="dataset")
 hub = typer.Typer(name="hub")
