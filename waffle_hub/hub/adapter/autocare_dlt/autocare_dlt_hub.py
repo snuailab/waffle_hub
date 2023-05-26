@@ -5,7 +5,7 @@ See BaseHub documentation for more details about usage.
 
 from waffle_hub import get_installed_backend_version
 
-BACKEND_NAME = "autocare_tx_model"
+BACKEND_NAME = "autocare_dlt"
 BACKEND_VERSION = get_installed_backend_version(BACKEND_NAME)
 
 import warnings
@@ -15,13 +15,13 @@ from typing import Union
 import tbparse
 import torch
 from attrdict import AttrDict
-from autocare_tx_model.core.model import build_model
-from autocare_tx_model.tools import train
+from autocare_dlt.core.model import build_model
+from autocare_dlt.tools import train
 from torchvision import transforms as T
 from waffle_utils.file import io
 
 from waffle_hub import TaskType
-from waffle_hub.hub.adapter.tx_model.configs import (
+from waffle_hub.hub.adapter.autocare_dlt.configs import (
     get_data_config,
     get_model_config,
 )
@@ -33,7 +33,7 @@ from waffle_hub.utils.callback import TrainCallback
 from .config import DATA_TYPE_MAP, DEFAULT_PARAMAS, MODEL_TYPES, WEIGHT_PATH
 
 
-class TxModelHub(BaseHub):
+class AutocareDLTHub(BaseHub):
     MODEL_TYPES = MODEL_TYPES
     DATA_TYPE_MAP = DATA_TYPE_MAP
     WEIGHT_PATH = WEIGHT_PATH
@@ -50,7 +50,7 @@ class TxModelHub(BaseHub):
         backend: str = None,
         version: str = None,
     ):
-        """Create Tx Model Hub Class. Do not use this class directly. Use TxModelHub.new() instead."""
+        """Create Tx Model Hub Class. Do not use this class directly. Use AutocareDLTHub.new() instead."""
 
         if backend is not None and backend != BACKEND_NAME:
             raise ValueError(f"you've loaded {backend}. backend must be {BACKEND_NAME}")

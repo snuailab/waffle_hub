@@ -16,7 +16,7 @@ from waffle_hub.schema.result import (
 )
 
 
-# from waffle_hub.hub.adapter.tx_model import TxModelHub
+from waffle_hub.hub.adapter.autocare_dlt import AutocareDLTHub
 @pytest.fixture
 def instance_segmentation_dataset(coco_path: Path, tmpdir: Path):
     dataset: Dataset = Dataset.from_coco(
@@ -325,53 +325,53 @@ def test_non_hold(classification_dataset: Dataset, tmpdir: Path):
     _total(hub, dataset, image_size, hold=False)
 
 
-# def test_tx_model_object_detection(
-#     object_detection_dataset: Dataset, tmpdir: Path
-# ):
-#     image_size = 32
-#     dataset = object_detection_dataset
+def test_autocare_dlt_object_detection(
+    object_detection_dataset: Dataset, tmpdir: Path
+):
+    image_size = 32
+    dataset = object_detection_dataset
 
-#     # test hub
-#     name = "test_det"
-#     hub = TxModelHub.new(
-#         name=name,
-#         task=TaskType.OBJECT_DETECTION,
-#         model_type="YOLOv5",
-#         model_size="s",
-#         categories=object_detection_dataset.category_names,
-#         root_dir=tmpdir,
-#     )
-#     hub = TxModelHub.load(name=name, root_dir=tmpdir)
-#     hub: TxModelHub = TxModelHub.from_model_config(
-#         name=name,
-#         model_config_file=tmpdir / name / TxModelHub.MODEL_CONFIG_FILE,
-#         root_dir=tmpdir,
-#     )
+    # test hub
+    name = "test_det"
+    hub = AutocareDLTHub.new(
+        name=name,
+        task=TaskType.OBJECT_DETECTION,
+        model_type="YOLOv5",
+        model_size="s",
+        categories=object_detection_dataset.category_names,
+        root_dir=tmpdir,
+    )
+    hub = AutocareDLTHub.load(name=name, root_dir=tmpdir)
+    hub: AutocareDLTHub = AutocareDLTHub.from_model_config(
+        name=name,
+        model_config_file=tmpdir / name / AutocareDLTHub.MODEL_CONFIG_FILE,
+        root_dir=tmpdir,
+    )
 
-#     _total(hub, dataset, image_size)
+    _total(hub, dataset, image_size)
 
 
-# def test_tx_model_classification(
-#     classification_dataset: Dataset, tmpdir: Path
-# ):
-#     image_size = 32
-#     dataset = classification_dataset
+def test_autocare_dlt_classification(
+    classification_dataset: Dataset, tmpdir: Path
+):
+    image_size = 32
+    dataset = classification_dataset
 
-#     # test hub
-#     name = "test_cls"
-#     hub = TxModelHub.new(
-#         name=name,
-#         task=TaskType.CLASSIFICATION,
-#         model_type="Classifier",
-#         model_size="s",
-#         categories=classification_dataset.category_names,
-#         root_dir=tmpdir,
-#     )
-#     hub = TxModelHub.load(name=name, root_dir=tmpdir)
-#     hub: TxModelHub = TxModelHub.from_model_config(
-#         name=name,
-#         model_config_file=tmpdir / name / TxModelHub.MODEL_CONFIG_FILE,
-#         root_dir=tmpdir,
-#     )
+    # test hub
+    name = "test_cls"
+    hub = AutocareDLTHub.new(
+        name=name,
+        task=TaskType.CLASSIFICATION,
+        model_type="Classifier",
+        model_size="s",
+        categories=classification_dataset.category_names,
+        root_dir=tmpdir,
+    )
+    hub = AutocareDLTHub.load(name=name, root_dir=tmpdir)
+    hub: AutocareDLTHub = AutocareDLTHub.from_model_config(
+        name=name,
+        model_config_file=tmpdir / name / AutocareDLTHub.MODEL_CONFIG_FILE,
+        root_dir=tmpdir,
+    )
 
-#     _total(hub, dataset, image_size)
+    _total(hub, dataset, image_size)
