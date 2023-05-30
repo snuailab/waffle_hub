@@ -76,7 +76,7 @@ def _export_yolo_classification(
             io.copy_file(image_path, image_dst_path, create_directory=True)
 
         for category_name in self.category_names:
-            if not (self.export_dir / category_name).exists():
+            if not (split_dir / category_name).exists():
                 raise ValueError(
                     f"There must be at least one annotation for each category. ({category_name} category is empty)"
                 )
