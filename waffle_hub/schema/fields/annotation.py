@@ -370,7 +370,7 @@ class Annotation(BaseField):
         image_id: int = None,
         category_id: int = None,
         bbox: list[float] = None,
-        segmentation: list[list[float]] = None,
+        segmentation: Union[list[list[float]], dict] = None,
         area: int = None,
         iscrowd: int = 0,
         score: float = None,
@@ -383,7 +383,7 @@ class Annotation(BaseField):
             image_id (int): image id. natural number.
             category_id (int): category id. natural number.
             bbox (list[float]): [x1, y1, w, h].
-            segmentation (list[list[float]]): [[x1, y1, x2, y2, x3, y3, ...], [polygon]].
+            segmentation (Union[list[list[float]], dict]): [[x1, y1, x2, y2, x3, y3, ...], [polygon]] or RLE.
             area (int): segmentation segmentation area.
             iscrowd (int, optional): is crowd or not. Default to 0.
             score (float, optional): prediction score. Default to None.
