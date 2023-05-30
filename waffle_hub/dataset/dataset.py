@@ -349,9 +349,7 @@ class Dataset:
         had_image_paths = set(get_image_files(merged_ds.raw_image_dir))
 
         try:
-            for i, (src_name, src_root_dir) in enumerate(
-                zip(src_names[1:], src_root_dirs[1:]), start=1
-            ):
+            for src_name, src_root_dir in zip(src_names[1:], src_root_dirs[1:]):
                 src_ds = Dataset.load(src_name, src_root_dir)
                 if src_ds.task != merged_ds.task:
                     raise ValueError(
