@@ -312,7 +312,7 @@ class Dataset:
         name: str,
         root_dir: str,
         src_names: list[str],
-        src_root_dirs: list[str],
+        src_root_dirs: Union[str, list[str]],
     ) -> "Dataset":
         """
         Merge Datasets.
@@ -322,12 +322,14 @@ class Dataset:
             name (str): New Dataset name
             root_dir (str): New Dataset root directory
             src_names (list[str]): Source Dataset names
-            src_root_dirs (list[str]): Source Dataset root directories
+            src_root_dirs (Union[str, list[str]]): Source Dataset root directories
 
         Returns:
             Dataset: Dataset Class
 
         """
+        if isinstance(src_root_dirs, str):
+            src_root_dirs = [src_root_dirs] * len(src_names)
         if len(src_names) != len(src_root_dirs):
             raise ValueError("Length of src_names and src_root_dirs should be same.")
 
@@ -346,7 +348,6 @@ class Dataset:
         new_image_id = len(merged_ds.images) + 1
         new_annotation_id = len(merged_ds.annotations) + 1
         new_category_id = len(merged_ds.category_names) + 1
-        had_image_paths = set(get_image_files(merged_ds.raw_image_dir))
 
         try:
             for src_name, src_root_dir in zip(src_names[1:], src_root_dirs[1:]):
@@ -373,28 +374,44 @@ class Dataset:
                 )
 
                 # merge - images
-                added_image_paths = set(get_image_files(merged_ds.raw_image_dir)) - had_image_paths
-                added_image_paths = [str(image_path.name) for image_path in added_image_paths]
-                changed_image_ids = {}
+                filename2id = {
+                    image.file_name: image.image_id for image in merged_ds.images.values()
+                }
                 for image in src_ds.images.values():
-                    ori_image_id = image.image_id
-                    if image.file_name in added_image_paths:
+                    image_id = filename2id.get(image.file_name, None)
+
+                    if image_id is None:
+                        annotations = src_ds.image_to_annotations[image.image_id]
                         image.image_id = new_image_id
                         new_image_id += 1
                         merged_ds.add_images([image])
 
-                        changed_image_ids[ori_image_id] = image.image_id
+                        # merge - annotations (new image)
+                        for src_ann in annotations:
+                            src_ann.image_id = image.image_id
+                            src_ann.annotation_id = new_annotation_id
+                            new_annotation_id += 1
 
-                    # merge - annotations
-                    for src_ann in src_ds.image_to_annotations[ori_image_id]:
-                        src_ann.image_id = image.image_id
-                        src_ann.annotation_id = new_annotation_id
-                        new_annotation_id += 1
+                            category_name = src_ds.categories[src_ann.category_id].name
+                            src_ann.category_id = category2id[category_name]
 
-                        category_name = src_ds.categories[src_ann.category_id].name
-                        src_ann.category_id = category2id[category_name]
+                            merged_ds.add_annotations([src_ann])
 
-                        merged_ds.add_annotations([src_ann])
+                    else:
+                        # merge - annotations (existing image)
+                        for src_ann in src_ds.image_to_annotations[image.image_id]:
+                            for merged_ann in merged_ds.image_to_annotations[image_id]:
+                                src_ann.category_id = category2id[
+                                    src_ds.categories[src_ann.category_id].name
+                                ]
+                                if src_ann == merged_ann:
+                                    break
+                            else:
+                                src_ann.image_id = image_id
+                                src_ann.annotation_id = new_annotation_id
+                                new_annotation_id += 1
+
+                                merged_ds.add_annotations([src_ann])
 
         except Exception as e:
             if merged_ds.dataset_dir.exists():

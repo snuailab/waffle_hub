@@ -320,15 +320,15 @@ def test_merge(coco_path, tmpdir):
 
     assert (ds.raw_image_dir).exists()
     assert len(ds.images) == 100
-    assert len(ds.annotations) == 200
+    assert len(ds.annotations) == 100
     assert len(ds.categories) == 2
     assert (
         len([0 for annotation in ds.annotations.values() if annotation.category_id == 1])
-        == category_1_num * 2
+        == category_1_num
     )
     assert (
         len([0 for annotation in ds.annotations.values() if annotation.category_id == 2])
-        == category_2_num * 2
+        == category_2_num
     )
 
     category = load_json(ds1.category_dir / "1.json")
@@ -343,7 +343,7 @@ def test_merge(coco_path, tmpdir):
     )
 
     assert len(ds.images) == 100
-    assert len(ds.annotations) == 200
+    assert len(ds.annotations) == 100 + category_1_num
     assert len(ds.categories) == 3
     assert (
         len([0 for annotation in ds.annotations.values() if annotation.category_id == 1])
@@ -351,7 +351,7 @@ def test_merge(coco_path, tmpdir):
     )
     assert (
         len([0 for annotation in ds.annotations.values() if annotation.category_id == 2])
-        == category_2_num * 2
+        == category_2_num
     )
     assert (
         len([0 for annotation in ds.annotations.values() if annotation.category_id == 3])
