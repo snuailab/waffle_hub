@@ -24,6 +24,14 @@ def test_annotation():
     )
     assert not a.is_prediction()
 
+    a = Annotation.object_detection(
+        annotation_id=1,
+        image_id=1,
+        category_id=1,
+        bbox=bbox,
+    )
+    assert a.area == 10000
+
     a.score = 0.4
     assert a.is_prediction()
 
@@ -46,6 +54,16 @@ def test_annotation():
         area=10000,
     )
     assert a.bbox == [110, 110, 20, 20]
+    assert a.area == 10000
+
+    a = Annotation.instance_segmentation(
+        annotation_id=1,
+        image_id=1,
+        category_id=1,
+        segmentation=segmentation,
+    )
+    assert a.bbox == [110, 110, 20, 20]
+    assert a.area == 200
 
     # keypoint detection
     a = Annotation.keypoint_detection(
