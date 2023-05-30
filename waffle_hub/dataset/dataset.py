@@ -386,15 +386,15 @@ class Dataset:
                         changed_image_ids[ori_image_id] = image.image_id
 
                     # merge - annotations
-                    for annotation in src_ds.image_to_annotations[ori_image_id]:
-                        annotation.image_id = image.image_id
-                        annotation.annotation_id = new_annotation_id
+                    for src_ann in src_ds.image_to_annotations[ori_image_id]:
+                        src_ann.image_id = image.image_id
+                        src_ann.annotation_id = new_annotation_id
                         new_annotation_id += 1
 
-                        category_name = src_ds.categories[annotation.category_id].name
-                        annotation.category_id = category2id[category_name]
+                        category_name = src_ds.categories[src_ann.category_id].name
+                        src_ann.category_id = category2id[category_name]
 
-                        merged_ds.add_annotations([annotation])
+                        merged_ds.add_annotations([src_ann])
 
         except Exception as e:
             if merged_ds.dataset_dir.exists():
