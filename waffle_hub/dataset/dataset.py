@@ -273,8 +273,8 @@ class Dataset:
             raise FileNotFoundError(f"{src_ds.dataset_dir} has not been created by Waffle.")
 
         ds = Dataset.new(name, src_ds.task, root_dir)
-        ds.initialize()
         io.copy_files_to_directory(src_ds.dataset_dir, ds.dataset_dir, create_directory=True)
+        ds.initialize()
 
         return ds
 
@@ -737,6 +737,9 @@ class Dataset:
             # import other field
             _import(set_dir, image_ids)
 
+        # TODO: add unlabeled set
+        io.save_json([], ds.unlabeled_set_file, create_directory=True)
+
         return ds
 
     @classmethod
@@ -859,6 +862,9 @@ class Dataset:
         else:
             image_ids = list(range(1, dataset.num_rows + 1))
             _import(dataset, task, image_ids)
+
+        # TODO: add unlabeled set
+        io.save_json([], ds.unlabeled_set_file, create_directory=True)
 
         return ds
 
@@ -1019,7 +1025,7 @@ class Dataset:
         train_ratio: float,
         val_ratio: float = 0.0,
         test_ratio: float = 0.0,
-        method: Union[str, SplitMethod] = SplitMethod.STRATIFIED,
+        method: Union[str, SplitMethod] = SplitMethod.RANDOM,
         seed: int = 0,
     ):
         """
@@ -1058,17 +1064,16 @@ class Dataset:
             )
 
         image_ids = list(self.images.keys())
-
-        random.seed(seed)
-        random.shuffle(image_ids)
-
         image_num = len(image_ids)
         if image_num <= 2:
             raise ValueError("image_num must be greater than 2\n" f"given image_num: {image_num}")
 
         if method == SplitMethod.RANDOM:
-            train_num = int(image_num * train_ratio)
-            val_num = int(image_num * val_ratio)
+            train_num = max(int(image_num * train_ratio), 1)
+            val_num = max(int(image_num * val_ratio), 1)
+
+            random.seed(seed)
+            random.shuffle(image_ids)
 
             if test_ratio == 0.0:
                 train_ids = image_ids[:train_num]
@@ -1080,69 +1085,70 @@ class Dataset:
                 test_ids = image_ids[train_num + val_num :]
 
         elif method == SplitMethod.STRATIFIED:
-            """
-            Given a dataset of image annotations, find the set of categories associated with each image and stratify them by categories.
-            For example, if the dataset has annotations with the following image and category IDs:
+            # """
+            # Given a dataset of image annotations, find the set of categories associated with each image and stratify them by categories.
+            # For example, if the dataset has annotations with the following image and category IDs:
 
-            datasets: [
-                {"annotation_id": 1, "image_id": 1, "category_id": 1},
-                {"annotation_id": 2, "image_id": 1, "category_id": 2},
-                {"annotation_id": 3, "image_id": 2, "category_id": 1},
-                {"annotation_id": 4, "image_id": 2, "category_id": 2},
-                {"annotation_id": 5, "image_id": 3, "category_id": 1},
-                {"annotation_id": 6, "image_id": 4, "category_id": 1},
-                {"annotation_id": 7, "image_id": 5, "category_id": 2},
-                {"annotation_id": 8, "image_id": 6, "category_id": 2},
-            ],
+            # datasets: [
+            #     {"annotation_id": 1, "image_id": 1, "category_id": 1},
+            #     {"annotation_id": 2, "image_id": 1, "category_id": 2},
+            #     {"annotation_id": 3, "image_id": 2, "category_id": 1},
+            #     {"annotation_id": 4, "image_id": 2, "category_id": 2},
+            #     {"annotation_id": 5, "image_id": 3, "category_id": 1},
+            #     {"annotation_id": 6, "image_id": 4, "category_id": 1},
+            #     {"annotation_id": 7, "image_id": 5, "category_id": 2},
+            #     {"annotation_id": 8, "image_id": 6, "category_id": 2},
+            # ],
 
-            the output should be stratified by categories:
+            # the output should be stratified by categories:
 
-            Categories 1 and 2 are associated with images 1, 2, 3, and 4.
-            Category 1 is associated with images 3 and 4.
-            Category 2 is associated with images 5 and 6.
-            If the train_ratio : val_ratio is 0.5 : 0.5, a valid output would be:
+            # Categories 1 and 2 are associated with images 1, 2, 3, and 4.
+            # Category 1 is associated with images 3 and 4.
+            # Category 2 is associated with images 5 and 6.
+            # If the train_ratio : val_ratio is 0.5 : 0.5, a valid output would be:
 
-            The training set consists of images 1, 3, and 5.
-            The test set consists of images 2, 4, and 6.
-            """
+            # The training set consists of images 1, 3, and 5.
+            # The test set consists of images 2, 4, and 6.
+            # """
 
-            train_ids = []
-            val_ids = []
-            test_ids = []
+            # train_ids = []
+            # val_ids = []
+            # test_ids = []
 
-            # find set of categories
-            num_category = len(self.categories)
-            category_combinations = []
-            for comb in [combinations(self.categories, num) for num in range(1, num_category + 1)]:
-                category_combinations.extend(comb)
+            # # find set of categories
+            # num_category = len(self.categories)
+            # category_combinations = []
+            # for comb in [combinations(self.categories, num) for num in range(1, num_category + 1)]:
+            #     category_combinations.extend(comb)
 
-            # for round error handling
-            train_round_method = floor
-            val_round_method = ceil
+            # # for round error handling
+            # train_round_method = floor
+            # val_round_method = ceil
 
-            # split by categories
-            for comb in category_combinations:
-                image_ids_by_categories = list(
-                    filter(
-                        lambda image_id: set(comb)
-                        == {ann.category_id for ann in self.image_to_annotations[image_id]},
-                        image_ids,
-                    )
-                )
+            # # split by categories
+            # for comb in category_combinations:
+            #     image_ids_by_categories = list(
+            #         filter(
+            #             lambda image_id: set(comb)
+            #             == {ann.category_id for ann in self.image_to_annotations[image_id]},
+            #             image_ids,
+            #         )
+            #     )
 
-                num_images = len(image_ids_by_categories)
-                train_num = train_round_method(num_images * train_ratio)
-                val_num = val_round_method(num_images * val_ratio)
-                train_round_method, val_round_method = val_round_method, train_round_method
+            #     num_images = len(image_ids_by_categories)
+            #     train_num = train_round_method(num_images * train_ratio)
+            #     val_num = val_round_method(num_images * val_ratio)
+            #     train_round_method, val_round_method = val_round_method, train_round_method
 
-                if test_ratio == 0.0:
-                    train_ids += image_ids_by_categories[:train_num]
-                    val_ids += image_ids_by_categories[train_num:]
-                    test_ids += image_ids_by_categories[train_num:]
-                else:
-                    train_ids += image_ids_by_categories[:train_num]
-                    val_ids += image_ids_by_categories[train_num : train_num + val_num]
-                    test_ids += image_ids_by_categories[train_num + val_num :]
+            #     if test_ratio == 0.0:
+            #         train_ids += image_ids_by_categories[:train_num]
+            #         val_ids += image_ids_by_categories[train_num:]
+            #         test_ids += image_ids_by_categories[train_num:]
+            #     else:
+            #         train_ids += image_ids_by_categories[:train_num]
+            #         val_ids += image_ids_by_categories[train_num : train_num + val_num]
+            #         test_ids += image_ids_by_categories[train_num + val_num :]
+            raise NotImplementedError("(TODO) This feature will be updated soon.")
 
         else:
             raise ValueError(f"Unknown split method: {method}")
