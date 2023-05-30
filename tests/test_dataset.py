@@ -318,9 +318,8 @@ def test_merge(coco_path, tmpdir):
         root_dir=tmpdir,
     )
 
-    assert (ds.raw_image_dir / "0_ds1").exists()
-    assert (ds.raw_image_dir / "1_ds2").exists()
-    assert len(ds.images) == 200
+    assert (ds.raw_image_dir).exists()
+    assert len(ds.images) == 100
     assert len(ds.annotations) == 200
     assert len(ds.categories) == 2
     assert (
@@ -343,7 +342,7 @@ def test_merge(coco_path, tmpdir):
         root_dir=tmpdir,
     )
 
-    assert len(ds.images) == 200
+    assert len(ds.images) == 100
     assert len(ds.annotations) == 200
     assert len(ds.categories) == 3
     assert (
