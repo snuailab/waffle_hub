@@ -161,14 +161,11 @@ def _split(dataset_name, root_dir):
 
 def _export(dataset_name, task: TaskType, root_dir):
     dataset = Dataset.load(dataset_name, root_dir=root_dir)
+    dataset.split(0.05)
 
     if task in [TaskType.OBJECT_DETECTION, TaskType.INSTANCE_SEGMENTATION, TaskType.CLASSIFICATION]:
         dataset.export("coco")
     if task in [TaskType.OBJECT_DETECTION, TaskType.INSTANCE_SEGMENTATION, TaskType.CLASSIFICATION]:
-        if task == TaskType.CLASSIFICATION:
-            train_ids = load_json(dataset.train_set_file)
-            train_ids.extend([1, 4])  # for yolo classification export test
-            save_json(train_ids, dataset.train_set_file)
         dataset.export("yolo")
     if task in [TaskType.OBJECT_DETECTION, TaskType.CLASSIFICATION]:
         dataset.export("huggingface")
