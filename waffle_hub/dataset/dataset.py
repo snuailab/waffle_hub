@@ -1,6 +1,6 @@
 import logging
-import os
 import random
+import shutil
 import warnings
 from collections import OrderedDict, defaultdict
 from functools import cached_property
@@ -332,90 +332,75 @@ class Dataset:
             raise ValueError("Length of src_names and src_root_dirs should be same.")
 
         # clone
-        src_ds = Dataset.load(src_names[0], src_root_dirs[0])
-        if not src_ds.initialized():
-            raise FileNotFoundError(f"{src_ds.dataset_dir} has not been created by Waffle.")
-
-        ds = Dataset.new(name, src_ds.task, root_dir)
-        ds.initialize()
-
-        io.copy_files_to_directory(src_ds.annotation_dir, ds.annotation_dir, create_directory=True)
-        io.copy_files_to_directory(src_ds.category_dir, ds.category_dir, create_directory=True)
-        io.copy_files_to_directory(
-            src_ds.raw_image_dir, ds.raw_image_dir / f"0_{src_names[0]}", create_directory=True
+        merged_ds = Dataset.clone(
+            src_name=src_names[0],
+            src_root_dir=src_root_dirs[0],
+            name=name,
+            root_dir=root_dir,
         )
-        io.copy_files_to_directory(src_ds.set_dir, ds.set_dir, create_directory=True)
-        for image in src_ds.images.values():
-            image.file_name = f"0_{src_names[0]}/{image.file_name}"
-        ds.add_images(src_ds.images.values())
+        if merged_ds.export_dir.exists():
+            shutil.rmtree(merged_ds.export_dir)
+        if merged_ds.set_dir.exists():
+            shutil.rmtree(merged_ds.set_dir)
 
-        task = ds.task
+        new_image_id = len(merged_ds.images) + 1
+        new_annotation_id = len(merged_ds.annotations) + 1
+        new_category_id = len(merged_ds.category_names) + 1
+        had_image_paths = set(get_image_files(merged_ds.raw_image_dir))
 
         try:
             for i, (src_name, src_root_dir) in enumerate(
                 zip(src_names[1:], src_root_dirs[1:]), start=1
             ):
                 src_ds = Dataset.load(src_name, src_root_dir)
-                if ds.task != task:
+                if src_ds.task != merged_ds.task:
                     raise ValueError(
                         f"Task of {src_name} is different compared to another datasets."
                     )
 
-                # merge
-                start_image_id = len(ds.images)
-                start_annotation_id = len(ds.annotations)
-
                 # merge - categories
                 for category in src_ds.categories.values():
-                    if category.name not in ds.category_names:
-                        category.category_id = len(ds.get_categories()) + 1
-                        ds.add_categories([category])
+                    if category.name not in merged_ds.category_names:
+                        category.category_id = new_category_id
+                        new_category_id += 1
+                        merged_ds.add_categories([category])
+
                 category2id = {
-                    category.name: category.category_id for category in ds.get_categories()
+                    category.name: category.category_id for category in merged_ds.get_categories()
                 }
-
-                # merge - images
-                for image in src_ds.images.values():
-                    image.image_id += start_image_id
-                    image.file_name = os.path.join(f"{i}_{src_name}", image.file_name)
-                    ds.add_images([image])
-
-                # merge - annotations
-                for annotation in src_ds.annotations.values():
-                    annotation.image_id += start_image_id
-                    annotation.annotation_id += start_annotation_id
-                    category_name = src_ds.categories[annotation.category_id].name
-                    annotation.category_id = category2id[category_name]
-                    ds.add_annotations([annotation])
 
                 # merge - raw images
                 io.copy_files_to_directory(
-                    src_ds.raw_image_dir, f"{ds.raw_image_dir}/{i}_{src_name}", create_directory=True
+                    src_ds.raw_image_dir, f"{merged_ds.raw_image_dir}", create_directory=True
                 )
 
-                # merge - sets
-                if src_ds.set_dir.exists():
-                    for set_file in ["train.json", "val.json", "test.json"]:
-                        src_set_file_path = src_ds.set_dir / set_file
-                        tar_set_file_path = ds.set_dir / set_file
+                # merge - images
+                added_image_paths = set(get_image_files(merged_ds.raw_image_dir)) - had_image_paths
+                added_image_paths = [str(image_path.name) for image_path in added_image_paths]
+                changed_image_ids = {}
+                for image in src_ds.images.values():
+                    ori_image_id = image.image_id
+                    if image.file_name in added_image_paths:
+                        image.image_id = new_image_id
+                        new_image_id += 1
+                        merged_ds.add_images([image])
 
-                        if not src_set_file_path.exists():
-                            continue
+                        changed_image_ids[ori_image_id] = image.image_id
 
-                        if tar_set_file_path.exists():
-                            set_ids = io.load_json(tar_set_file_path)
-                        else:
-                            set_ids = []
+                    # merge - annotations
+                    for annotation in src_ds.image_to_annotations[ori_image_id]:
+                        annotation.image_id = image.image_id
+                        annotation.annotation_id = new_annotation_id
+                        new_annotation_id += 1
 
-                        src_set_ids = io.load_json(src_set_file_path)
-                        src_set_ids = [set_id + start_image_id for set_id in src_set_ids]
-                        set_ids.extend(src_set_ids)
+                        category_name = src_ds.categories[annotation.category_id].name
+                        annotation.category_id = category2id[category_name]
 
-                        io.save_json(set_ids, tar_set_file_path, True)
+                        merged_ds.add_annotations([annotation])
 
         except Exception as e:
-            if ds.dataset_dir.exists():
-                io.remove_directory(ds.dataset_dir)
+            if merged_ds.dataset_dir.exists():
+                io.remove_directory(merged_ds.dataset_dir)
             raise e
 
         return Dataset.load(name, root_dir)
