@@ -1,3 +1,4 @@
+from collections import Counter
 from pathlib import Path
 
 import pytest
@@ -304,12 +305,11 @@ def test_merge(coco_path, tmpdir):
         root_dir=tmpdir,
     )
 
-    category_1_num = len(
-        [0 for annotation in ds1.annotations.values() if annotation.category_id == 1]
-    )
-    category_2_num = len(
-        [0 for annotation in ds1.annotations.values() if annotation.category_id == 2]
-    )
+    cateids_of_ann = [annotation.category_id for annotation in ds1.annotations.values()]
+    category_counts = Counter(cateids_of_ann)
+
+    category_1_num = category_counts[1]
+    category_2_num = category_counts[2]
 
     ds = Dataset.merge(
         name="merge",
@@ -319,19 +319,17 @@ def test_merge(coco_path, tmpdir):
         task=TaskType.OBJECT_DETECTION,
     )
 
+    cateids_of_ann = [annotation.category_id for annotation in ds.annotations.values()]
+    category_counts = Counter(cateids_of_ann)
+
     assert (ds.raw_image_dir).exists()
     assert len(ds.images) == 100
     assert len(ds.annotations) == 100
     assert len(ds.categories) == 2
-    assert (
-        len([0 for annotation in ds.annotations.values() if annotation.category_id == 1])
-        == category_1_num
-    )
-    assert (
-        len([0 for annotation in ds.annotations.values() if annotation.category_id == 2])
-        == category_2_num
-    )
+    assert category_counts[1] == category_1_num
+    assert category_counts[2] == category_2_num
 
+    # test merge with different category name
     category = load_json(ds1.category_dir / "1.json")
     category["name"] = "one"
     save_json(category, ds1.category_dir / "1.json")
@@ -344,19 +342,13 @@ def test_merge(coco_path, tmpdir):
         task=TaskType.OBJECT_DETECTION,
     )
 
+    cateids_of_ann = [annotation.category_id for annotation in ds.annotations.values()]
+    category_counts = Counter(cateids_of_ann)
+
     assert len(ds.images) == 100
     assert len(ds.annotations) == 100 + category_1_num
     assert len(ds.categories) == 3
 
-    assert (
-        len([0 for annotation in ds.annotations.values() if annotation.category_id == 1])
-        == category_1_num
-    )
-    assert (
-        len([0 for annotation in ds.annotations.values() if annotation.category_id == 2])
-        == category_2_num
-    )
-    assert (
-        len([0 for annotation in ds.annotations.values() if annotation.category_id == 3])
-        == category_1_num
-    )
+    assert category_counts[1] == category_1_num
+    assert category_counts[2] == category_2_num
+    assert category_counts[3] == category_1_num

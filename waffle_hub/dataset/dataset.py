@@ -358,7 +358,7 @@ class Dataset:
 
                 # merge - raw images
                 io.copy_files_to_directory(
-                    src_ds.raw_image_dir, f"{merged_ds.raw_image_dir}", create_directory=True
+                    src_ds.raw_image_dir, merged_ds.raw_image_dir, create_directory=True
                 )
 
                 # merge - categories
@@ -371,48 +371,44 @@ class Dataset:
                         new_category.category_id = new_category_id
                         merged_ds.add_categories([new_category])
 
-                # merge - images
-                for image in src_ds.images.values():
+                for image_id, annotations in src_ds.image_to_annotations.items():
+                    image = src_ds.images[image_id]
+
+                    # merge - images
                     is_new_image = False
-                    src_image_id = image.image_id
                     if image.file_name not in filename2id:
+                        is_new_image = True
+
                         new_image_id = len(filename2id) + 1
                         filename2id[image.file_name] = new_image_id
 
                         new_image = copy.deepcopy(image)
                         new_image.image_id = new_image_id
                         merged_ds.add_images([new_image])
-                        is_new_image = True
 
-                    image_id = filename2id[image.file_name]
+                    new_image_id = filename2id[image.file_name]
 
                     # merge - annotations
-                    # if new image, just add annotations
-                    if is_new_image:
-                        for src_ann in src_ds.image_to_annotations[src_image_id]:
-                            new_annotation = copy.deepcopy(src_ann)
-                            new_annotation.image_id = image_id
+                    for annotation in annotations:
+                        new_annotation = copy.deepcopy(annotation)
+                        new_annotation.category_id = categoryname2id[
+                            src_ds.categories[annotation.category_id].name
+                        ]
+
+                        # check if new annotation
+                        is_new_annotation = True
+                        if not is_new_image:
+                            for merged_ann in merged_ds.image_to_annotations[new_image_id]:
+                                if new_annotation == merged_ann:
+                                    is_new_annotation = False
+                                    break
+
+                        # merge
+                        if is_new_annotation:
+                            new_annotation.image_id = filename2id[image.file_name]
                             new_annotation.annotation_id = new_annotation_id
-                            new_annotation.category_id = categoryname2id[
-                                src_ds.category_names[src_ann.category_id - 1]
-                            ]
                             new_annotation_id += 1
                             merged_ds.add_annotations([new_annotation])
-                    # if existing image, check if annotation is already exist
-                    else:
-                        for src_ann in src_ds.image_to_annotations[src_image_id]:
-                            new_annotation = copy.deepcopy(src_ann)
-                            new_annotation.category_id = categoryname2id[
-                                src_ds.category_names[src_ann.category_id - 1]
-                            ]
-                            for merged_ann in merged_ds.image_to_annotations[image_id]:
-                                if new_annotation == merged_ann:
-                                    break
-                            else:
-                                new_annotation.image_id = image_id
-                                new_annotation.annotation_id = new_annotation_id
-                                new_annotation_id += 1
-                                merged_ds.add_annotations([new_annotation])
 
         except Exception as e:
             if merged_ds.dataset_dir.exists():
