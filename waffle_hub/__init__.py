@@ -30,7 +30,7 @@ except ModuleNotFoundError as e:
 _backends = OrderedDict(
     {
         "ultralytics": ["8.0.87"],
-        "autocare_tx_model": ["0.2.0"],
+        "autocare_dlt": ["0.2.3"],
         "transformers": ["4.27.4"],
     }
 )
@@ -141,8 +141,7 @@ class DataType(BaseEnum):
     ULTRALYTICS = enum.auto()
 
     COCO = enum.auto()
-    TX_MODEL = enum.auto()
-    AUTOCARE_TX_MODEL = enum.auto()
+    AUTOCARE_DLT = enum.auto()
 
     HUGGINGFACE = enum.auto()
     TRANSFORMERS = enum.auto()

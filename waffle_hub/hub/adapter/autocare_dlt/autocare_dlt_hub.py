@@ -5,7 +5,7 @@ See BaseHub documentation for more details about usage.
 
 from waffle_hub import get_installed_backend_version
 
-BACKEND_NAME = "autocare_tx_model"
+BACKEND_NAME = "autocare_dlt"
 BACKEND_VERSION = get_installed_backend_version(BACKEND_NAME)
 
 import warnings
@@ -14,14 +14,15 @@ from typing import Union
 
 import tbparse
 import torch
-from attrdict import AttrDict
-from autocare_tx_model.core.model import build_model
-from autocare_tx_model.tools import train
+from autocare_dlt.core.model import build_model
+from autocare_dlt.tools import train
+from box import Box
 from torchvision import transforms as T
 from waffle_utils.file import io
+from waffle_utils.utils import type_validator
 
 from waffle_hub import TaskType
-from waffle_hub.hub.adapter.tx_model.configs import (
+from waffle_hub.hub.adapter.autocare_dlt.configs import (
     get_data_config,
     get_model_config,
 )
@@ -33,7 +34,7 @@ from waffle_hub.utils.callback import TrainCallback
 from .config import DATA_TYPE_MAP, DEFAULT_PARAMAS, MODEL_TYPES, WEIGHT_PATH
 
 
-class TxModelHub(BaseHub):
+class AutocareDLTHub(BaseHub):
     MODEL_TYPES = MODEL_TYPES
     DATA_TYPE_MAP = DATA_TYPE_MAP
     WEIGHT_PATH = WEIGHT_PATH
@@ -50,7 +51,7 @@ class TxModelHub(BaseHub):
         backend: str = None,
         version: str = None,
     ):
-        """Create Tx Model Hub Class. Do not use this class directly. Use TxModelHub.new() instead."""
+        """Create Tx Model Hub Class. Do not use this class directly. Use AutocareDLTHub.new() instead."""
 
         if backend is not None and backend != BACKEND_NAME:
             raise ValueError(f"you've loaded {backend}. backend must be {BACKEND_NAME}")
@@ -100,6 +101,24 @@ class TxModelHub(BaseHub):
             categories=categories,
             root_dir=root_dir,
         )
+
+    @property
+    def categories(self) -> list[dict]:
+        return self.__categories
+
+    @categories.setter
+    @type_validator(list)
+    def categories(self, v):
+        if isinstance(v[0], str):
+            v = [{"supercategory": "object", "name": n} for n in v]
+        elif isinstance(v[0], dict) and "supercategory" not in v[0]:
+            # TODO: Temporal solution for DLT classification: Not supported multi-task yet.
+            v_ = []
+            for k, cls in v[0].items():
+                for c in cls:
+                    v_.append({"supercategory": k, "name": c})
+            v = v_
+        self.__categories = v
 
     # Hub Utils
     def get_preprocess(self, *args, **kwargs):
@@ -184,11 +203,16 @@ class TxModelHub(BaseHub):
 
         cfg.data_config = self.artifact_dir / "data.json"
         io.save_json(data_config, cfg.data_config, create_directory=True)
+        categories = (
+            self.categories
+            if self._BaseHub__task == "classification"
+            else [x["name"] for x in self.categories]
+        )
 
         model_config = get_model_config(
             self.model_type,
             self.model_size,
-            [x["name"] for x in self.categories],
+            categories,
             cfg.seed,
             cfg.learning_rate,
             cfg.letter_box,
@@ -255,7 +279,7 @@ class TxModelHub(BaseHub):
         cfg["ckpt"] = str(self.best_ckpt_file)
         cfg["model"]["head"]["num_classes"] = len(categories)
         cfg["num_classes"] = len(categories)
-        model, categories = build_model(AttrDict(cfg), strict=True)
+        model, categories = build_model(Box(cfg), strict=True)
 
         model = ModelWrapper(
             model=model.eval(),

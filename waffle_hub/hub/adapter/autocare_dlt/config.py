@@ -15,16 +15,16 @@ DATA_TYPE_MAP = {
 WEIGHT_PATH = {
     "object_detection": {
         "YOLOv5": {
-            "s": "temp/autocare_tx_model/detectors/small/model.pth",
-            "m": "temp/autocare_tx_model/detectors/medium/model.pth",
-            "l": "temp/autocare_tx_model/detectors/large/model.pth",
+            "s": "temp/autocare_dlt/detectors/small/model.pth",
+            "m": "temp/autocare_dlt/detectors/medium/model.pth",
+            "l": "temp/autocare_dlt/detectors/large/model.pth",
         }
     },
     "classification": {
         "Classifier": {
-            "s": "temp/autocare_tx_model/classifiers/small/model.pth",
-            "m": "temp/autocare_tx_model/classifiers/medium/model.pth",
-            "l": "temp/autocare_tx_model/classifiers/large/model.pth",
+            "s": "temp/autocare_dlt/classifiers/small/model.pth",
+            "m": "temp/autocare_dlt/classifiers/medium/model.pth",
+            "l": "temp/autocare_dlt/classifiers/large/model.pth",
         }
     },
 }
