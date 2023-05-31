@@ -316,6 +316,7 @@ def test_merge(coco_path, tmpdir):
         src_names=["ds1", "ds2"],
         src_root_dirs=[tmpdir, tmpdir],
         root_dir=tmpdir,
+        task=TaskType.OBJECT_DETECTION,
     )
 
     assert (ds.raw_image_dir).exists()
@@ -340,11 +341,13 @@ def test_merge(coco_path, tmpdir):
         src_names=["ds1", "ds2"],
         src_root_dirs=[tmpdir, tmpdir],
         root_dir=tmpdir,
+        task=TaskType.OBJECT_DETECTION,
     )
 
     assert len(ds.images) == 100
     assert len(ds.annotations) == 100 + category_1_num
     assert len(ds.categories) == 3
+
     assert (
         len([0 for annotation in ds.annotations.values() if annotation.category_id == 1])
         == category_1_num
