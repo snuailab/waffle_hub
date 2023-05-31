@@ -264,13 +264,6 @@ class BaseHub:
     def categories(self, v):
         if isinstance(v[0], str):
             v = [{"supercategory": "object", "name": n} for n in v]
-        elif isinstance(v[0], dict) and "supercategory" not in v[0]:
-            # Temporal solution for DLT classification: Not supported multi-task yet.
-            v_ = []
-            for k, cls in v[0].items():
-                for c in cls:
-                    v_.append({"supercategory": k, "name": c})
-            v = v_
         self.__categories = v
 
     @property

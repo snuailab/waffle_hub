@@ -19,6 +19,7 @@ from autocare_dlt.tools import train
 from box import Box
 from torchvision import transforms as T
 from waffle_utils.file import io
+from waffle_utils.utils import type_validator
 
 from waffle_hub import TaskType
 from waffle_hub.hub.adapter.autocare_dlt.configs import (
@@ -100,6 +101,24 @@ class AutocareDLTHub(BaseHub):
             categories=categories,
             root_dir=root_dir,
         )
+
+    @property
+    def categories(self) -> list[dict]:
+        return self.__categories
+
+    @categories.setter
+    @type_validator(list)
+    def categories(self, v):
+        if isinstance(v[0], str):
+            v = [{"supercategory": "object", "name": n} for n in v]
+        elif isinstance(v[0], dict) and "supercategory" not in v[0]:
+            # TODO: Temporal solution for DLT classification: Not supported multi-task yet.
+            v_ = []
+            for k, cls in v[0].items():
+                for c in cls:
+                    v_.append({"supercategory": k, "name": c})
+            v = v_
+        self.__categories = v
 
     # Hub Utils
     def get_preprocess(self, *args, **kwargs):
