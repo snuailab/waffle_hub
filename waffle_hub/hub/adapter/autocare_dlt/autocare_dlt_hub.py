@@ -14,9 +14,9 @@ from typing import Union
 
 import tbparse
 import torch
-from attrdict import AttrDict
 from autocare_dlt.core.model import build_model
 from autocare_dlt.tools import train
+from box import Box
 from torchvision import transforms as T
 from waffle_utils.file import io
 
@@ -184,11 +184,16 @@ class AutocareDLTHub(BaseHub):
 
         cfg.data_config = self.artifact_dir / "data.json"
         io.save_json(data_config, cfg.data_config, create_directory=True)
+        categories = (
+            self.categories
+            if self._BaseHub__task == "classification"
+            else [x["name"] for x in self.categories]
+        )
 
         model_config = get_model_config(
             self.model_type,
             self.model_size,
-            [x["name"] for x in self.categories],
+            categories,
             cfg.seed,
             cfg.learning_rate,
             cfg.letter_box,
@@ -255,7 +260,7 @@ class AutocareDLTHub(BaseHub):
         cfg["ckpt"] = str(self.best_ckpt_file)
         cfg["model"]["head"]["num_classes"] = len(categories)
         cfg["num_classes"] = len(categories)
-        model, categories = build_model(AttrDict(cfg), strict=True)
+        model, categories = build_model(Box(cfg), strict=True)
 
         model = ModelWrapper(
             model=model.eval(),

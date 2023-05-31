@@ -26,7 +26,7 @@ evaluate==0.4.0
 timm==0.6.13
 
 #autocare dlt
-autocare-dlt==0.2.2
+autocare-dlt==0.2.3
 
 # etc
 torchmetrics>=0.11.4
