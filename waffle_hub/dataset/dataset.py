@@ -1,18 +1,20 @@
 import logging
 import random
+import shutil
 import warnings
 from collections import OrderedDict, defaultdict
 from functools import cached_property
 from itertools import combinations
 from math import ceil, floor
 from pathlib import Path
+from tempfile import mkdtemp
 from typing import Union
 
 import cv2
 import PIL.Image
 import tqdm
 from pycocotools.coco import COCO
-from waffle_utils.file import io
+from waffle_utils.file import io, network
 from waffle_utils.file.search import get_files, get_image_files
 from waffle_utils.log import datetime_now
 from waffle_utils.utils import type_validator
@@ -750,6 +752,39 @@ class Dataset:
 
         # TODO: add unlabeled set
         io.save_json([], ds.unlabeled_set_file, create_directory=True)
+
+        return ds
+
+    @classmethod
+    def sample(cls, name: str, task: str, root_dir: str = None) -> "Dataset":
+        """
+        Import sample Dataset.
+
+        Args:
+            name (str): Dataset name.
+            task (str): Task name.
+            root_dir (str, optional): Dataset root directory. Defaults to None.
+
+        Returns:
+            Dataset: Dataset Class
+        """
+        try:
+            url = "https://raw.githubusercontent.com/snuailab/assets/main/waffle/sample_dataset/mnist.zip"
+            temp_dir = Path(mkdtemp())
+            network.get_file_from_url(url, temp_dir / "mnist.zip")
+            io.unzip(temp_dir / "mnist.zip", temp_dir)
+
+            ds = Dataset.from_coco(
+                name=name,
+                root_dir=root_dir,
+                task=task,
+                coco_file=str(temp_dir / "coco.json"),
+                coco_root_dir=str(temp_dir / "images"),
+            )
+        except Exception as e:
+            raise e
+        finally:
+            shutil.rmtree(temp_dir)
 
         return ds
 
