@@ -25,7 +25,11 @@ albumentations==1.3.0
 evaluate==0.4.0
 timm==0.6.13
 
+#autocare dlt
+autocare-dlt==0.2.3
+
 # etc
 torchmetrics>=0.11.4
 pycocotools>=2.0.2
 py-cpuinfo>=8.0.0
+shapely>=2.0.0

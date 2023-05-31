@@ -1,5 +1,6 @@
 from typing import Union
 
+from shapely import Polygon
 from waffle_utils.utils import type_validator
 
 from waffle_hub import TaskType
@@ -95,23 +96,11 @@ class Annotation(BaseField):
         return self.__segmentation
 
     @segmentation.setter
-    # XXX: dict->rle, list->polygon
     def segmentation(self, v):
-        if isinstance(v, dict):
-            v: list = convert_rle_to_polygon(v)
         if v:
             for segment in v:
                 if len(segment) % 2 != 0:
                     raise ValueError("the length of segmentation should be divisible by 2.")
-
-            if self.bbox is None:
-                xs = [x for segment in v for x in segment[::2]]
-                ys = [y for segment in v for y in segment[1::2]]
-                x1 = min(xs)
-                y1 = min(ys)
-                w = max(xs) - x1
-                h = max(ys) - y1
-                self.bbox = [x1, y1, w, h]
 
         self.__segmentation = v
 
@@ -301,6 +290,10 @@ class Annotation(BaseField):
         Returns:
             Annotation: annotation class
         """
+
+        if area is None:
+            area = bbox[2] * bbox[3]
+
         return cls(
             annotation_id,
             image_id,
@@ -319,7 +312,7 @@ class Annotation(BaseField):
         image_id: int = None,
         category_id: int = None,
         bbox: list[float] = None,
-        segmentation: list[list[float]] = None,
+        segmentation: Union[list[list[float]], dict] = None,
         area: int = None,
         iscrowd: int = 0,
         score: float = None,
@@ -332,7 +325,7 @@ class Annotation(BaseField):
             image_id (int): image id. natural number.
             category_id (int): category id. natural number.
             bbox (list[float]): [x1, y1, w, h].
-            segmentation (list[list[float]]): [[x1, y1, x2, y2, x3, y3, ...], [polygon]].
+            segmentation (Union[list[list[float]], dict]): [[x1, y1, x2, y2, x3, y3, ...], [polygon]] or RLE.
             area (int): segmentation segmentation area.
             iscrowd (int, optional): is crowd or not. Default to 0.
             score (float, optional): prediction score. Default to None.
@@ -340,6 +333,24 @@ class Annotation(BaseField):
         Returns:
             Annotation: annotation class
         """
+
+        if isinstance(segmentation, dict):
+            segmentation = convert_rle_to_polygon(segmentation)
+
+        if bbox is None:
+            xs = [x for polygon in segmentation for x in polygon[::2]]
+            ys = [y for polygon in segmentation for y in polygon[1::2]]
+            x1 = min(xs)
+            y1 = min(ys)
+            w = max(xs) - x1
+            h = max(ys) - y1
+            bbox = [x1, y1, w, h]
+
+        if area is None:
+            area = 0
+            for polygon in segmentation:
+                area += Polygon([(x, y) for x, y in zip(polygon[::2], polygon[1::2])]).area
+
         return cls(
             annotation_id,
             image_id,
@@ -359,7 +370,7 @@ class Annotation(BaseField):
         image_id: int = None,
         category_id: int = None,
         bbox: list[float] = None,
-        segmentation: list[list[float]] = None,
+        segmentation: Union[list[list[float]], dict] = None,
         area: int = None,
         iscrowd: int = 0,
         score: float = None,
@@ -372,7 +383,7 @@ class Annotation(BaseField):
             image_id (int): image id. natural number.
             category_id (int): category id. natural number.
             bbox (list[float]): [x1, y1, w, h].
-            segmentation (list[list[float]]): [[x1, y1, x2, y2, x3, y3, ...], [polygon]].
+            segmentation (Union[list[list[float]], dict]): [[x1, y1, x2, y2, x3, y3, ...], [polygon]] or RLE.
             area (int): segmentation segmentation area.
             iscrowd (int, optional): is crowd or not. Default to 0.
             score (float, optional): prediction score. Default to None.
@@ -380,6 +391,24 @@ class Annotation(BaseField):
         Returns:
             Annotation: annotation class
         """
+
+        if isinstance(segmentation, dict):
+            segmentation = convert_rle_to_polygon(segmentation)
+
+        if bbox is None:
+            xs = [x for polygon in segmentation for x in polygon[::2]]
+            ys = [y for polygon in segmentation for y in polygon[1::2]]
+            x1 = min(xs)
+            y1 = min(ys)
+            w = max(xs) - x1
+            h = max(ys) - y1
+            bbox = [x1, y1, w, h]
+
+        if area is None:
+            area = 0
+            for polygon in segmentation:
+                area += Polygon([(x, y) for x, y in zip(polygon[::2], polygon[1::2])]).area
+
         return cls(
             annotation_id,
             image_id,

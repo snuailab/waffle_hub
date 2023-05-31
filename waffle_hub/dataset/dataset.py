@@ -1111,8 +1111,7 @@ class Dataset:
             export_function = export_yolo
         elif data_type in [
             DataType.COCO,
-            DataType.TX_MODEL,
-            DataType.AUTOCARE_TX_MODEL,
+            DataType.AUTOCARE_DLT,
         ]:
             export_dir: Path = self.export_dir / str(DataType.COCO)
             export_function = export_coco
