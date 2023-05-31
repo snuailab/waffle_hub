@@ -768,6 +768,13 @@ class Dataset:
         Returns:
             Dataset: Dataset Class
         """
+        if task not in [
+            TaskType.CLASSIFICATION,
+            TaskType.OBJECT_DETECTION,
+            TaskType.INSTANCE_SEGMENTATION,
+        ]:
+            raise NotImplementedError(f"not supported task: {task}")
+
         try:
             url = "https://raw.githubusercontent.com/snuailab/assets/main/waffle/sample_dataset/mnist.zip"
             temp_dir = Path(mkdtemp())

@@ -303,3 +303,18 @@ def test_labled_dataloader(coco_path, tmpdir):
 
     image, image_info, annotations = labeled_dataset[0]
     assert hasattr(annotations[0], "bbox")
+
+
+# etc
+def test_sample(tmpdir):
+    for task_type in TaskType:
+        try:
+            Dataset.sample(
+                name=f"sample_{task_type}",
+                root_dir=tmpdir,
+                task=task_type,
+            )
+        except NotImplementedError:
+            continue
+
+        assert (tmpdir / f"sample_{task_type}").exists()
