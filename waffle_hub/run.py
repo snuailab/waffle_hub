@@ -1,16 +1,12 @@
-from typing import List, Union
+from typing import List
 
 import typer
 from rich import print
-from waffle_utils.file.search import get_image_files
-from waffle_utils.image.io import load_image
 
-from waffle_hub import TaskType
 from waffle_hub.dataset.dataset import Dataset
 from waffle_hub.hub.adapter.autocare_dlt import AutocareDLTHub
 from waffle_hub.hub.adapter.hugging_face import HuggingFaceHub
 from waffle_hub.hub.adapter.ultralytics import UltralyticsHub
-from waffle_hub.schema.fields import Annotation, Category, Image
 
 dataset = typer.Typer(name="dataset")
 hub = typer.Typer(name="hub")
@@ -422,52 +418,6 @@ def _get_categories_dataset(
 
     for category in categories:
         print(category.to_dict())
-
-
-@dataset.command(name="add_images")
-def _add_images_dataset(
-    name: str = typer.Option(..., help="Name of the dataset"),
-    root_dir: str = typer.Option(..., help="Root directory"),
-    image_dir: str = typer.Option(..., help="Images directory"),
-):
-    ds = Dataset.load(
-        name=name,
-        root_dir=root_dir,
-    )
-
-    new_image_id = len(ds.images)
-    for image_id, image_path in enumerate(get_image_files(image_dir), start=new_image_id + 1):
-        image = load_image(image_path)
-        h, w, _ = image.shape
-        image_info = Image.new(
-            image_id=image_id,
-            file_name=str(image_path),
-            width=w,
-            height=h,
-            task=ds.task,
-        )
-        ds.add_images([image_info])
-
-
-@dataset.command(name="add_categories")
-def _add_categories_dataset(
-    name: str = typer.Option(..., help="Name of the dataset"),
-    root_dir: str = typer.Option(..., help="Root directory"),
-    category_names: list[str] = typer.Option(..., help="category names"),
-):
-    ds = Dataset.load(
-        name=name,
-        root_dir=root_dir,
-    )
-
-    new_category_id = len(ds.categories)
-    for category_id, category_name in enumerate(category_names, start=new_category_id + 1):
-        category = Category.new(
-            category_id=category_id,
-            name=category_name,
-            task=ds.task,
-        )
-        ds.add_categories([category])
 
 
 if __name__ == "__main__":
