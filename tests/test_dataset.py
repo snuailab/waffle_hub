@@ -1,6 +1,8 @@
+from collections import Counter
 from pathlib import Path
 
 import pytest
+from waffle_utils.file.io import load_json, save_json
 
 from waffle_hub import TaskType
 from waffle_hub.dataset import Dataset
@@ -303,3 +305,68 @@ def test_labled_dataloader(coco_path, tmpdir):
 
     image, image_info, annotations = labeled_dataset[0]
     assert hasattr(annotations[0], "bbox")
+
+
+def test_merge(coco_path, tmpdir):
+    ds1 = Dataset.from_coco(
+        name="ds1",
+        task=TaskType.OBJECT_DETECTION,
+        coco_file=coco_path / "coco.json",
+        coco_root_dir=coco_path / "images",
+        root_dir=tmpdir,
+    )
+    ds2 = Dataset.from_coco(
+        name="ds2",
+        task=TaskType.OBJECT_DETECTION,
+        coco_file=coco_path / "coco.json",
+        coco_root_dir=coco_path / "images",
+        root_dir=tmpdir,
+    )
+
+    cateids_of_ann = [annotation.category_id for annotation in ds1.annotations.values()]
+    category_counts = Counter(cateids_of_ann)
+
+    category_1_num = category_counts[1]
+    category_2_num = category_counts[2]
+
+    ds = Dataset.merge(
+        name="merge",
+        src_names=["ds1", "ds2"],
+        src_root_dirs=[tmpdir, tmpdir],
+        root_dir=tmpdir,
+        task=TaskType.OBJECT_DETECTION,
+    )
+
+    cateids_of_ann = [annotation.category_id for annotation in ds.annotations.values()]
+    category_counts = Counter(cateids_of_ann)
+
+    assert (ds.raw_image_dir).exists()
+    assert len(ds.images) == 100
+    assert len(ds.annotations) == 100
+    assert len(ds.categories) == 2
+    assert category_counts[1] == category_1_num
+    assert category_counts[2] == category_2_num
+
+    # test merge with different category name
+    category = load_json(ds1.category_dir / "1.json")
+    category["name"] = "one"
+    save_json(category, ds1.category_dir / "1.json")
+
+    ds = Dataset.merge(
+        name="merge2",
+        src_names=["ds1", "ds2"],
+        src_root_dirs=[tmpdir, tmpdir],
+        root_dir=tmpdir,
+        task=TaskType.OBJECT_DETECTION,
+    )
+
+    cateids_of_ann = [annotation.category_id for annotation in ds.annotations.values()]
+    category_counts = Counter(cateids_of_ann)
+
+    assert len(ds.images) == 100
+    assert len(ds.annotations) == 100 + category_1_num
+    assert len(ds.categories) == 3
+
+    assert category_counts[1] == category_1_num
+    assert category_counts[2] == category_2_num
+    assert category_counts[3] == category_1_num
