@@ -100,6 +100,41 @@ def get_model_config(
             "num_classes": len(categories),
         }
 
+    elif model_type == "TextRecognition":
+        if model_size == "s":
+            backbone = "resnet18"
+        elif model_size == "m":
+            backbone = "resnet34"
+        elif model_size == "l":
+            backbone = "resnet50"
+
+        return {
+            "task": model_type,
+            "model": {
+                "Transformation": {"name": None},
+                "FeatureExtraction": {"name": "resnet18", "feature_index": 3, "output_size": 256},
+                "SequenceModeling": {"name": "BiLSTM", "input_size": 256, "hidden_size": 256},
+                "Prediction": {"name": "CTC", "input_size": 256},
+                "max_string_length": 10,
+            },
+            "loss": {"str_loss": {"name": "STRCTCLoss", "params": {}}},
+            "optim": {
+                "name": "SGD",
+                "lr": learning_rate,
+                "momentum": 0.9,
+                "weight_decay": 0.0001,
+            },
+            "lr_cfg": {"type": "cosine"},
+            "use_model_ema": True,
+            "max_epoch": epochs,
+            "seed": seed,
+            "categories": categories,
+            "classes": categories,
+            "num_classes": len(categories),
+        }
+    else:
+        raise NotImplementedError(f"Model type {model_type} not implemented.")
+
 
 def get_multi_task_categories(categories: list[dict]):
     multi_task_categories = []
