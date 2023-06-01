@@ -1,3 +1,4 @@
+import copy
 import logging
 import random
 import shutil
@@ -306,6 +307,117 @@ class Dataset:
             raise FileNotFoundError(f"{dataset_info_file} has not been created.")
         dataset_info = DatasetInfo.load(dataset_info_file)
         return cls(**dataset_info.to_dict(), root_dir=root_dir)
+
+    @classmethod
+    def merge(
+        cls,
+        name: str,
+        root_dir: str,
+        src_names: list[str],
+        src_root_dirs: Union[str, list[str]],
+        task: str,
+    ) -> "Dataset":
+        """
+        Merge Datasets.
+        This method merges multiple datasets into one dataset.
+
+        Args:
+            name (str): New Dataset name
+            root_dir (str): New Dataset root directory
+            src_names (list[str]): Source Dataset names
+            src_root_dirs (Union[str, list[str]]): Source Dataset root directories
+            task (str): Dataset task
+
+        Returns:
+            Dataset: Dataset Class
+
+        """
+        if isinstance(src_root_dirs, str):
+            src_root_dirs = [src_root_dirs] * len(src_names)
+        if len(src_names) != len(src_root_dirs):
+            raise ValueError("Length of src_names and src_root_dirs should be same.")
+        if isinstance(task, str):
+            task = task.upper()
+        if task not in [k for k in TaskType]:
+            raise ValueError(f"task should be one of {[k for k in TaskType]}")
+
+        merged_ds = Dataset.new(
+            name=name,
+            root_dir=root_dir,
+            task=task,
+        )
+
+        categoryname2id = {}
+        filename2id = {}
+        new_annotation_id = 1
+
+        try:
+            for src_name, src_root_dir in zip(src_names, src_root_dirs):
+                src_ds = Dataset.load(src_name, src_root_dir)
+
+                if src_ds.task != task:
+                    raise ValueError(f"Task of {src_ds.name} is {src_ds.task}. It should be {task}.")
+
+                # merge - raw images
+                io.copy_files_to_directory(
+                    src_ds.raw_image_dir, merged_ds.raw_image_dir, create_directory=True
+                )
+
+                # merge - categories
+                for category in src_ds.categories.values():
+                    if category.name not in categoryname2id:
+                        new_category_id = len(categoryname2id) + 1
+                        categoryname2id[category.name] = new_category_id
+
+                        new_category = copy.deepcopy(category)
+                        new_category.category_id = new_category_id
+                        merged_ds.add_categories([new_category])
+
+                for image_id, annotations in src_ds.image_to_annotations.items():
+                    image = src_ds.images[image_id]
+
+                    # merge - images
+                    is_new_image = False
+                    if image.file_name not in filename2id:
+                        is_new_image = True
+
+                        new_image_id = len(filename2id) + 1
+                        filename2id[image.file_name] = new_image_id
+
+                        new_image = copy.deepcopy(image)
+                        new_image.image_id = new_image_id
+                        merged_ds.add_images([new_image])
+
+                    new_image_id = filename2id[image.file_name]
+
+                    # merge - annotations
+                    for annotation in annotations:
+                        new_annotation = copy.deepcopy(annotation)
+                        new_annotation.category_id = categoryname2id[
+                            src_ds.categories[annotation.category_id].name
+                        ]
+
+                        # check if new annotation
+                        is_new_annotation = True
+                        if not is_new_image:
+                            for merged_ann in merged_ds.image_to_annotations[new_image_id]:
+                                if new_annotation == merged_ann:
+                                    is_new_annotation = False
+                                    break
+
+                        # merge
+                        if is_new_annotation:
+                            new_annotation.image_id = filename2id[image.file_name]
+                            new_annotation.annotation_id = new_annotation_id
+                            new_annotation_id += 1
+                            merged_ds.add_annotations([new_annotation])
+
+        except Exception as e:
+            if merged_ds.dataset_dir.exists():
+                io.remove_directory(merged_ds.dataset_dir)
+            raise e
+
+        return Dataset.load(name, root_dir)
 
     @classmethod
     def from_coco(
