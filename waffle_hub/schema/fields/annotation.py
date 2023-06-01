@@ -179,6 +179,30 @@ class Annotation(BaseField):
             raise ValueError(f"Invalid task type: {v}" f"Available task types: {list(TaskType)}")
         self.__task = str(v).upper()
 
+    def __eq__(self, other):
+        if not isinstance(other, Annotation):
+            return False
+
+        if self.task == TaskType.CLASSIFICATION:
+            return self.category_id == other.category_id
+
+        elif self.task == TaskType.OBJECT_DETECTION:
+            return (
+                self.category_id == other.category_id
+                and self.bbox == other.bbox
+                and self.iscrowd == other.iscrowd
+            )
+
+        elif self.task == TaskType.INSTANCE_SEGMENTATION:
+            return (
+                self.category_id == other.category_id
+                and self.segmentation == other.segmentation
+                and self.iscrowd == other.iscrowd
+            )
+
+        else:
+            raise NotImplementedError(f"Task type {self.task} is not supported.")
+
     # factories
     @classmethod
     def new(
