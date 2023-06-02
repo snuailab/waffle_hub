@@ -1,6 +1,8 @@
+from collections import Counter
 from pathlib import Path
 
 import pytest
+from waffle_utils.file.io import load_json, save_json
 
 from waffle_hub import TaskType
 from waffle_hub.dataset import Dataset
@@ -24,6 +26,14 @@ def test_annotation():
     )
     assert not a.is_prediction()
 
+    a = Annotation.object_detection(
+        annotation_id=1,
+        image_id=1,
+        category_id=1,
+        bbox=bbox,
+    )
+    assert a.area == 10000
+
     a.score = 0.4
     assert a.is_prediction()
 
@@ -46,6 +56,16 @@ def test_annotation():
         area=10000,
     )
     assert a.bbox == [110, 110, 20, 20]
+    assert a.area == 10000
+
+    a = Annotation.instance_segmentation(
+        annotation_id=1,
+        image_id=1,
+        category_id=1,
+        segmentation=segmentation,
+    )
+    assert a.bbox == [110, 110, 20, 20]
+    assert a.area == 200
 
     # keypoint detection
     a = Annotation.keypoint_detection(
@@ -145,11 +165,11 @@ def _split(dataset_name, root_dir):
 
     dataset.split(0.99999999999999, 0.0)
     train_ids, val_ids, test_ids, unlabeled_ids = dataset.get_split_ids()
-    assert len(train_ids) == 99 and len(val_ids) == 1 and len(test_ids) == 1
+    assert len(dataset.categories) == len(val_ids) == len(test_ids)
 
     dataset.split(0.00000000000001, 0.0)
     train_ids, val_ids, test_ids, unlabeled_ids = dataset.get_split_ids()
-    assert len(train_ids) == 1 and len(val_ids) == 99 and len(test_ids) == 99
+    assert len(dataset.categories) == len(train_ids)
 
     with pytest.raises(ValueError):
         dataset.split(0.0, 0.2)
@@ -160,6 +180,7 @@ def _split(dataset_name, root_dir):
 
 def _export(dataset_name, task: TaskType, root_dir):
     dataset = Dataset.load(dataset_name, root_dir=root_dir)
+    dataset.split(0.05)
 
     if task in [TaskType.OBJECT_DETECTION, TaskType.INSTANCE_SEGMENTATION, TaskType.CLASSIFICATION]:
         dataset.export("coco")
@@ -167,6 +188,39 @@ def _export(dataset_name, task: TaskType, root_dir):
         dataset.export("yolo")
     if task in [TaskType.OBJECT_DETECTION, TaskType.CLASSIFICATION]:
         dataset.export("huggingface")
+
+
+# test dummy
+def _dummy(dataset_name, task: TaskType, image_num, category_num, unlabeled_image_num, root_dir):
+    dataset = Dataset.dummy(
+        name=dataset_name,
+        task=task,
+        image_num=image_num,
+        category_num=category_num,
+        unlabeld_image_num=unlabeled_image_num,
+        root_dir=root_dir,
+    )
+    assert len(dataset.images) == image_num
+    assert len(dataset.categories) == category_num
+    assert len(dataset.unlabeled_images) == unlabeled_image_num
+
+
+def _total_dummy(
+    dataset_name, task: TaskType, image_num, category_num, unlabeled_image_num, root_dir
+):
+    _dummy(dataset_name, task, image_num, category_num, unlabeled_image_num, root_dir)
+    _load(dataset_name, root_dir)
+    _clone(dataset_name, root_dir)
+    _split(dataset_name, root_dir)
+    _export(dataset_name, task, root_dir)
+
+
+def test_dummy(tmpdir):
+    for task in [TaskType.CLASSIFICATION, TaskType.OBJECT_DETECTION, TaskType.INSTANCE_SEGMENTATION]:
+        _total_dummy(f"dummy_{task}", task, 100, 5, 10, tmpdir)
+
+    with pytest.raises(ValueError):
+        _total_dummy("dummy", TaskType.CLASSIFICATION, 3, 3, 0, tmpdir)
 
 
 # test coco
@@ -281,7 +335,85 @@ def test_labled_dataloader(coco_path, tmpdir):
 
     ds.split(0.8)
     labeled_dataset = LabeledDataset(ds, 224, set_name="train")
-    assert len(labeled_dataset) == 80
-
     image, image_info, annotations = labeled_dataset[0]
     assert hasattr(annotations[0], "bbox")
+
+
+# etc
+def test_sample(tmpdir):
+    for task_type in TaskType:
+        try:
+            Dataset.sample(
+                name=f"sample_{task_type}",
+                root_dir=tmpdir,
+                task=task_type,
+            )
+        except NotImplementedError:
+            continue
+
+        assert (tmpdir / f"sample_{task_type}").exists()
+
+
+def test_merge(coco_path, tmpdir):
+    ds1 = Dataset.from_coco(
+        name="ds1",
+        task=TaskType.OBJECT_DETECTION,
+        coco_file=coco_path / "coco.json",
+        coco_root_dir=coco_path / "images",
+        root_dir=tmpdir,
+    )
+    ds2 = Dataset.from_coco(
+        name="ds2",
+        task=TaskType.OBJECT_DETECTION,
+        coco_file=coco_path / "coco.json",
+        coco_root_dir=coco_path / "images",
+        root_dir=tmpdir,
+    )
+
+    cateids_of_ann = [annotation.category_id for annotation in ds1.annotations.values()]
+    category_counts = Counter(cateids_of_ann)
+
+    category_1_num = category_counts[1]
+    category_2_num = category_counts[2]
+
+    ds = Dataset.merge(
+        name="merge",
+        src_names=["ds1", "ds2"],
+        src_root_dirs=[tmpdir, tmpdir],
+        root_dir=tmpdir,
+        task=TaskType.OBJECT_DETECTION,
+    )
+
+    cateids_of_ann = [annotation.category_id for annotation in ds.annotations.values()]
+    category_counts = Counter(cateids_of_ann)
+
+    assert (ds.raw_image_dir).exists()
+    assert len(ds.images) == 100
+    assert len(ds.annotations) == 100
+    assert len(ds.categories) == 2
+    assert category_counts[1] == category_1_num
+    assert category_counts[2] == category_2_num
+
+    # test merge with different category name
+    category = load_json(ds1.category_dir / "1.json")
+    category["name"] = "one"
+    save_json(category, ds1.category_dir / "1.json")
+
+    ds = Dataset.merge(
+        name="merge2",
+        src_names=["ds1", "ds2"],
+        src_root_dirs=[tmpdir, tmpdir],
+        root_dir=tmpdir,
+        task=TaskType.OBJECT_DETECTION,
+    )
+
+    cateids_of_ann = [annotation.category_id for annotation in ds.annotations.values()]
+    category_counts = Counter(cateids_of_ann)
+
+    assert len(ds.images) == 100
+    assert len(ds.annotations) == 100 + category_1_num
+    assert len(ds.categories) == 3
+
+    assert category_counts[1] == category_1_num
+    assert category_counts[2] == category_2_num
+    assert category_counts[3] == category_1_num

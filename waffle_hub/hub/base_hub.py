@@ -17,10 +17,9 @@ from typing import Union
 
 import cpuinfo
 import cv2
+import numpy as np
 import torch
 import tqdm
-import numpy as np
-
 from waffle_utils.file import io
 from waffle_utils.utils import type_validator
 
@@ -34,13 +33,13 @@ from waffle_hub.schema.configs import (
     ModelConfig,
     TrainConfig,
 )
+from waffle_hub.schema.data import ImageInfo
 from waffle_hub.schema.result import (
     EvaluateResult,
     ExportResult,
     InferenceResult,
     TrainResult,
 )
-from waffle_hub.schema.data import ImageInfo
 from waffle_hub.utils.callback import (
     EvaluateCallback,
     ExportCallback,
@@ -440,14 +439,14 @@ class BaseHub:
         if not self.inference_file.exists():
             return []
         return io.load_json(self.inference_file)
-    
+
     # Hub Utils
     def get_image_loader(self) -> tuple[torch.Tensor, ImageInfo]:
         """Get image loader function.
 
         Returns:
             tuple[torch.Tensor, ImageInfo]: input transform function
-        
+
         Example:
             >>> transform = hub.get_image_loader()
             >>> image, image_info = transform("path/to/image.jpg")
@@ -456,17 +455,19 @@ class BaseHub:
         """
         train_config: TrainConfig = self.get_train_config()
         transform = get_image_transform(train_config.image_size, train_config.letter_box)
+
         def inner(x: Union[np.ndarray, str]):
             """Input Transform Function
-            
+
             Args:
                 x (Union[np.ndarray, str]): opencv image or image path
-                
+
             Returns:
                 tuple[torch.Tensor, ImageInfo]: image and image info
             """
             image, image_info = transform(x)
             return image, image_info
+
         return inner
 
     # Train Hook

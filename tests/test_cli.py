@@ -119,6 +119,75 @@ def test_dataset_clone(test_dir: Path):
     assert (test_dir / "datasets" / "clone").exists()
 
 
+def test_dataset_delete(test_dir: Path):
+    cmd = f"python -m waffle_hub.run dataset delete \
+        --name clone \
+        --root-dir {test_dir / 'datasets'} \
+    "
+    ret = run_cli(cmd)
+    assert ret.returncode == 0
+    assert not (test_dir / "datasets" / "clone").exists()
+
+
+def test_dataset_get_split_ids(test_dir: Path):
+    cmd = f"python -m waffle_hub.run dataset get_split_ids \
+        --name from_coco \
+        --root-dir {test_dir / 'datasets'} \
+    "
+    ret = run_cli(cmd)
+    assert ret.returncode == 0
+
+
+def test_dataset_merge(test_dir: Path):
+    cmd = f"python -m waffle_hub.run dataset merge \
+        --name merge \
+        --root-dir {test_dir / 'datasets'} \
+        --src-names from_coco --src-names from_hf \
+        --src-root-dirs {test_dir / 'datasets'} --src-root-dirs {test_dir / 'datasets'} \
+        --task classification \
+    "
+    ret = run_cli(cmd)
+    assert ret.returncode == 0
+    assert (test_dir / "datasets" / "merge").exists()
+
+
+def test_dataset_sample(test_dir: Path):
+    cmd = f"python -m waffle_hub.run dataset sample \
+        --name sample \
+        --root-dir {test_dir / 'datasets'} \
+        --task object_detection \
+    "
+    ret = run_cli(cmd)
+    assert ret.returncode == 0
+    assert (test_dir / "datasets" / "sample").exists()
+
+
+def test_dataset_get_fields(test_dir: Path):
+    # image
+    cmd = f"python -m waffle_hub.run dataset get_images \
+        --name sample \
+        --root-dir {test_dir / 'datasets'} \
+    "
+    ret = run_cli(cmd)
+    assert ret.returncode == 0
+
+    # annotation
+    cmd = f"python -m waffle_hub.run dataset get_annotations \
+        --name sample \
+        --root-dir {test_dir / 'datasets'} \
+    "
+    ret = run_cli(cmd)
+    assert ret.returncode == 0
+
+    # category
+    cmd = f"python -m waffle_hub.run dataset get_categories \
+        --name sample \
+        --root-dir {test_dir / 'datasets'} \
+    "
+    ret = run_cli(cmd)
+    assert ret.returncode == 0
+
+
 def test_hub_new(test_dir: Path):
     cmd = f'python -m waffle_hub.run hub new \
         --backend ultralytics \

@@ -1,18 +1,19 @@
+import copy
 import logging
 import random
+import shutil
 import warnings
-from collections import OrderedDict, defaultdict
+from collections import Counter, OrderedDict, defaultdict
 from functools import cached_property
-from itertools import combinations
-from math import ceil, floor
 from pathlib import Path
+from tempfile import mkdtemp
 from typing import Union
 
 import cv2
 import PIL.Image
 import tqdm
 from pycocotools.coco import COCO
-from waffle_utils.file import io
+from waffle_utils.file import io, network
 from waffle_utils.file.search import get_files, get_image_files
 from waffle_utils.log import datetime_now
 from waffle_utils.utils import type_validator
@@ -46,6 +47,8 @@ class Dataset:
     VAL_SET_FILE_NAME = Path("val.json")
     TEST_SET_FILE_NAME = Path("test.json")
     UNLABELED_SET_FILE_NAME = Path("unlabeled.json")
+
+    MINIMUM_TRAINABLE_IMAGE_NUM_PER_CATEGORY = 3
 
     def __init__(
         self,
@@ -199,6 +202,46 @@ class Dataset:
             self._image_to_annotations = dict(image_to_annotations)
         return self._image_to_annotations
 
+    @cached_property
+    def category_to_annotations(self) -> dict[int, list[Annotation]]:
+        if not hasattr(self, "_category_to_annotations"):
+            category_to_annotations = defaultdict(list)
+            for annotation in tqdm.tqdm(
+                self.annotations.values(), desc="Building category to annotation index"
+            ):
+                category_to_annotations[annotation.category_id].append(annotation)
+            self._category_to_annotations = dict(category_to_annotations)
+        return self._category_to_annotations
+
+    @cached_property
+    def category_to_images(self) -> dict[int, list[Image]]:
+        if not hasattr(self, "_category_to_images"):
+            category_to_images = {category_id: [] for category_id in self.categories.keys()}
+            for image_id, annotations in tqdm.tqdm(
+                self.image_to_annotations.items(), desc="Building category to image index"
+            ):
+                category_count = Counter(map(lambda a: a.category_id, annotations))
+                category_to_images[category_count.most_common(1)[0][0]].append(self.images[image_id])
+            self._category_to_images = dict(category_to_images)
+        return self._category_to_images
+
+    @cached_property
+    def num_images_per_category(self) -> dict[int, int]:
+        if not hasattr(self, "_num_images_per_category"):
+            self._num_images_per_category = {
+                category_id: len(images) for category_id, images in self.category_to_images.items()
+            }
+        return self._num_images_per_category
+
+    @cached_property
+    def num_annotations_per_category(self) -> dict[int, int]:
+        if not hasattr(self, "_num_annotations_per_category"):
+            self._num_annotations_per_category = {
+                category_id: len(annotations)
+                for category_id, annotations in self.category_to_annotations.items()
+            }
+        return self._num_annotations_per_category
+
     # factories
     @classmethod
     def new(cls, name: str, task: str, root_dir: str = None) -> "Dataset":
@@ -278,6 +321,126 @@ class Dataset:
         return ds
 
     @classmethod
+    def dummy(
+        cls,
+        name: str,
+        task: str,
+        image_num: int = 100,
+        category_num: int = 10,
+        unlabeld_image_num: int = 0,
+        root_dir: str = None,
+    ) -> "Dataset":
+        """
+        Create Dummy Dataset (for debugging).
+
+        Args:
+            name (str): Dataset name
+            task (str): Dataset task
+            image_num (int, optional): Number of images. Defaults to 100.
+            category_num (int, optional): Number of categories. Defaults to 10.
+            unlabeld_image_num (int, optional): Number of unlabeled images. Defaults to 0.
+            root_dir (str, optional): Dataset root directory. Defaults to None.
+
+        Raises:
+            FileExistsError: if dataset name already exists
+
+        Examples:
+            >>> ds = Dataset.dummy("my_dataset", "CLASSIFICATION", image_num=100, category_num=10)
+            >>> len(ds.images)
+            100
+            >>> len(ds.categories)
+            10
+        """
+        ds = Dataset.new(name, task, root_dir)
+
+        try:
+            for category_id in range(1, category_num + 1):
+
+                if task == TaskType.CLASSIFICATION:
+                    category = Category.classification(
+                        category_id=category_id,
+                        name=f"category_{category_id}",
+                        supercategory="object",
+                    )
+                elif task == TaskType.OBJECT_DETECTION:
+                    category = Category.object_detection(
+                        category_id=category_id,
+                        name=f"category_{category_id}",
+                        supercategory="object",
+                    )
+                elif task == TaskType.INSTANCE_SEGMENTATION:
+                    category = Category.instance_segmentation(
+                        category_id=category_id,
+                        name=f"category_{category_id}",
+                        supercategory="object",
+                    )
+
+                ds.add_categories([category])
+
+            annotation_id = 1
+            for image_id in range(1, image_num + 1):
+                file_name = f"image_{image_id}.jpg"
+                ds.add_images([Image(image_id=image_id, file_name=file_name, width=100, height=100)])
+                PIL.Image.new("RGB", (100, 100)).save(ds.raw_image_dir / file_name)
+
+                if task == TaskType.CLASSIFICATION:
+                    annotations = [
+                        Annotation.classification(
+                            annotation_id=annotation_id,
+                            image_id=image_id,
+                            category_id=random.randint(1, category_num),
+                        )
+                    ]
+                elif task == TaskType.OBJECT_DETECTION:
+                    annotations = [
+                        Annotation.object_detection(
+                            annotation_id=annotation_id + i,
+                            image_id=image_id,
+                            category_id=random.randint(1, category_num),
+                            bbox=[
+                                random.randint(0, 100),
+                                random.randint(0, 100),
+                                random.randint(0, 100),
+                                random.randint(0, 100),
+                            ],
+                        )
+                        for i in range(random.randint(1, 5))
+                    ]
+                elif task == TaskType.INSTANCE_SEGMENTATION:
+                    annotations = [
+                        Annotation.instance_segmentation(
+                            annotation_id=annotation_id + i,
+                            image_id=image_id,
+                            category_id=random.randint(1, category_num),
+                            bbox=[
+                                random.randint(0, 100),
+                                random.randint(0, 100),
+                                random.randint(0, 100),
+                                random.randint(0, 100),
+                            ],
+                            segmentation=[[random.randint(0, 100) for _ in range(10)]],
+                        )
+                        for i in range(random.randint(1, 5))
+                    ]
+
+                ds.add_annotations(annotations)
+                annotation_id += len(annotations)
+
+            if unlabeld_image_num > 0:
+                for image_id in range(image_num + 1, image_num + unlabeld_image_num + 1):
+                    file_name = f"image_{image_id}.jpg"
+                    ds.add_images(
+                        [Image(image_id=image_id, file_name=file_name, width=100, height=100)]
+                    )
+                    PIL.Image.new("RGB", (100, 100)).save(ds.raw_image_dir / file_name)
+
+        except Exception as e:
+            ds.delete()
+            raise e
+
+        return ds
+
+    @classmethod
     def load(cls, name: str, root_dir: str = None) -> "Dataset":
         """
         Load Dataset.
@@ -304,6 +467,117 @@ class Dataset:
             raise FileNotFoundError(f"{dataset_info_file} has not been created.")
         dataset_info = DatasetInfo.load(dataset_info_file)
         return cls(**dataset_info.to_dict(), root_dir=root_dir)
+
+    @classmethod
+    def merge(
+        cls,
+        name: str,
+        root_dir: str,
+        src_names: list[str],
+        src_root_dirs: Union[str, list[str]],
+        task: str,
+    ) -> "Dataset":
+        """
+        Merge Datasets.
+        This method merges multiple datasets into one dataset.
+
+        Args:
+            name (str): New Dataset name
+            root_dir (str): New Dataset root directory
+            src_names (list[str]): Source Dataset names
+            src_root_dirs (Union[str, list[str]]): Source Dataset root directories
+            task (str): Dataset task
+
+        Returns:
+            Dataset: Dataset Class
+
+        """
+        if isinstance(src_root_dirs, str):
+            src_root_dirs = [src_root_dirs] * len(src_names)
+        if len(src_names) != len(src_root_dirs):
+            raise ValueError("Length of src_names and src_root_dirs should be same.")
+        if isinstance(task, str):
+            task = task.upper()
+        if task not in [k for k in TaskType]:
+            raise ValueError(f"task should be one of {[k for k in TaskType]}")
+
+        merged_ds = Dataset.new(
+            name=name,
+            root_dir=root_dir,
+            task=task,
+        )
+
+        categoryname2id = {}
+        filename2id = {}
+        new_annotation_id = 1
+
+        try:
+            for src_name, src_root_dir in zip(src_names, src_root_dirs):
+                src_ds = Dataset.load(src_name, src_root_dir)
+
+                if src_ds.task != task:
+                    raise ValueError(f"Task of {src_ds.name} is {src_ds.task}. It should be {task}.")
+
+                # merge - raw images
+                io.copy_files_to_directory(
+                    src_ds.raw_image_dir, merged_ds.raw_image_dir, create_directory=True
+                )
+
+                # merge - categories
+                for category in src_ds.categories.values():
+                    if category.name not in categoryname2id:
+                        new_category_id = len(categoryname2id) + 1
+                        categoryname2id[category.name] = new_category_id
+
+                        new_category = copy.deepcopy(category)
+                        new_category.category_id = new_category_id
+                        merged_ds.add_categories([new_category])
+
+                for image_id, annotations in src_ds.image_to_annotations.items():
+                    image = src_ds.images[image_id]
+
+                    # merge - images
+                    is_new_image = False
+                    if image.file_name not in filename2id:
+                        is_new_image = True
+
+                        new_image_id = len(filename2id) + 1
+                        filename2id[image.file_name] = new_image_id
+
+                        new_image = copy.deepcopy(image)
+                        new_image.image_id = new_image_id
+                        merged_ds.add_images([new_image])
+
+                    new_image_id = filename2id[image.file_name]
+
+                    # merge - annotations
+                    for annotation in annotations:
+                        new_annotation = copy.deepcopy(annotation)
+                        new_annotation.category_id = categoryname2id[
+                            src_ds.categories[annotation.category_id].name
+                        ]
+
+                        # check if new annotation
+                        is_new_annotation = True
+                        if not is_new_image:
+                            for merged_ann in merged_ds.image_to_annotations[new_image_id]:
+                                if new_annotation == merged_ann:
+                                    is_new_annotation = False
+                                    break
+
+                        # merge
+                        if is_new_annotation:
+                            new_annotation.image_id = filename2id[image.file_name]
+                            new_annotation.annotation_id = new_annotation_id
+                            new_annotation_id += 1
+                            merged_ds.add_annotations([new_annotation])
+
+        except Exception as e:
+            if merged_ds.dataset_dir.exists():
+                io.remove_directory(merged_ds.dataset_dir)
+            raise e
+
+        return Dataset.load(name, root_dir)
 
     @classmethod
     def from_coco(
@@ -753,6 +1027,46 @@ class Dataset:
 
         return ds
 
+    @classmethod
+    def sample(cls, name: str, task: str, root_dir: str = None) -> "Dataset":
+        """
+        Import sample Dataset.
+
+        Args:
+            name (str): Dataset name.
+            task (str): Task name.
+            root_dir (str, optional): Dataset root directory. Defaults to None.
+
+        Returns:
+            Dataset: Dataset Class
+        """
+        if task not in [
+            TaskType.CLASSIFICATION,
+            TaskType.OBJECT_DETECTION,
+            TaskType.INSTANCE_SEGMENTATION,
+        ]:
+            raise NotImplementedError(f"not supported task: {task}")
+
+        try:
+            url = "https://raw.githubusercontent.com/snuailab/assets/main/waffle/sample_dataset/mnist.zip"
+            temp_dir = Path(mkdtemp())
+            network.get_file_from_url(url, temp_dir / "mnist.zip")
+            io.unzip(temp_dir / "mnist.zip", temp_dir)
+
+            ds = Dataset.from_coco(
+                name=name,
+                root_dir=root_dir,
+                task=task,
+                coco_file=str(temp_dir / "coco.json"),
+                coco_root_dir=str(temp_dir / "images"),
+            )
+        except Exception as e:
+            raise e
+        finally:
+            shutil.rmtree(temp_dir)
+
+        return ds
+
     def initialize(self):
         """Initialize Dataset.
         It creates necessary directories under {dataset_root_dir}/{dataset_name}.
@@ -777,6 +1091,41 @@ class Dataset:
                 not initialized -> False
         """
         return self.dataset_info_file.exists()
+
+    def trainable(self) -> bool:
+        """Check if Dataset is trainable or not.
+
+        Returns:
+            bool:
+                trainable -> True
+                not trainable -> False
+        """
+        category_to_images: dict[int, list[Image]] = self.category_to_images
+        for _, images in category_to_images.items():
+            image_num = len(images)
+            if image_num < Dataset.MINIMUM_TRAINABLE_IMAGE_NUM_PER_CATEGORY:
+                return False
+        return True
+
+    def check_trainable(self):
+        """
+        Check if Dataset is trainable or not.
+
+        Raises:
+            ValueError: if dataset has not enough annotations.
+        """
+        if not self.trainable():
+            raise ValueError(
+                "Dataset is not trainable\n"
+                + f"Please check if the MINIMUM_TRAINABLE_IMAGE_NUM_PER_CATEGORY={Dataset.MINIMUM_TRAINABLE_IMAGE_NUM_PER_CATEGORY} is satisfied\n"
+                + "Your dataset is consisted of\n"
+                + "\n".join(
+                    [
+                        f"  - {category.name}: {self.num_images_per_category[category_id]} images"
+                        for category_id, category in self.categories.items()
+                    ]
+                )
+            )
 
     # get
     def get_images(self, image_ids: list[int] = None, labeled: bool = True) -> list[Image]:
@@ -934,6 +1283,8 @@ class Dataset:
             [[1, 2, 3, 4, 5, 6, 7, 8], [9], [10], []]  # train, val, test, unlabeled image ids
         """
 
+        self.check_trainable()
+
         if train_ratio <= 0.0 or train_ratio >= 1.0:
             raise ValueError(
                 "train_ratio must be between 0.0 and 1.0\n" f"given train_ratio: {train_ratio}"
@@ -948,92 +1299,31 @@ class Dataset:
                 f"given train_ratio: {train_ratio}, val_ratio: {val_ratio}, test_ratio: {test_ratio}"
             )
 
-        image_ids = list(self.images.keys())
-        image_num = len(image_ids)
-        if image_num <= 2:
-            raise ValueError("image_num must be greater than 2\n" f"given image_num: {image_num}")
-
         if method == SplitMethod.RANDOM:
-            train_num = max(int(image_num * train_ratio), 1)
-            val_num = max(int(image_num * val_ratio), 1)
-
             random.seed(seed)
-            random.shuffle(image_ids)
 
-            if test_ratio == 0.0:
-                train_ids = image_ids[:train_num]
-                val_ids = image_ids[train_num:]
-                test_ids = val_ids
-            else:
-                train_ids = image_ids[:train_num]
-                val_ids = image_ids[train_num : train_num + val_num]
-                test_ids = image_ids[train_num + val_num :]
+            train_ids = []
+            val_ids = []
+            test_ids = []
 
-        elif method == SplitMethod.STRATIFIED:
-            # """
-            # Given a dataset of image annotations, find the set of categories associated with each image and stratify them by categories.
-            # For example, if the dataset has annotations with the following image and category IDs:
+            for category_id, images in self.category_to_images.items():
 
-            # datasets: [
-            #     {"annotation_id": 1, "image_id": 1, "category_id": 1},
-            #     {"annotation_id": 2, "image_id": 1, "category_id": 2},
-            #     {"annotation_id": 3, "image_id": 2, "category_id": 1},
-            #     {"annotation_id": 4, "image_id": 2, "category_id": 2},
-            #     {"annotation_id": 5, "image_id": 3, "category_id": 1},
-            #     {"annotation_id": 6, "image_id": 4, "category_id": 1},
-            #     {"annotation_id": 7, "image_id": 5, "category_id": 2},
-            #     {"annotation_id": 8, "image_id": 6, "category_id": 2},
-            # ],
+                image_num = len(images)
+                image_ids = list(map(lambda x: x.image_id, images))
+                random.shuffle(image_ids)
 
-            # the output should be stratified by categories:
+                # flatten images to one list [cat]
+                train_num = max(int(image_num * train_ratio), 1)
+                val_num = max(int(image_num * val_ratio), 1)
 
-            # Categories 1 and 2 are associated with images 1, 2, 3, and 4.
-            # Category 1 is associated with images 3 and 4.
-            # Category 2 is associated with images 5 and 6.
-            # If the train_ratio : val_ratio is 0.5 : 0.5, a valid output would be:
-
-            # The training set consists of images 1, 3, and 5.
-            # The test set consists of images 2, 4, and 6.
-            # """
-
-            # train_ids = []
-            # val_ids = []
-            # test_ids = []
-
-            # # find set of categories
-            # num_category = len(self.categories)
-            # category_combinations = []
-            # for comb in [combinations(self.categories, num) for num in range(1, num_category + 1)]:
-            #     category_combinations.extend(comb)
-
-            # # for round error handling
-            # train_round_method = floor
-            # val_round_method = ceil
-
-            # # split by categories
-            # for comb in category_combinations:
-            #     image_ids_by_categories = list(
-            #         filter(
-            #             lambda image_id: set(comb)
-            #             == {ann.category_id for ann in self.image_to_annotations[image_id]},
-            #             image_ids,
-            #         )
-            #     )
-
-            #     num_images = len(image_ids_by_categories)
-            #     train_num = train_round_method(num_images * train_ratio)
-            #     val_num = val_round_method(num_images * val_ratio)
-            #     train_round_method, val_round_method = val_round_method, train_round_method
-
-            #     if test_ratio == 0.0:
-            #         train_ids += image_ids_by_categories[:train_num]
-            #         val_ids += image_ids_by_categories[train_num:]
-            #         test_ids += image_ids_by_categories[train_num:]
-            #     else:
-            #         train_ids += image_ids_by_categories[:train_num]
-            #         val_ids += image_ids_by_categories[train_num : train_num + val_num]
-            #         test_ids += image_ids_by_categories[train_num + val_num :]
-            raise NotImplementedError("(TODO) This feature will be updated soon.")
+                if test_ratio == 0.0:
+                    train_ids.extend(image_ids[:train_num])
+                    val_ids.extend(image_ids[train_num:])
+                    test_ids = val_ids
+                else:
+                    train_ids.extend(image_ids[:train_num])
+                    val_ids.extend(image_ids[train_num : train_num + val_num])
+                    test_ids.extend(image_ids[train_num + val_num :])
 
         else:
             raise ValueError(f"Unknown split method: {method}")
@@ -1106,13 +1396,14 @@ class Dataset:
             str: exported dataset directory
         """
 
+        self.check_trainable()
+
         if data_type in [DataType.YOLO, DataType.ULTRALYTICS]:
             export_dir: Path = self.export_dir / str(DataType.YOLO)
             export_function = export_yolo
         elif data_type in [
             DataType.COCO,
-            DataType.TX_MODEL,
-            DataType.AUTOCARE_TX_MODEL,
+            DataType.AUTOCARE_DLT,
         ]:
             export_dir: Path = self.export_dir / str(DataType.COCO)
             export_function = export_coco
