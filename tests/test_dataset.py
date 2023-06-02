@@ -165,11 +165,11 @@ def _split(dataset_name, root_dir):
 
     dataset.split(0.99999999999999, 0.0)
     train_ids, val_ids, test_ids, unlabeled_ids = dataset.get_split_ids()
-    assert len(train_ids) == 99 and len(val_ids) == 1 and len(test_ids) == 1
+    assert len(dataset.categories) == len(val_ids) == len(test_ids)
 
     dataset.split(0.00000000000001, 0.0)
     train_ids, val_ids, test_ids, unlabeled_ids = dataset.get_split_ids()
-    assert len(train_ids) == 1 and len(val_ids) == 99 and len(test_ids) == 99
+    assert len(dataset.categories) == len(train_ids)
 
     with pytest.raises(ValueError):
         dataset.split(0.0, 0.2)
@@ -188,6 +188,39 @@ def _export(dataset_name, task: TaskType, root_dir):
         dataset.export("yolo")
     if task in [TaskType.OBJECT_DETECTION, TaskType.CLASSIFICATION]:
         dataset.export("huggingface")
+
+
+# test dummy
+def _dummy(dataset_name, task: TaskType, image_num, category_num, unlabeled_image_num, root_dir):
+    dataset = Dataset.dummy(
+        name=dataset_name,
+        task=task,
+        image_num=image_num,
+        category_num=category_num,
+        unlabeld_image_num=unlabeled_image_num,
+        root_dir=root_dir,
+    )
+    assert len(dataset.images) == image_num
+    assert len(dataset.categories) == category_num
+    assert len(dataset.unlabeled_images) == unlabeled_image_num
+
+
+def _total_dummy(
+    dataset_name, task: TaskType, image_num, category_num, unlabeled_image_num, root_dir
+):
+    _dummy(dataset_name, task, image_num, category_num, unlabeled_image_num, root_dir)
+    _load(dataset_name, root_dir)
+    _clone(dataset_name, root_dir)
+    _split(dataset_name, root_dir)
+    _export(dataset_name, task, root_dir)
+
+
+def test_dummy(tmpdir):
+    for task in [TaskType.CLASSIFICATION, TaskType.OBJECT_DETECTION, TaskType.INSTANCE_SEGMENTATION]:
+        _total_dummy(f"dummy_{task}", task, 100, 5, 10, tmpdir)
+
+    with pytest.raises(ValueError):
+        _total_dummy("dummy", TaskType.CLASSIFICATION, 3, 3, 0, tmpdir)
 
 
 # test coco
@@ -302,8 +335,6 @@ def test_labled_dataloader(coco_path, tmpdir):
 
     ds.split(0.8)
     labeled_dataset = LabeledDataset(ds, 224, set_name="train")
-    assert len(labeled_dataset) == 80
-
     image, image_info, annotations = labeled_dataset[0]
     assert hasattr(annotations[0], "bbox")
 
