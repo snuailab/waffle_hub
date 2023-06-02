@@ -7,16 +7,11 @@ rich
 onnxruntime
 tbparse==0.0.7
 
-# pytorch
-torch==1.13.1
-torchaudio==0.13.1
-torchvision==0.14.1
-
 # waffle dependencies
 waffle-utils>=0.3.0
 
 # ultralytics
-ultralytics==8.0.91
+ultralytics==8.0.112
 
 # huggingface
 datasets==2.12.0
