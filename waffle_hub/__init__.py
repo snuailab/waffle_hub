@@ -1,4 +1,4 @@
-__version__ = "0.2.1"
+__version__ = "0.2.2"
 
 import enum
 import importlib
@@ -8,19 +8,18 @@ from collections import OrderedDict
 from tabulate import tabulate
 
 # pytorch install check (necessary installation)
-pytorch_versions = ["1.13.1"]
+pytorch_version = "1.13.1"
 try:
     import torch
 
-    if torch.__version__ not in pytorch_versions:
+    if pytorch_version not in torch.__version__:
         warnings.warn(
             f"""
             torch {torch.__version__} has not been tested.
-            We recommend you to use one of {pytorch_versions}
+            We recommend you to use {pytorch_version}
             """
         )
 except ModuleNotFoundError as e:
-    # TODO: Generalize install strings
     strings = []
 
     e.msg = "Need to install torch\n" + "\n".join(strings)
@@ -29,9 +28,9 @@ except ModuleNotFoundError as e:
 # backend supports
 _backends = OrderedDict(
     {
-        "ultralytics": ["8.0.87"],
+        "ultralytics": ["8.0.112"],
         "autocare_dlt": ["0.2.3"],
-        "transformers": ["4.27.4"],
+        "transformers": ["4.28.1"],
     }
 )
 
