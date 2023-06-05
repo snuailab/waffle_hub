@@ -89,6 +89,8 @@ def export_coco(self, export_dir: Union[str, Path]) -> str:
         _export_coco(self, export_dir, train_ids, val_ids, test_ids, unlabeled_ids)
     elif self.task == TaskType.INSTANCE_SEGMENTATION:
         _export_coco(self, export_dir, train_ids, val_ids, test_ids, unlabeled_ids)
+    elif self.task == TaskType.TEXT_RECOGNITION:
+        _export_coco(self, export_dir, train_ids, val_ids, test_ids, unlabeled_ids)
     else:
         raise ValueError(f"Unsupported task type: {self.task}")
 

@@ -128,7 +128,6 @@ def get_model_config(
             "use_model_ema": True,
             "max_epoch": epochs,
             "seed": seed,
-            "categories": categories,
             "classes": categories,
             "num_classes": len(categories),
         }
