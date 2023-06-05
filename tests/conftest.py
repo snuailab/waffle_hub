@@ -39,28 +39,28 @@ def yolo_path(tmp_path_factory: pytest.TempPathFactory):
 
 
 @pytest.fixture(scope="session")
-def huggingface_detection_path(tmp_path_factory: pytest.TempPathFactory):
+def transformers_detection_path(tmp_path_factory: pytest.TempPathFactory):
     url = "https://raw.githubusercontent.com/snuailab/assets/main/waffle/sample_dataset/mnist_huggingface_detection.zip"
 
-    tmpdir = tmp_path_factory.mktemp("huggingface")
+    tmpdir = tmp_path_factory.mktemp("transformers")
     zip_file = tmpdir / "mnist_huggingface_detection.zip"
-    huggingface_path = tmpdir / "extract"
+    transformers_path = tmpdir / "extract"
 
     network.get_file_from_url(url, zip_file, create_directory=True)
-    io.unzip(zip_file, huggingface_path, create_directory=True)
+    io.unzip(zip_file, transformers_path, create_directory=True)
 
-    return Path(huggingface_path)
+    return Path(transformers_path)
 
 
 @pytest.fixture(scope="session")
-def huggingface_classification_path(tmp_path_factory: pytest.TempPathFactory):
+def transformers_classification_path(tmp_path_factory: pytest.TempPathFactory):
     url = "https://raw.githubusercontent.com/snuailab/assets/main/waffle/sample_dataset/mnist_huggingface_classification.zip"
 
-    tmpdir = tmp_path_factory.mktemp("huggingface")
+    tmpdir = tmp_path_factory.mktemp("transformers")
     zip_file = tmpdir / "mnist_huggingface_classification.zip"
-    huggingface_path = tmpdir / "extract"
+    transformers_path = tmpdir / "extract"
 
     network.get_file_from_url(url, zip_file, create_directory=True)
-    io.unzip(zip_file, huggingface_path, create_directory=True)
+    io.unzip(zip_file, transformers_path, create_directory=True)
 
-    return Path(huggingface_path)
+    return Path(transformers_path)

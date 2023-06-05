@@ -142,7 +142,12 @@ class DataType(BaseEnum):
     COCO = enum.auto()
     AUTOCARE_DLT = enum.auto()
 
-    HUGGINGFACE = enum.auto()
+    TRANSFORMERS = enum.auto()
+
+
+class BackendType(BaseEnum):
+    ULTRALYTICS = enum.auto()
+    AUTOCARE_DLT = enum.auto()
     TRANSFORMERS = enum.auto()
 
 

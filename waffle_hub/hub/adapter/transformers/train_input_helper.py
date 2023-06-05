@@ -35,7 +35,7 @@ class TrainInput:
 
 class TrainInputHelper(ABC):
     """
-    This class is designed to assist with passing arguments to the Hugging Face's Trainer function.
+    This class is designed to assist with passing arguments to the Transformers's Trainer function.
     """
 
     def __init__(self, pretrained_model: str, image_size: Union[int, list[int]]) -> None:

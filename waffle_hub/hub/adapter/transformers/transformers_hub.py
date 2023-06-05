@@ -1,5 +1,5 @@
 """
-Hugging Face Hub
+Transformers Hub
 See BaseHub documentation for more details about usage.
 """
 
@@ -31,7 +31,7 @@ from waffle_utils.file import io
 from datasets import load_from_disk
 
 from waffle_hub import TaskType
-from waffle_hub.hub.adapter.hugging_face.train_input_helper import (
+from waffle_hub.hub.adapter.transformers.train_input_helper import (
     ClassifierInputHelper,
     ObjectDetectionInputHelper,
 )
@@ -62,7 +62,7 @@ class CustomCallback(TrainerCallback):
             return control_copy
 
 
-class HuggingFaceHub(BaseHub):
+class TransformersHub(BaseHub):
 
     # Override
     LAST_CKPT_FILE = "weights/last_ckpt"
@@ -108,12 +108,12 @@ class HuggingFaceHub(BaseHub):
     @cached_property
     def best_ckpt_file(self) -> Path:
         """Best Checkpoint File"""
-        return self.hub_dir / HuggingFaceHub.BEST_CKPT_FILE
+        return self.hub_dir / TransformersHub.BEST_CKPT_FILE
 
     @cached_property
     def last_ckpt_file(self) -> Path:
         """Last Checkpoint File"""
-        return self.hub_dir / HuggingFaceHub.LAST_CKPT_FILE
+        return self.hub_dir / TransformersHub.LAST_CKPT_FILE
 
     @classmethod
     def new(
