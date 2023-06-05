@@ -7,7 +7,7 @@ from waffle_hub import TaskType
 from waffle_hub.utils.conversion import convert_rle_to_polygon
 
 
-def _export_coco(
+def _export_autocare_dlt(
     self,
     export_dir: Path,
     train_ids: list,
@@ -15,7 +15,7 @@ def _export_coco(
     test_ids: list,
     unlabeled_ids: list,
 ):
-    """Export dataset to COCO format
+    """Export dataset to Autocare DLT format
 
     Args:
         export_dir (Path): Path to export directory
@@ -47,6 +47,7 @@ def _export_coco(
             "images": [],
             "annotations": [],
         }
+        category_names = [category.name for category in self.categories.values()]
 
         for image_id in image_ids:
             image = self.images[image_id]
@@ -64,17 +65,26 @@ def _export_coco(
                 if d.get("segmentation", None):
                     if isinstance(d["segmentation"], dict):
                         d["segmentation"] = convert_rle_to_polygon(d["segmentation"])
+                caption = d.get("caption", None)
+                if caption:
+                    for c in set(caption):
+                        if c not in category_names:
+                            raise ValueError(
+                                f"character {c} is not in categories, please check your dataset"
+                            )
+                    if not d.get("category_id", None):
+                        d["category_id"] = 1  # dummy for ocr
                 annotation_id = d.pop("annotation_id")
                 coco["annotations"].append({"id": annotation_id, **d})
 
         io.save_json(coco, export_dir / f"{split}.json", create_directory=True)
 
 
-def export_coco(self, export_dir: Union[str, Path]) -> str:
-    """Export dataset to COCO format
+def export_autocare_dlt(self, export_dir: Union[str, Path]) -> str:
+    """Export dataset to Autocare DLT format
 
     Args:
-        export_dir (str): Path to export directory
+        export_dir (Union[str, Path]): Path to export directory
 
     Returns:
         str: Path to export directory
@@ -84,11 +94,13 @@ def export_coco(self, export_dir: Union[str, Path]) -> str:
     train_ids, val_ids, test_ids, unlabeled_ids = self.get_split_ids()
 
     if self.task == TaskType.CLASSIFICATION:
-        _export_coco(self, export_dir, train_ids, val_ids, test_ids, unlabeled_ids)
+        _export_autocare_dlt(self, export_dir, train_ids, val_ids, test_ids, unlabeled_ids)
     elif self.task == TaskType.OBJECT_DETECTION:
-        _export_coco(self, export_dir, train_ids, val_ids, test_ids, unlabeled_ids)
+        _export_autocare_dlt(self, export_dir, train_ids, val_ids, test_ids, unlabeled_ids)
     elif self.task == TaskType.INSTANCE_SEGMENTATION:
-        _export_coco(self, export_dir, train_ids, val_ids, test_ids, unlabeled_ids)
+        _export_autocare_dlt(self, export_dir, train_ids, val_ids, test_ids, unlabeled_ids)
+    elif self.task == TaskType.TEXT_RECOGNITION:
+        _export_autocare_dlt(self, export_dir, train_ids, val_ids, test_ids, unlabeled_ids)
     else:
         raise ValueError(f"Unsupported task type: {self.task}")
 

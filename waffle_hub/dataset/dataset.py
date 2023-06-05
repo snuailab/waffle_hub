@@ -24,6 +24,7 @@ from datasets import Dataset as HFDataset
 from datasets import DatasetDict, load_from_disk
 from waffle_hub import DataType, SplitMethod, TaskType
 from waffle_hub.dataset.adapter import (
+    export_autocare_dlt,
     export_coco,
     export_huggingface,
     export_yolo,
@@ -538,6 +539,134 @@ class Dataset:
 
                 for annotation_dict in annotation_dicts:
                     annotation_dict.pop("id")
+                    ds.add_annotations(
+                        [
+                            Annotation.from_dict(
+                                {
+                                    **annotation_dict,
+                                    "image_id": image_id,
+                                    "annotation_id": annotation_id,
+                                    "category_id": coco_cat_id_to_waffle_cat_id[
+                                        annotation_dict["category_id"]
+                                    ],
+                                },
+                                task=ds.task,
+                            )
+                        ]
+                    )
+                    annotation_id += 1
+
+                image_ids.append(image_id)
+                image_id += 1
+                pgbar.update(1)
+
+            if set_name:
+                io.save_json(image_ids, ds.set_dir / f"{set_name}.json", create_directory=True)
+
+        pgbar.close()
+
+        if len(coco_files) == 2:
+            logging.info("copying val set to test set")
+            io.copy_file(ds.val_set_file, ds.test_set_file, create_directory=True)
+
+        # TODO: add unlabeled set
+        io.save_json([], ds.unlabeled_set_file, create_directory=True)
+
+        return ds
+
+    @classmethod
+    def from_autocare_dlt(
+        cls,
+        name: str,
+        task: str,
+        coco_file: Union[str, list[str]],
+        coco_root_dir: Union[str, list[str]],
+        root_dir: str = None,
+    ) -> "Dataset":
+        ds = Dataset.new(name, task, root_dir)
+        ds.initialize()
+
+        if isinstance(coco_file, list) and isinstance(coco_root_dir, list):
+            if len(coco_file) != len(coco_root_dir):
+                raise ValueError("coco_file and coco_root_dir should have same length.")
+        if not isinstance(coco_file, list) and isinstance(coco_root_dir, list):
+            raise ValueError(
+                "ambiguous input. The number of coco_file should be same or greater than coco_root_dir."
+            )
+        if not isinstance(coco_file, list):
+            coco_file = [coco_file]
+        if not isinstance(coco_root_dir, list):
+            coco_root_dir = [coco_root_dir] * len(coco_file)
+
+        coco_files = coco_file
+        coco_root_dirs = coco_root_dir
+
+        if len(coco_files) == 1:
+            set_names = [None]
+        elif len(coco_files) == 2:
+            set_names = ["train", "val"]
+        elif len(coco_files) == 3:
+            set_names = ["train", "val", "test"]
+        else:
+            raise ValueError("coco_file should have 1, 2, or 3 files.")
+
+        cocos = [COCO(coco_file) for coco_file in coco_files]
+
+        # categories should be same between coco files
+        categories = cocos[0].loadCats(cocos[0].getCatIds())
+        for coco in cocos[1:]:
+            if categories != coco.loadCats(coco.getCatIds()):
+                raise ValueError("categories should be same between coco files.")
+
+        coco_cat_id_to_waffle_cat_id = {}
+        for i, category in enumerate(categories, start=1):
+            coco_category_id = category.pop("id")
+            coco_cat_id_to_waffle_cat_id[coco_category_id] = i
+            ds.add_categories([Category.from_dict({**category, "category_id": i}, task=ds.task)])
+
+        # import coco dataset
+        total_length = sum([len(coco.getImgIds()) for coco in cocos])
+        logging.info(f"Importing coco dataset. Total length: {total_length}")
+        pgbar = tqdm.tqdm(total=total_length, desc="Importing coco dataset")
+
+        image_id = 1
+        annotation_id = 1
+
+        # parse coco annotation file
+        for coco, coco_root_dir, set_name in tqdm.tqdm(zip(cocos, coco_root_dirs, set_names)):
+
+            image_ids = []
+            for coco_image_id, annotation_dicts in coco.imgToAnns.items():
+                if len(annotation_dicts) == 0:
+                    warnings.warn(f"image_id {coco_image_id} has no annotations.")
+                    continue
+
+                image_dict = coco.loadImgs(coco_image_id)[0]
+                image_dict.pop("id")
+
+                file_name = image_dict.pop("file_name")
+                image_path = Path(coco_root_dir) / file_name
+                if not image_path.exists():
+                    raise FileNotFoundError(f"{image_path} does not exist.")
+
+                if set_name:
+                    file_name = f"{set_name}/{file_name}"
+
+                ds.add_images(
+                    [Image.from_dict({**image_dict, "image_id": image_id, "file_name": file_name})]
+                )
+                io.copy_file(image_path, ds.raw_image_dir / file_name, create_directory=True)
+
+                for annotation_dict in annotation_dicts:
+                    annotation_dict.pop("id")
+                    caption = annotation_dict.get("caption", None)
+                    if caption:
+                        for c in set(caption):
+                            if c not in ds.category_names:
+                                raise ValueError(
+                                    f"character {c} is not in categories, please check your dataset"
+                                )
+
                     ds.add_annotations(
                         [
                             Annotation.from_dict(
@@ -1263,12 +1392,12 @@ class Dataset:
         if data_type in [DataType.YOLO, DataType.ULTRALYTICS]:
             export_dir: Path = self.export_dir / str(DataType.YOLO)
             export_function = export_yolo
-        elif data_type in [
-            DataType.COCO,
-            DataType.AUTOCARE_DLT,
-        ]:
+        elif data_type in [DataType.COCO]:
             export_dir: Path = self.export_dir / str(DataType.COCO)
             export_function = export_coco
+        elif data_type in [DataType.AUTOCARE_DLT]:
+            export_dir: Path = self.export_dir / str(DataType.AUTOCARE_DLT)
+            export_function = export_autocare_dlt
         elif data_type in [DataType.HUGGINGFACE, DataType.TRANSFORMERS]:
             export_dir: Path = self.export_dir / str(DataType.HUGGINGFACE)
             export_function = export_huggingface

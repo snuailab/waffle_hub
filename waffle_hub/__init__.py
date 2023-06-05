@@ -141,6 +141,7 @@ class DataType(BaseEnum):
     ULTRALYTICS = enum.auto()
 
     COCO = enum.auto()
+
     AUTOCARE_DLT = enum.auto()
 
     HUGGINGFACE = enum.auto()

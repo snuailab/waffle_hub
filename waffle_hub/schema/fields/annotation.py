@@ -15,8 +15,8 @@ class Annotation(BaseField):
         # required
         annotation_id: int,
         image_id: int,
-        category_id: int,
         # optional
+        category_id: int = None,
         bbox: list[float] = None,
         segmentation: list[list[float]] = None,
         area: float = None,
@@ -532,12 +532,7 @@ class Annotation(BaseField):
             Annotation: annotation class
         """
         return cls(
-            annotation_id,
-            image_id,
-            caption=caption,
-            score=score,
-            task=TaskType.TEXT_RECOGNITION,
-            category_id=1,
+            annotation_id, image_id, caption=caption, score=score, task=TaskType.TEXT_RECOGNITION
         )
 
     def to_dict(self) -> dict:
