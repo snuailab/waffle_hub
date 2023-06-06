@@ -4,12 +4,9 @@ import typer
 from rich import print
 
 from waffle_hub.dataset.dataset import Dataset
+from waffle_hub.hub.adapter.autocare_dlt import AutocareDLTHub
 from waffle_hub.hub.adapter.hugging_face import HuggingFaceHub
 from waffle_hub.hub.adapter.ultralytics import UltralyticsHub
-
-
-from waffle_hub.hub.adapter.autocare_dlt import AutocareDLTHub
-
 
 dataset = typer.Typer(name="dataset")
 hub = typer.Typer(name="hub")
@@ -26,7 +23,7 @@ BACKEND_MAP = {
 EXPORT_MAP = {
     "ultralytics": "YOLO",
     "huggingface": "HUGGINGFACE",
-    # "autocare_dlt": "AutocareDLT",
+    "autocare_dlt": "AutocareDLT",
 }
 
 
@@ -316,6 +313,111 @@ def _export_dataset(
     )
 
     ds.export(data_type)
+
+
+@dataset.command(name="delete")
+def _delete_dataset(
+    name: str = typer.Option(..., help="Name of the dataset"),
+    root_dir: str = typer.Option(..., help="Root directory"),
+):
+    ds = Dataset.load(
+        name=name,
+        root_dir=root_dir,
+    )
+
+    ds.delete()
+
+
+@dataset.command(name="get_split_ids")
+def _get_split_ids(
+    name: str = typer.Option(..., help="Name of the dataset"),
+    root_dir: str = typer.Option(..., help="Root directory"),
+):
+    ds = Dataset.load(
+        name=name,
+        root_dir=root_dir,
+    )
+
+    for set_name, set_ids in zip(["train", "val", "test", "unlabeled"], ds.get_split_ids()):
+        print(f"{set_name}: {set_ids}")
+
+
+@dataset.command(name="merge")
+def _merge_dataset(
+    name: str = typer.Option(..., help="Name of the dataset"),
+    root_dir: str = typer.Option(..., help="Root directory"),
+    src_names: list[str] = typer.Option(..., help="Source name of the dataset"),
+    src_root_dirs: list[str] = typer.Option(..., help="Source root directory"),
+    task: str = typer.Option(..., help="Task"),
+):
+    Dataset.merge(
+        name=name,
+        root_dir=root_dir,
+        src_names=src_names,
+        src_root_dirs=src_root_dirs,
+        task=task,
+    )
+
+
+@dataset.command(name="sample")
+def _sample_dataset(
+    name: str = typer.Option(..., help="Name of the dataset"),
+    root_dir: str = typer.Option(..., help="Root directory"),
+    task: str = typer.Option(..., help="Task"),
+):
+    Dataset.sample(
+        name=name,
+        root_dir=root_dir,
+        task=task,
+    )
+
+
+@dataset.command(name="get_images")
+def _get_images_dataset(
+    name: str = typer.Option(..., help="Name of the dataset"),
+    root_dir: str = typer.Option(..., help="Root directory"),
+):
+    ds = Dataset.load(
+        name=name,
+        root_dir=root_dir,
+    )
+
+    images = ds.get_images()
+
+    for image in images:
+        print(image.to_dict())
+
+
+@dataset.command(name="get_annotations")
+def _get_annotations_dataset(
+    name: str = typer.Option(..., help="Name of the dataset"),
+    root_dir: str = typer.Option(..., help="Root directory"),
+):
+    ds = Dataset.load(
+        name=name,
+        root_dir=root_dir,
+    )
+
+    annotations = ds.get_annotations()
+
+    for annotation in annotations:
+        print(annotation.to_dict())
+
+
+@dataset.command(name="get_categories")
+def _get_categories_dataset(
+    name: str = typer.Option(..., help="Name of the dataset"),
+    root_dir: str = typer.Option(..., help="Root directory"),
+):
+    ds = Dataset.load(
+        name=name,
+        root_dir=root_dir,
+    )
+
+    categories = ds.get_categories()
+
+    for category in categories:
+        print(category.to_dict())
 
 
 if __name__ == "__main__":
