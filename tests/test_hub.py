@@ -59,6 +59,20 @@ def classification_dataset(coco_path: Path, tmpdir: Path):
     return dataset
 
 
+@pytest.fixture
+def text_recognition_dataset(coco_path: Path, tmpdir: Path):
+    dataset: Dataset = Dataset.from_coco(
+        name="ocr",
+        task=TaskType.TEXT_RECOGNITION,
+        coco_file=coco_path / "coco.json",
+        coco_root_dir=coco_path / "images",
+        root_dir=tmpdir,
+    )
+    dataset.split(0.8)
+
+    return dataset
+
+
 def _train(hub, dataset: Dataset, image_size: int, hold: bool = True):
     result: TrainResult = hub.train(
         dataset_path=dataset.export(hub.backend),
@@ -371,6 +385,42 @@ def test_autocare_dlt_classification(classification_dataset: Dataset, tmpdir: Pa
         name=name,
         task=TaskType.CLASSIFICATION,
         model_type="Classifier",
+        model_size="s",
+        categories=super_cat_dict_list,
+        root_dir=tmpdir,
+    )
+    hub = AutocareDLTHub.load(name=name, root_dir=tmpdir)
+    hub: AutocareDLTHub = AutocareDLTHub.from_model_config(
+        name=name,
+        model_config_file=tmpdir / name / AutocareDLTHub.MODEL_CONFIG_FILE,
+        root_dir=tmpdir,
+    )
+
+    _total(hub, dataset, image_size)
+
+
+def test_autocare_dlt_text_recognition(text_recognition_dataset: Dataset, tmpdir: Path):
+    image_size = 32
+    dataset = text_recognition_dataset
+
+    # temporal solution
+    super_cat = [[c.supercategory, c.name] for c in dataset.categories.values()]
+    super_cat_dict = {}
+    for super_cat, cat in super_cat:
+        if super_cat not in super_cat_dict:
+            super_cat_dict[super_cat] = []
+        super_cat_dict[super_cat].append(cat)
+    super_cat_dict_list = []
+
+    for super_cat, cat in super_cat_dict.items():
+        super_cat_dict_list.append({super_cat: cat})
+
+    # test hub
+    name = "test_ocr"
+    hub = AutocareDLTHub.new(
+        name=name,
+        task=TaskType.TEXT_RECOGNITION,
+        model_type="TextRecognition",
         model_size="s",
         categories=super_cat_dict_list,
         root_dir=tmpdir,

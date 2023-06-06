@@ -16,3 +16,8 @@ class ClassificationMetric(BaseSchema):
 @dataclass
 class InstanceSegmentationMetric(BaseSchema):
     mAP: float
+
+
+@dataclass
+class TextRecognitionMetric(BaseSchema):
+    cer: float
