@@ -96,6 +96,26 @@ def draw_instance_segmentation(
     return image
 
 
+def draw_text_recognition(
+    image: np.ndarray,
+    annotation: Annotation,
+    loc_x: int = 10,
+    loc_y: int = 30,
+):
+    text = annotation.caption
+    image = cv2.putText(
+        image,
+        text,
+        (loc_x, loc_y),
+        FONT_FACE,
+        FONT_SCALE,
+        colors[0],
+        FONT_WEIGHT,
+    )
+
+    return image
+
+
 def draw_results(
     image: Union[np.ndarray, str],
     results: list[Annotation],
@@ -105,15 +125,11 @@ def draw_results(
     if isinstance(image, str):
         image = cv2.imread(image)
 
-    classification_results = [result for result in results if result.task == TaskType.CLASSIFICATION]
-    object_detection_results = [
-        result for result in results if result.task == TaskType.OBJECT_DETECTION
-    ]
-    instance_segmentation_results = [
-        result for result in results if result.task == TaskType.INSTANCE_SEGMENTATION
-    ]
+    task_results = {task: [] for task in TaskType}
+    for result in results:
+        task_results[result.task.upper()].append(result)
 
-    for i, result in enumerate(classification_results, start=1):
+    for i, result in enumerate(task_results[TaskType.CLASSIFICATION], start=1):
         image = draw_classification(
             image,
             result,
@@ -122,10 +138,13 @@ def draw_results(
             loc_y=30 * i,
         )
 
-    for i, result in enumerate(object_detection_results, start=1):
+    for i, result in enumerate(task_results[TaskType.OBJECT_DETECTION], start=1):
         image = draw_object_detection(image, result, names=names)
 
-    for i, result in enumerate(instance_segmentation_results, start=1):
+    for i, result in enumerate(task_results[TaskType.INSTANCE_SEGMENTATION], start=1):
         image = draw_instance_segmentation(image, result, names=names)
+
+    for i, result in enumerate(task_results[TaskType.TEXT_RECOGNITION], start=1):
+        image = draw_text_recognition(image, result, loc_x=10, loc_y=30)
 
     return image

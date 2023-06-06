@@ -190,6 +190,35 @@ class InstanceSegmentationResultParser(ObjectDetectionResultParser):
         return parseds
 
 
+class TextRecognitionResultParser(ResultParser):
+    def __init__(self, categories, *args, **kwargs):
+        self.categories = categories
+        self.category_names = [""] + [d["name"] for d in self.categories]
+
+    def __call__(
+        self, results: list[torch.Tensor], image_infos: list[ImageInfo] = None, *args, **kwargs
+    ) -> list[Annotation]:
+        parseds = []
+
+        pred_batch, conf_batch = results
+        for preds, confs in zip(pred_batch, conf_batch):
+            mask = preds > 0
+            preds, confs = preds[mask], confs[mask]
+
+            text = "".join([self.category_names[pred] for pred in preds])
+
+            parsed = []
+            parsed.append(
+                Annotation.text_recognition(
+                    score=list(map(float, confs)),
+                    caption=text,
+                )
+            )
+            parseds.append(parsed)
+
+        return parseds
+
+
 def get_parser(task: str):
     if task == "classification":
         return ClassificationResultParser
@@ -197,6 +226,8 @@ def get_parser(task: str):
         return ObjectDetectionResultParser
     elif task == "instance_segmentation":
         return InstanceSegmentationResultParser
+    elif task == "text_recognition":
+        return TextRecognitionResultParser
 
 
 class ModelWrapper(torch.nn.Module):
