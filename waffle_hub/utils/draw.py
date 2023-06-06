@@ -1,7 +1,10 @@
+from pathlib import Path
 from typing import Union
 
 import cv2
 import numpy as np
+from PIL import Image, ImageDraw, ImageFont
+from waffle_utils.file.network import get_file_from_url
 
 from waffle_hub import TaskType
 from waffle_hub.schema.fields import Annotation
@@ -9,8 +12,10 @@ from waffle_hub.schema.fields import Annotation
 FONT_FACE = cv2.FONT_HERSHEY_DUPLEX
 FONT_SCALE = 1.0
 FONT_WEIGHT = 2
-
 THICKNESS = 2
+FONT_URL = "https://raw.githubusercontent.com/snuailab/assets/main/waffle/fonts/gulim.ttc"
+FONT_NAME = "gulim.ttc"
+
 
 # random colors with 1000 categories
 colors = np.random.randint(0, 255, (1000, 3), dtype="uint8").tolist()
@@ -99,19 +104,24 @@ def draw_instance_segmentation(
 def draw_text_recognition(
     image: np.ndarray,
     annotation: Annotation,
-    loc_x: int = 10,
-    loc_y: int = 30,
+    loc_x: int = 0,
+    loc_y: int = 10,
 ):
-    text = annotation.caption
-    image = cv2.putText(
-        image,
-        text,
+    if not Path(FONT_NAME).exists():
+        get_file_from_url(FONT_URL, FONT_NAME, True)
+
+    font = ImageFont.truetype(FONT_NAME, int(FONT_SCALE) * 25)
+    img_pil = Image.fromarray(image)
+    draw = ImageDraw.Draw(img_pil)
+    draw.text(
         (loc_x, loc_y),
-        FONT_FACE,
-        FONT_SCALE,
-        colors[0],
-        FONT_WEIGHT,
+        annotation.caption,
+        font=font,
+        fill=tuple(colors[0]),
+        stroke_width=FONT_WEIGHT,
     )
+
+    image = np.array(img_pil)
 
     return image
 
@@ -145,6 +155,6 @@ def draw_results(
         image = draw_instance_segmentation(image, result, names=names)
 
     for i, result in enumerate(task_results[TaskType.TEXT_RECOGNITION], start=1):
-        image = draw_text_recognition(image, result, loc_x=10, loc_y=30)
+        image = draw_text_recognition(image, result, loc_x=10, loc_y=10)
 
     return image
