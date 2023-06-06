@@ -218,10 +218,21 @@ class Dataset:
     def category_to_images(self) -> dict[int, list[Image]]:
         if not hasattr(self, "_category_to_images"):
             category_to_images = {category_id: [] for category_id in self.categories.keys()}
+            category_name_to_id = {
+                category.name: category.category_id for category in self.categories.values()
+            }
             for image_id, annotations in tqdm.tqdm(
                 self.image_to_annotations.items(), desc="Building category to image index"
             ):
-                category_count = Counter(map(lambda a: a.category_id, annotations))
+                if self.task == TaskType.TEXT_RECOGNITION:
+                    texts = map(lambda a: a.caption, annotations)
+                    character_count = Counter("".join(texts))
+                    category_count = Counter()
+                    for k in character_count:
+                        category_count[category_name_to_id[k]] = character_count[k]
+                else:
+                    category_ids = map(lambda a: a.category_id, annotations)
+                    category_count = Counter(category_ids)
                 category_to_images[category_count.most_common(1)[0][0]].append(self.images[image_id])
             self._category_to_images = dict(category_to_images)
         return self._category_to_images
@@ -375,6 +386,12 @@ class Dataset:
                         name=f"category_{category_id}",
                         supercategory="object",
                     )
+                elif task == TaskType.TEXT_RECOGNITION:
+                    category = Category.text_recognition(
+                        category_id=category_id,
+                        name=chr(64 + category_id),
+                        supercategory="object",
+                    )
 
                 ds.add_categories([category])
 
@@ -423,7 +440,14 @@ class Dataset:
                         )
                         for i in range(random.randint(1, 5))
                     ]
-
+                elif task == TaskType.TEXT_RECOGNITION:
+                    annotations = [
+                        Annotation.text_recognition(
+                            annotation_id=annotation_id,
+                            image_id=image_id,
+                            caption=chr(64 + random.randint(1, category_num)),
+                        )
+                    ]
                 ds.add_annotations(annotations)
                 annotation_id += len(annotations)
 

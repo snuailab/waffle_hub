@@ -232,7 +232,12 @@ def _total_dummy(
 
 
 def test_dummy(tmpdir):
-    for task in [TaskType.CLASSIFICATION, TaskType.OBJECT_DETECTION, TaskType.INSTANCE_SEGMENTATION]:
+    for task in [
+        TaskType.CLASSIFICATION,
+        TaskType.OBJECT_DETECTION,
+        TaskType.INSTANCE_SEGMENTATION,
+        TaskType.TEXT_RECOGNITION,
+    ]:
         _total_dummy(f"dummy_{task}", task, 100, 5, 10, tmpdir)
 
     with pytest.raises(ValueError):
@@ -316,7 +321,7 @@ def _total_autocare_dlt(dataset_name, task: TaskType, coco_path, root_dir):
     "task", [TaskType.CLASSIFICATION, TaskType.OBJECT_DETECTION, TaskType.TEXT_RECOGNITION]
 )
 def test_autocare_dlt(coco_path, tmpdir, task):
-    _total_autocare_dlt(f"autocare_dlt", task, coco_path, tmpdir)
+    _total_autocare_dlt(f"autocare_dlt_{task}", task, coco_path, tmpdir)
 
 
 # test huggingface
