@@ -131,7 +131,6 @@ class BaseHub:
     def new(
         cls,
         name: str,
-        backend: str = None,
         task: str = None,
         model_type: str = None,
         model_size: str = None,
@@ -142,10 +141,9 @@ class BaseHub:
 
         Args:
             name (str): Hub name
-            backend (str, optional): Backend name. Defaults to None.
-            task (str, optional): Task Name. Defaults to None.
-            model_type (str, optional): Model Type. See UltralyticsHub.MODEL_TYPES. Defaults to None.
-            model_size (str, optional): Model Size. See UltralyticsHub.MODEL_SIZES. Defaults to None.
+            task (str, optional): Task Name. See Hub.TASKS. Defaults to None.
+            model_type (str, optional): Model Type. See Hub.MODEL_TYPES. Defaults to None.
+            model_size (str, optional): Model Size. See Hub.MODEL_SIZES. Defaults to None.
             categories (Union[list[dict], list]): class dictionary or list. [{"supercategory": "name"}, ] or ["name",].
             root_dir (str, optional): Root directory of hub repository. Defaults to None.
         """

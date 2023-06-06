@@ -3,16 +3,12 @@ Ultralytics Hub
 See BaseHub documentation for more details about usage.
 """
 
-from waffle_hub import get_installed_backend_version
-
-BACKEND_NAME = "ultralytics"
-BACKEND_VERSION = get_installed_backend_version(BACKEND_NAME)
-
 import warnings
 from pathlib import Path
 from typing import Union
 
 import torch
+import ultralytics
 from torchvision import transforms as T
 from ultralytics import YOLO
 from waffle_utils.file import io
@@ -27,6 +23,8 @@ from .config import DEFAULT_PARAMAS, MODEL_TYPES, TASK_MAP, TASK_SUFFIX
 
 
 class UltralyticsHub(BaseHub):
+    BACKEND_NAME = "ultralytics"
+
     MODEL_TYPES = MODEL_TYPES
     TASK_MAP = TASK_MAP
     TASK_SUFFIX = TASK_SUFFIX
@@ -43,21 +41,21 @@ class UltralyticsHub(BaseHub):
         backend: str = None,
         version: str = None,
     ):
-        """Create Ultralytics Hub Class. Do not use this class directly. Use UltralyticsHub.new() instead."""
+        if backend is not None and UltralyticsHub.BACKEND_NAME != backend:
+            raise ValueError(
+                f"Backend {backend} is not supported. Please use {UltralyticsHub.BACKEND_NAME}"
+            )
 
-        if backend is not None and backend != BACKEND_NAME:
-            raise ValueError(f"you've loaded {backend}. backend must be {BACKEND_NAME}")
-
-        if version is not None and version != BACKEND_VERSION:
+        if version is not None and ultralytics.__version__ != version:
             warnings.warn(
-                f"you've loaded a {BACKEND_NAME}=={version} version while {BACKEND_NAME}=={BACKEND_VERSION} version is installed."
-                "It will cause unexpected results."
+                f"You've loaded the Hub created with ultralytics=={version}, \n"
+                + f"but the installed version is {ultralytics.__version__}."
             )
 
         super().__init__(
             name=name,
-            backend=BACKEND_NAME,
-            version=BACKEND_VERSION,
+            backend=UltralyticsHub.BACKEND_NAME,
+            version=ultralytics.__version__,
             task=task,
             model_type=model_type,
             model_size=model_size,

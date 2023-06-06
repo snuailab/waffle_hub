@@ -6,6 +6,7 @@ import torch
 
 from waffle_hub import TaskType
 from waffle_hub.dataset import Dataset
+from waffle_hub.hub import get_hub, load_hub
 from waffle_hub.hub.adapter.autocare_dlt import AutocareDLTHub
 from waffle_hub.hub.adapter.transformers import TransformersHub
 from waffle_hub.hub.adapter.ultralytics import UltralyticsHub
@@ -170,6 +171,18 @@ def _benchmark(hub, image_size):
     hub.benchmark(device="cpu", half=False, image_size=image_size)
 
 
+def _util(hub):
+    name = hub.name
+    backend = hub.backend
+    root_dir = hub.root_dir
+
+    hub_class = get_hub(backend)
+    assert hub_class == type(hub)
+
+    hub_loaded = load_hub(name, root_dir)
+    assert isinstance(hub_loaded, type(hub))
+
+
 def _total(hub, dataset: Dataset, image_size: int, hold: bool = True):
 
     _train(hub, dataset, image_size, hold=hold)
@@ -179,6 +192,7 @@ def _total(hub, dataset: Dataset, image_size: int, hold: bool = True):
     # _export(hub, half=True, hold=hold)  # cpu cannot be half
     _feature_extraction(hub, image_size)
     _benchmark(hub, image_size)
+    _util(hub)
 
 
 def test_ultralytics_segmentation(instance_segmentation_dataset: Dataset, tmpdir: Path):
