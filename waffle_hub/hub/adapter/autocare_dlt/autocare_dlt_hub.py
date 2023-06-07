@@ -3,15 +3,11 @@ Tx Model Hub
 See BaseHub documentation for more details about usage.
 """
 
-from waffle_hub import get_installed_backend_version
-
-BACKEND_NAME = "autocare_dlt"
-BACKEND_VERSION = get_installed_backend_version(BACKEND_NAME)
-
 import warnings
 from pathlib import Path
 from typing import Union
 
+import autocare_dlt
 import tbparse
 import torch
 from autocare_dlt.core.model import build_model
@@ -35,6 +31,8 @@ from .config import DATA_TYPE_MAP, DEFAULT_PARAMAS, MODEL_TYPES, WEIGHT_PATH
 
 
 class AutocareDLTHub(BaseHub):
+    BACKEND_NAME = "autocare_dlt"
+
     MODEL_TYPES = MODEL_TYPES
     DATA_TYPE_MAP = DATA_TYPE_MAP
     WEIGHT_PATH = WEIGHT_PATH
@@ -51,21 +49,21 @@ class AutocareDLTHub(BaseHub):
         backend: str = None,
         version: str = None,
     ):
-        """Create Tx Model Hub Class. Do not use this class directly. Use AutocareDLTHub.new() instead."""
+        if backend is not None and AutocareDLTHub.BACKEND_NAME != backend:
+            raise ValueError(
+                f"Backend {backend} is not supported. Please use {AutocareDLTHub.BACKEND_NAME}"
+            )
 
-        if backend is not None and backend != BACKEND_NAME:
-            raise ValueError(f"you've loaded {backend}. backend must be {BACKEND_NAME}")
-
-        if version is not None and version != BACKEND_VERSION:
+        if version is not None and autocare_dlt.__version__ != version:
             warnings.warn(
-                f"you've loaded a {BACKEND_NAME}=={version} version while {BACKEND_NAME}=={BACKEND_VERSION} version is installed."
-                "It will cause unexpected results."
+                f"You've loaded the Hub created with autocare_dlt=={version}, \n"
+                + f"but the installed version is {autocare_dlt.__version__}."
             )
 
         super().__init__(
             name=name,
-            backend=BACKEND_NAME,
-            version=BACKEND_VERSION,
+            backend=AutocareDLTHub.BACKEND_NAME,
+            version=autocare_dlt.__version__,
             task=task,
             model_type=model_type,
             model_size=model_size,

@@ -128,6 +128,35 @@ class BaseHub:
             raise e
 
     @classmethod
+    def new(
+        cls,
+        name: str,
+        task: str = None,
+        model_type: str = None,
+        model_size: str = None,
+        categories: Union[list[dict], list] = None,
+        root_dir: str = None,
+    ):
+        """Create Hub.
+
+        Args:
+            name (str): Hub name
+            task (str, optional): Task Name. See Hub.TASKS. Defaults to None.
+            model_type (str, optional): Model Type. See Hub.MODEL_TYPES. Defaults to None.
+            model_size (str, optional): Model Size. See Hub.MODEL_SIZES. Defaults to None.
+            categories (Union[list[dict], list]): class dictionary or list. [{"supercategory": "name"}, ] or ["name",].
+            root_dir (str, optional): Root directory of hub repository. Defaults to None.
+        """
+        return cls(
+            name=name,
+            task=task,
+            model_type=model_type,
+            model_size=model_size,
+            categories=categories,
+            root_dir=root_dir,
+        )
+
+    @classmethod
     def load(cls, name: str, root_dir: str = None) -> "BaseHub":
         """Load Hub by name.
 

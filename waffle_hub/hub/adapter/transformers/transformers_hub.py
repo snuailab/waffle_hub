@@ -1,12 +1,7 @@
 """
-Hugging Face Hub
+Transformers Hub
 See BaseHub documentation for more details about usage.
 """
-
-from waffle_hub import get_installed_backend_version
-
-BACKEND_NAME = "transformers"
-BACKEND_VERSION = get_installed_backend_version(BACKEND_NAME)
 
 import os
 import warnings
@@ -16,6 +11,7 @@ from pathlib import Path
 from typing import Callable, Union
 
 import torch
+import transformers
 from torchvision import transforms as T
 from transformers import (
     AutoImageProcessor,
@@ -29,9 +25,8 @@ from transformers.utils import ModelOutput
 from waffle_utils.file import io
 
 from datasets import load_from_disk
-
 from waffle_hub import TaskType
-from waffle_hub.hub.adapter.hugging_face.train_input_helper import (
+from waffle_hub.hub.adapter.transformers.train_input_helper import (
     ClassifierInputHelper,
     ObjectDetectionInputHelper,
 )
@@ -62,7 +57,8 @@ class CustomCallback(TrainerCallback):
             return control_copy
 
 
-class HuggingFaceHub(BaseHub):
+class TransformersHub(BaseHub):
+    BACKEND_NAME = "transformers"
 
     # Override
     LAST_CKPT_FILE = "weights/last_ckpt"
@@ -83,20 +79,21 @@ class HuggingFaceHub(BaseHub):
         backend: str = None,
         version: str = None,
     ):
+        if backend is not None and TransformersHub.BACKEND_NAME != backend:
+            raise ValueError(
+                f"Backend {backend} is not supported. Please use {TransformersHub.BACKEND_NAME}"
+            )
 
-        if backend is not None and backend != BACKEND_NAME:
-            raise ValueError(f"you've loaded {backend}. backend must be {BACKEND_NAME}")
-
-        if version is not None and version != BACKEND_VERSION:
+        if version is not None and transformers.__version__ != version:
             warnings.warn(
-                f"you've loaded a {BACKEND_NAME}=={version} version while {BACKEND_NAME}=={BACKEND_VERSION} version is installed."
-                "It will cause unexpected results."
+                f"You've loaded the Hub created with transformers=={version}, \n"
+                + f"but the installed version is {transformers.__version__}."
             )
 
         super().__init__(
             name=name,
-            backend=BACKEND_NAME,
-            version=BACKEND_VERSION,
+            backend=TransformersHub.BACKEND_NAME,
+            version=transformers.__version__,
             task=task,
             model_type=model_type,
             model_size=model_size,
@@ -108,12 +105,12 @@ class HuggingFaceHub(BaseHub):
     @cached_property
     def best_ckpt_file(self) -> Path:
         """Best Checkpoint File"""
-        return self.hub_dir / HuggingFaceHub.BEST_CKPT_FILE
+        return self.hub_dir / TransformersHub.BEST_CKPT_FILE
 
     @cached_property
     def last_ckpt_file(self) -> Path:
         """Last Checkpoint File"""
-        return self.hub_dir / HuggingFaceHub.LAST_CKPT_FILE
+        return self.hub_dir / TransformersHub.LAST_CKPT_FILE
 
     @classmethod
     def new(

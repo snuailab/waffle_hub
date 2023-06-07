@@ -187,7 +187,7 @@ def _export(dataset_name, task: TaskType, root_dir):
     if task in [TaskType.OBJECT_DETECTION, TaskType.INSTANCE_SEGMENTATION, TaskType.CLASSIFICATION]:
         dataset.export("yolo")
     if task in [TaskType.OBJECT_DETECTION, TaskType.CLASSIFICATION]:
-        dataset.export("huggingface")
+        dataset.export("transformers")
 
 
 # test dummy
@@ -274,12 +274,12 @@ def test_coco(coco_path, tmpdir):
         _total_coco(f"coco_{task}", task, coco_path, tmpdir)
 
 
-# test huggingface
-def _from_huggingface(dataset_name, task: TaskType, huggingface_path, root_dir):
-    dataset = Dataset.from_huggingface(
+# test transformers
+def _from_transformers(dataset_name, task: TaskType, transformers_path, root_dir):
+    dataset = Dataset.from_transformers(
         name=dataset_name,
         task=task,
-        dataset_dir=huggingface_path,
+        dataset_dir=transformers_path,
         root_dir=root_dir,
     )
     assert dataset.dataset_info_file.exists()
@@ -289,22 +289,22 @@ def _from_huggingface(dataset_name, task: TaskType, huggingface_path, root_dir):
     assert len(dataset.images) == 100
 
 
-def _total_huggingface(dataset_name, task: TaskType, huggingface_path, root_dir):
-    _from_huggingface(dataset_name, task, huggingface_path, root_dir)
+def _total_transformers(dataset_name, task: TaskType, transformers_path, root_dir):
+    _from_transformers(dataset_name, task, transformers_path, root_dir)
     _load(dataset_name, root_dir)
     _clone(dataset_name, root_dir)
     _split(dataset_name, root_dir)
     _export(dataset_name, task, root_dir)
 
 
-def test_huggingface(huggingface_detection_path, huggingface_classification_path, tmpdir):
-    _total_huggingface(
-        "huggingface_object_detection", TaskType.OBJECT_DETECTION, huggingface_detection_path, tmpdir
+def test_transformers(transformers_detection_path, transformers_classification_path, tmpdir):
+    _total_transformers(
+        "transformers_object_detection", TaskType.OBJECT_DETECTION, transformers_detection_path, tmpdir
     )
-    _total_huggingface(
-        "huggingface_classification",
+    _total_transformers(
+        "transformers_classification",
         TaskType.CLASSIFICATION,
-        huggingface_classification_path,
+        transformers_classification_path,
         tmpdir,
     )
 

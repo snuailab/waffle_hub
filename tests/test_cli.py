@@ -63,14 +63,14 @@ def test_dataset_from_yolo(test_dir: Path):
     assert (test_dir / "datasets" / "from_yolo").exists()
 
 
-def test_dataset_from_huggingface(test_dir: Path):
+def test_dataset_from_transformers(test_dir: Path):
     url = "https://raw.githubusercontent.com/snuailab/assets/main/waffle/sample_dataset/mnist_huggingface_classification.zip"
     hf_dir = test_dir / "datasets" / "mnist_hf"
 
     get_file_from_url(url, str(test_dir), True)
     unzip(str(test_dir / "mnist_huggingface_classification.zip"), hf_dir)
 
-    cmd = f"python -m waffle_hub.run dataset from_huggingface \
+    cmd = f"python -m waffle_hub.run dataset from_transformers \
         --name from_hf \
         --root-dir {test_dir / 'datasets'} \
         --task classification \
