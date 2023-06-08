@@ -4,7 +4,7 @@ from waffle_hub.schema.configs import TrainConfig
 MODEL_TYPES = {
     "object_detection": {"YOLOv5": list("sml")},
     "classification": {"Classifier": list("sml")},
-    "text_recognition": {"TextRecognition": list("s")},
+    "text_recognition": {"TextRecognition": list("sml"), "LicencePlateRecognition": list("sml")},
 }
 
 # Backend Specifics
@@ -32,6 +32,13 @@ WEIGHT_PATH = {
     "text_recognition": {
         "TextRecognition": {
             "s": "temp/autocare_dlt/text_recognizers/small/model.pth",
+            "m": "temp/autocare_dlt/text_recognizers/small/model.pth",
+            "l": "temp/autocare_dlt/text_recognizers/small/model.pth",
+        },
+        "LicencePlateRecognition": {
+            "s": "temp/autocare_dlt/text_recognizers/small/model.pth",
+            "m": "temp/autocare_dlt/text_recognizers/small/model.pth",
+            "l": "temp/autocare_dlt/text_recognizers/small/model.pth",    
         }
     },
 }
@@ -95,6 +102,43 @@ DEFAULT_PARAMAS = {
                 learning_rate=0.01,
                 letter_box=False,
                 batch_size=256,
+            ),
+            "m": TrainConfig(
+                epochs=50,
+                image_size=[224, 224],
+                learning_rate=0.01,
+                letter_box=False,
+                batch_size=128,
+            ),
+            "l": TrainConfig(
+                epochs=50,
+                image_size=[224, 224],
+                learning_rate=0.01,
+                letter_box=False,
+                batch_size=64,
+            ),
+        },
+        "LicencePlateRecognition": {
+            "s": TrainConfig(
+                epochs=50,
+                image_size=[224, 224],
+                learning_rate=0.01,
+                letter_box=False,
+                batch_size=256,
+            ),
+            "m": TrainConfig(
+                epochs=50,
+                image_size=[224, 224],
+                learning_rate=0.01,
+                letter_box=False,
+                batch_size=128,
+            ),
+            "l": TrainConfig(
+                epochs=50,
+                image_size=[224, 224],
+                learning_rate=0.01,
+                letter_box=False,
+                batch_size=64,
             ),
         }
     },

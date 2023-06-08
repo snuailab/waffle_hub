@@ -1197,6 +1197,7 @@ class Dataset:
             TaskType.CLASSIFICATION,
             TaskType.OBJECT_DETECTION,
             TaskType.INSTANCE_SEGMENTATION,
+            TaskType.TEXT_RECOGNITION
         ]:
             raise NotImplementedError(f"not supported task: {task}")
 
