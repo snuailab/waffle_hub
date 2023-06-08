@@ -112,7 +112,7 @@ def get_model_config(
             "task": model_type,
             "model": {
                 "Transformation": {"name": None},
-                "FeatureExtraction": {"name": "resnet18", "feature_index": 3, "output_size": 256},
+                "FeatureExtraction": {"name": backbone, "feature_index": 3, "output_size": 256},
                 "SequenceModeling": {"name": "BiLSTM", "input_size": 256, "hidden_size": 256},
                 "Prediction": {"name": "CTC", "input_size": 256},
                 "max_string_length": 50,
@@ -138,10 +138,10 @@ def get_model_config(
             "task": model_type,
             "model": {
                 "Transformation": {"name": None},
-                "FeatureExtraction": {"name": "resnet18", "feature_index": 3, "output_size": 256},
+                "FeatureExtraction": {"name": backbone, "feature_index": 3, "output_size": 256},
                 "SequenceModeling": {"name": "BiLSTM", "input_size": 256, "hidden_size": 256},
                 "Prediction": {"name": "CTC", "input_size": 256},
-                "max_string_length": 9,
+                "max_string_length": 10,
             },
             "loss": {"str_loss": {"name": "LPRLoss", "params": {}}},
             "optim": {"name": "Adam", "lr": 0.0002},

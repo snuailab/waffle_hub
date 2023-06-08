@@ -218,7 +218,7 @@ class AutocareDLTHub(BaseHub):
         )
         if self.model_type == "LicencePlateRecognition":
             data_config["data"]["mode"] =  "lpr"
-
+            
         cfg.data_config = self.artifact_dir / "data.json"
         io.save_json(data_config, cfg.data_config, create_directory=True)
         categories = (
@@ -296,7 +296,7 @@ class AutocareDLTHub(BaseHub):
         cfg = io.load_json(self.artifact_dir / "model.json")
         cfg["ckpt"] = str(self.best_ckpt_file)
         if self.task == TaskType.TEXT_RECOGNITION:
-            cfg["model"]["Prediction"]["num_classes"] = len(categories) + 1
+            cfg["model"]["Prediction"]["num_classes"] = len(categories)
         else:
             cfg["model"]["head"]["num_classes"] = len(categories)
         cfg["num_classes"] = len(categories)

@@ -121,21 +121,21 @@ DEFAULT_PARAMAS = {
         "LicencePlateRecognition": {
             "s": TrainConfig(
                 epochs=50,
-                image_size=[224, 224],
+                image_size=[240, 80],
                 learning_rate=0.01,
                 letter_box=False,
                 batch_size=256,
             ),
             "m": TrainConfig(
                 epochs=50,
-                image_size=[224, 224],
+                image_size=[240, 80],
                 learning_rate=0.01,
                 letter_box=False,
                 batch_size=128,
             ),
             "l": TrainConfig(
                 epochs=50,
-                image_size=[224, 224],
+                image_size=[240, 80],
                 learning_rate=0.01,
                 letter_box=False,
                 batch_size=64,
