@@ -1197,7 +1197,7 @@ class Dataset:
             TaskType.CLASSIFICATION,
             TaskType.OBJECT_DETECTION,
             TaskType.INSTANCE_SEGMENTATION,
-            TaskType.TEXT_RECOGNITION
+            TaskType.TEXT_RECOGNITION,
         ]:
             raise NotImplementedError(f"not supported task: {task}")
 
@@ -1269,10 +1269,11 @@ class Dataset:
             ValueError: if dataset has not enough annotations.
         """
         if self.task == TaskType.TEXT_RECOGNITION:
-            for split_ids in self.get_split_ids():
-                if len(split_ids) < Dataset.MINIMUM_TRAINABLE_IMAGE_NUM_PER_CATEGORY:
-                    raise ValueError(f"number of image is bigger than MINIMUM_TRAINABLE_IMAGE_NUM_PER_CATEGORY({Dataset.MINIMUM_TRAINABLE_IMAGE_NUM_PER_CATEGORY})")
-            return 
+            if len(self.images) < Dataset.MINIMUM_TRAINABLE_IMAGE_NUM_PER_CATEGORY:
+                raise ValueError(
+                    f"number of image is bigger than MINIMUM_TRAINABLE_IMAGE_NUM_PER_CATEGORY({Dataset.MINIMUM_TRAINABLE_IMAGE_NUM_PER_CATEGORY})"
+                )
+            return
         if not self.trainable():
             raise ValueError(
                 "Dataset is not trainable\n"
