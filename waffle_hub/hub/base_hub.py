@@ -54,8 +54,11 @@ logger = logging.getLogger(__name__)
 
 
 class BaseHub:
-
-    MODEL_TYPES = {}
+    # Hub Spec. must have
+    BACKEND_NAME = None
+    MODEL_TYPES = None
+    MULTI_GPU_TRAIN = None
+    DEFAULT_PARAMAS = None
 
     # directory settings
     DEFAULT_ROOT_DIR = Path("./hubs")
@@ -97,6 +100,18 @@ class BaseHub:
         categories: Union[list[dict], list] = None,
         root_dir: str = None,
     ):
+        if self.BACKEND_NAME is None:
+            raise AttributeError("BACKEND_NAME must be specified.")
+
+        if self.MODEL_TYPES is None:
+            raise AttributeError("MODEL_TYPES must be specified.")
+
+        if self.MULTI_GPU_TRAIN is None:
+            raise AttributeError("MULTI_GPU_TRAIN must be specified.")
+
+        if self.DEFAULT_PARAMAS is None:
+            raise AttributeError("DEFAULT_PARAMAS must be specified.")
+
         self.name: str = name
         self.task: str = task
         self.model_type: str = model_type
@@ -501,7 +516,33 @@ class BaseHub:
 
     # Train Hook
     def before_train(self, cfg: TrainConfig):
-        pass
+        # check device
+        device = cfg.device
+
+        if device == "cpu":
+            logger.info("CPU training")
+
+        elif device.isdigit():
+            if not torch.cuda.is_available():
+                raise ValueError("CUDA is not available.")
+            logger.info(f"Single GPU training: {device}")
+
+        elif "," in device:
+            if not torch.cuda.is_available():
+                raise ValueError("CUDA is not available.")
+            if not self.MULTI_GPU_TRAIN:
+                raise ValueError(f"{self.backend} does not support MULTI_GPU_TRAIN.")
+            if len(device.split(",")) > torch.cuda.device_count():
+                raise ValueError(
+                    f"GPU number is not enough. {device}\n"
+                    + f"Given device: {device}\n"
+                    + f"Available device count: {torch.cuda.device_count()}"
+                )
+
+            logger.info(f"Multi GPU training: {device}")
+
+        else:
+            raise ValueError(f"Invalid device: {device}\n" + "Please use 'cpu', '0', '0,1,2,3'")
 
     def on_train_start(self, cfg: TrainConfig):
         pass
@@ -545,7 +586,8 @@ class BaseHub:
             learning_rate (float, optional): learning rate. None to use default. Defaults to None.
             letter_box (bool, optional): letter box. None to use default. Defaults to None.
             pretrained_model (str, optional): pretrained model. None to use default. Defaults to None.
-            device (str, optional): device. "cpu" or "gpu_id". Defaults to "0".
+            device (str, optional):
+                "cpu" or "gpu_id" or comma seperated "gpu_ids". Defaults to "0".
             workers (int, optional): number of workers. Defaults to 2.
             seed (int, optional): random seed. Defaults to 0.
             verbose (bool, optional): verbose. Defaults to True.
@@ -565,7 +607,9 @@ class BaseHub:
                     image_size=640,
                     learning_rate=0.001,
                     letterbox=False,
-                    device="0",
+                    device="0",  # use gpu 0
+                    # device="0,1,2,3",  # use gpu 0,1,2,3
+                    # device="cpu",  # use cpu
                     workers=2,
                     seed=123
                 )
