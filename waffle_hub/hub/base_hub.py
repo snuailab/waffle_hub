@@ -8,6 +8,7 @@ Hub is a multi-backend compatible interface for model training, evaluation, infe
 
 """
 import logging
+import os
 import threading
 import time
 import warnings
@@ -518,15 +519,16 @@ class BaseHub:
     def before_train(self, cfg: TrainConfig):
         # check device
         device = cfg.device
-
         if device == "cpu":
             logger.info("CPU training")
-
         elif device.isdigit():
             if not torch.cuda.is_available():
                 raise ValueError("CUDA is not available.")
+            if int(device) >= torch.cuda.device_count():
+                raise IndexError(
+                    f"GPU[{device}] index is out of range. device id should be smaller than {torch.cuda.device_count()}\n"
+                )
             logger.info(f"Single GPU training: {device}")
-
         elif "," in device:
             if not torch.cuda.is_available():
                 raise ValueError("CUDA is not available.")
@@ -538,11 +540,24 @@ class BaseHub:
                     + f"Given device: {device}\n"
                     + f"Available device count: {torch.cuda.device_count()}"
                 )
-
+            if not all([int(x) < torch.cuda.device_count() for x in device.split(",")]):
+                raise IndexError(
+                    f"GPU index is out of range. device id should be smaller than {torch.cuda.device_count()}\n"
+                )
             logger.info(f"Multi GPU training: {device}")
-
         else:
             raise ValueError(f"Invalid device: {device}\n" + "Please use 'cpu', '0', '0,1,2,3'")
+
+        # check if it is already trained
+        rank = os.getenv("RANK", -1)
+        if self.artifact_dir.exists() and rank in [
+            -1,
+            0,
+        ]:  # TODO: need to ensure that training is not already running
+            raise FileExistsError(
+                f"{self.artifact_dir}\n"
+                "Train artifacts already exist. Remove artifact to re-train (hub.delete_artifact())."
+            )
 
     def on_train_start(self, cfg: TrainConfig):
         pass
@@ -621,12 +636,6 @@ class BaseHub:
         Returns:
             TrainResult: train result
         """
-
-        if self.artifact_dir.exists():
-            raise FileExistsError(
-                f"{self.artifact_dir}\n"
-                "Train artifacts already exist. Remove artifact to re-train (hub.delete_artifact())."
-            )
 
         def inner(callback: TrainCallback, result: TrainResult):
             try:
