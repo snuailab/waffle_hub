@@ -524,10 +524,10 @@ class BaseHub:
         elif device.isdigit():
             if not torch.cuda.is_available():
                 raise ValueError("CUDA is not available.")
-            if int(device) >= torch.cuda.device_count():
-                raise IndexError(
-                    f"GPU[{device}] index is out of range. device id should be smaller than {torch.cuda.device_count()}\n"
-                )
+            # if int(device) >= torch.cuda.device_count():  # TODO: https://github.com/ultralytics/ultralytics/issues/3098
+            #     raise IndexError(
+            #         f"GPU[{device}] index is out of range. device id should be smaller than {torch.cuda.device_count()}\n"
+            #     )
             logger.info(f"Single GPU training: {device}")
         elif "," in device:
             if not torch.cuda.is_available():
@@ -545,8 +545,8 @@ class BaseHub:
                     f"GPU index is out of range. device id should be smaller than {torch.cuda.device_count()}\n"
                 )
             logger.info(f"Multi GPU training: {device}")
-        else:
-            raise ValueError(f"Invalid device: {device}\n" + "Please use 'cpu', '0', '0,1,2,3'")
+        # else:
+        #     raise ValueError(f"Invalid device: {device}\n" + "Please use 'cpu', '0', '0,1,2,3'")
 
         # check if it is already trained
         rank = os.getenv("RANK", -1)
