@@ -16,7 +16,7 @@ from waffle_hub import TaskType
 from waffle_hub.schema.fields import Image
 
 
-def _export_huggingface_classification(
+def _export_transformers_classification(
     self,
     export_dir: Path,
     train_ids: list,
@@ -24,7 +24,7 @@ def _export_huggingface_classification(
     test_ids: list,
     unlabeled_ids: list,
 ):
-    """Export dataset to Hugging Face format for classification task
+    """Export dataset to Transformers format for classification task
 
     Args:
         export_dir (Path): Path to export directory
@@ -65,7 +65,7 @@ def _export_huggingface_classification(
     dataset.save_to_disk(export_dir)
 
 
-def _export_huggingface_detection(
+def _export_transformers_detection(
     self,
     export_dir: Path,
     train_ids: list,
@@ -73,7 +73,7 @@ def _export_huggingface_detection(
     test_ids: list,
     unlabeled_ids: list,
 ):
-    """Export dataset to Hugging Face format for detection task
+    """Export dataset to Transformers format for detection task
 
     Args:
         export_dir (Path): Path to export directory
@@ -141,8 +141,8 @@ def _export_huggingface_detection(
     dataset.save_to_disk(export_dir)
 
 
-def export_huggingface(self, export_dir: Union[str, Path]) -> str:
-    """Export dataset to Hugging Face format
+def export_transformers(self, export_dir: Union[str, Path]) -> str:
+    """Export dataset to Transformers format
 
     Args:
         export_dir (str): Path to export directory
@@ -155,9 +155,9 @@ def export_huggingface(self, export_dir: Union[str, Path]) -> str:
     train_ids, val_ids, test_ids, _ = self.get_split_ids()
 
     if self.task == TaskType.CLASSIFICATION:
-        _export_huggingface_classification(self, export_dir, train_ids, val_ids, test_ids, [])
+        _export_transformers_classification(self, export_dir, train_ids, val_ids, test_ids, [])
     elif self.task == TaskType.OBJECT_DETECTION:
-        _export_huggingface_detection(self, export_dir, train_ids, val_ids, test_ids, [])
+        _export_transformers_detection(self, export_dir, train_ids, val_ids, test_ids, [])
     else:
         raise ValueError(f"Unsupported task type: {self.task}")
 

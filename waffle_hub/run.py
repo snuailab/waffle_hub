@@ -5,7 +5,7 @@ from rich import print
 
 from waffle_hub.dataset.dataset import Dataset
 from waffle_hub.hub.adapter.autocare_dlt import AutocareDLTHub
-from waffle_hub.hub.adapter.hugging_face import HuggingFaceHub
+from waffle_hub.hub.adapter.transformers import TransformersHub
 from waffle_hub.hub.adapter.ultralytics import UltralyticsHub
 
 dataset = typer.Typer(name="dataset")
@@ -16,13 +16,13 @@ app.add_typer(hub)
 
 BACKEND_MAP = {
     "ultralytics": UltralyticsHub,
-    "huggingface": HuggingFaceHub,
+    "transformers": TransformersHub,
     "autocare_dlt": AutocareDLTHub,
 }
 
 EXPORT_MAP = {
     "ultralytics": "YOLO",
-    "huggingface": "HUGGINGFACE",
+    "transformers": "TRANSFORMERS",
     "autocare_dlt": "AutocareDLT",
 }
 
@@ -271,14 +271,14 @@ def _from_yolo_dataset(
     )
 
 
-@dataset.command(name="from_huggingface")
-def _from_huggingface_dataset(
+@dataset.command(name="from_transformers")
+def _from_transformers_dataset(
     name: str = typer.Option(..., help="Name of the dataset"),
     root_dir: str = typer.Option(..., help="Root directory"),
     task: str = typer.Option(..., help="Task"),
     dataset_dir: str = typer.Option(..., help="Dataset directory"),
 ):
-    Dataset.from_huggingface(
+    Dataset.from_transformers(
         name=name,
         root_dir=root_dir,
         task=task,

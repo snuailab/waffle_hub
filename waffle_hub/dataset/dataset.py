@@ -24,7 +24,7 @@ from waffle_hub import DataType, SplitMethod, TaskType
 from waffle_hub.dataset.adapter import (
     export_autocare_dlt,
     export_coco,
-    export_huggingface,
+    export_transformers,
     export_yolo,
 )
 from waffle_hub.schema import Annotation, Category, DatasetInfo, Image
@@ -1055,7 +1055,7 @@ class Dataset:
         return ds
 
     @classmethod
-    def from_huggingface(
+    def from_transformers(
         cls,
         name: str,
         task: str,
@@ -1063,12 +1063,12 @@ class Dataset:
         root_dir=None,
     ) -> "Dataset":
         """
-        Import Dataset from huggingface datasets.
-        This method imports huggingface dataset from directory.
+        Import Dataset from transformers datasets.
+        This method imports transformers dataset from directory.
 
         Args:
             name (str): Dataset name.
-            dataset_dir (str): Hugging Face dataset directory.
+            dataset_dir (str): Transformers dataset directory.
             task (str): Task name.
             root_dir (str, optional): Dataset root directory. Defaults to None.
 
@@ -1077,7 +1077,7 @@ class Dataset:
             ValueError: if dataset is not Dataset or DatasetDict
 
         Examples:
-            >>> ds = Dataset.from_huggingface("huggingface", "object_detection", "path/to/huggingface/dataset")
+            >>> ds = Dataset.from_transformers("transformers", "object_detection", "path/to/transformers/dataset")
 
         Returns:
             Dataset: Dataset Class
@@ -1560,9 +1560,10 @@ class Dataset:
         elif data_type in [DataType.AUTOCARE_DLT]:
             export_dir: Path = self.export_dir / str(DataType.AUTOCARE_DLT)
             export_function = export_autocare_dlt
-        elif data_type in [DataType.HUGGINGFACE, DataType.TRANSFORMERS]:
-            export_dir: Path = self.export_dir / str(DataType.HUGGINGFACE)
-            export_function = export_huggingface
+        elif data_type in [DataType.TRANSFORMERS]:
+            export_dir: Path = self.export_dir / str(DataType.TRANSFORMERS)
+            export_function = export_transformers
+
         else:
             raise ValueError(f"Invalid data_type: {data_type}")
 
