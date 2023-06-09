@@ -65,15 +65,8 @@ def _export_autocare_dlt(
                 if d.get("segmentation", None):
                     if isinstance(d["segmentation"], dict):
                         d["segmentation"] = convert_rle_to_polygon(d["segmentation"])
-                caption = d.get("caption", None)
-                if caption:
-                    for c in set(caption):
-                        if c not in category_names:
-                            raise ValueError(
-                                f"character {c} is not in categories, please check your dataset"
-                            )
-                    if not d.get("category_id", None):
-                        d["category_id"] = 1  # dummy for ocr
+                if d.get("caption", None) and (not d.get("category_id", None)):
+                    d["category_id"] = 1  # dummy for ocr
                 annotation_id = d.pop("annotation_id")
                 coco["annotations"].append({"id": annotation_id, **d})
 

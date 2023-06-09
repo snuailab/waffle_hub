@@ -227,13 +227,14 @@ class Dataset:
                 if self.task == TaskType.TEXT_RECOGNITION:
                     texts = map(lambda a: a.caption, annotations)
                     character_count = Counter("".join(texts))
-                    category_count = Counter()
                     for k in character_count:
-                        category_count[category_name_to_id[k]] = character_count[k]
+                        category_to_images[category_name_to_id[k]].append(self.images[image_id])
                 else:
                     category_ids = map(lambda a: a.category_id, annotations)
                     category_count = Counter(category_ids)
-                category_to_images[category_count.most_common(1)[0][0]].append(self.images[image_id])
+                    category_to_images[category_count.most_common(1)[0][0]].append(
+                        self.images[image_id]
+                    )
             self._category_to_images = dict(category_to_images)
         return self._category_to_images
 
@@ -873,14 +874,6 @@ class Dataset:
 
                 for annotation_dict in annotation_dicts:
                     annotation_dict.pop("id")
-                    caption = annotation_dict.get("caption", None)
-                    if caption:
-                        for c in set(caption):
-                            if c not in ds.category_names:
-                                raise ValueError(
-                                    f"character {c} is not in categories, please check your dataset"
-                                )
-
                     ds.add_annotations(
                         [
                             Annotation.from_dict(
@@ -1126,6 +1119,15 @@ class Dataset:
 
         def _import(dataset: HFDataset, task: str, image_ids: list[int]):
             if task == "object_detection":
+                categories = dataset.features["objects"].feature["category"].names
+                for category_id, category_name in enumerate(categories):
+                    category = Category.object_detection(
+                        category_id=category_id + 1,
+                        supercategory="object",
+                        name=category_name,
+                    )
+                    ds.add_categories([category])
+
                 for data in dataset:
                     data["image"].save(f"{ds.raw_image_dir}/{data['image_id']}.jpg")
                     image = Image.new(
@@ -1153,16 +1155,16 @@ class Dataset:
                         )
                         ds.add_annotations([annotation])
 
-                categories = dataset.features["objects"].feature["category"].names
+            elif task == "classification":
+                categories = dataset.features["label"].names
                 for category_id, category_name in enumerate(categories):
-                    category = Category.object_detection(
+                    category = Category.classification(
                         category_id=category_id + 1,
                         supercategory="object",
                         name=category_name,
                     )
                     ds.add_categories([category])
 
-            elif task == "classification":
                 for image_id, data in zip(image_ids, dataset):
                     image_save_path = f"{ds.raw_image_dir}/{image_id}.jpg"
                     data["image"].save(image_save_path)
@@ -1183,14 +1185,6 @@ class Dataset:
                     )
                     ds.add_annotations([annotation])
 
-                categories = dataset.features["label"].names
-                for category_id, category_name in enumerate(categories):
-                    category = Category.classification(
-                        category_id=category_id + 1,
-                        supercategory="object",
-                        name=category_name,
-                    )
-                    ds.add_categories([category])
             else:
                 raise ValueError("task should be one of ['classification', 'object_detection']")
 
@@ -1224,6 +1218,7 @@ class Dataset:
             Dataset: Dataset Class
         """
 
+        temp_dir = Path(mkdtemp())
         try:
             if task in [
                 TaskType.CLASSIFICATION,
@@ -1236,7 +1231,6 @@ class Dataset:
             else:
                 raise NotImplementedError(f"not supported task: {task}")
 
-            temp_dir = Path(mkdtemp())
             network.get_file_from_url(url, temp_dir / "mnist.zip")
             io.unzip(temp_dir / "mnist.zip", temp_dir)
 
@@ -1301,12 +1295,6 @@ class Dataset:
         Raises:
             ValueError: if dataset has not enough annotations.
         """
-        if self.task == TaskType.TEXT_RECOGNITION:
-            if len(self.images) < Dataset.MINIMUM_TRAINABLE_IMAGE_NUM_PER_CATEGORY:
-                raise ValueError(
-                    f"number of image should be bigger than MINIMUM_TRAINABLE_IMAGE_NUM_PER_CATEGORY({Dataset.MINIMUM_TRAINABLE_IMAGE_NUM_PER_CATEGORY})"
-                )
-            return
         if not self.trainable():
             raise ValueError(
                 "Dataset is not trainable\n"
@@ -1433,6 +1421,10 @@ class Dataset:
             annotations (list[Annotation]): list of "Annotation"s
         """
         for item in annotations:
+            if self.task == TaskType.TEXT_RECOGNITION:
+                for char in item.caption:
+                    if char not in self.category_names:
+                        raise ValueError(f"Category '{char}' is not in dataset")
             item_path = self.annotation_dir / f"{item.image_id}" / f"{item.annotation_id}.json"
             io.save_json(item.to_dict(), item_path, create_directory=True)
 
