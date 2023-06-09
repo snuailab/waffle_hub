@@ -1202,7 +1202,15 @@ class Dataset:
             raise NotImplementedError(f"not supported task: {task}")
 
         try:
-            url = "https://raw.githubusercontent.com/snuailab/assets/main/waffle/sample_dataset/mnist.zip"
+            if task in [
+                TaskType.CLASSIFICATION,
+                TaskType.OBJECT_DETECTION,
+                TaskType.INSTANCE_SEGMENTATION,
+            ]:
+                url = "https://raw.githubusercontent.com/snuailab/assets/main/waffle/sample_dataset/mnist.zip"
+            elif task == TaskType.TEXT_RECOGNITION:
+                url = "https://raw.githubusercontent.com/snuailab/assets/main/waffle/sample_dataset/ocr_sample.zip"
+
             temp_dir = Path(mkdtemp())
             network.get_file_from_url(url, temp_dir / "mnist.zip")
             io.unzip(temp_dir / "mnist.zip", temp_dir)
