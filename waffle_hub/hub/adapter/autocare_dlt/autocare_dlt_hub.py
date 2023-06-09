@@ -32,11 +32,12 @@ from .config import DATA_TYPE_MAP, DEFAULT_PARAMAS, MODEL_TYPES, WEIGHT_PATH
 
 class AutocareDLTHub(BaseHub):
     BACKEND_NAME = "autocare_dlt"
-
     MODEL_TYPES = MODEL_TYPES
+    MULTI_GPU_TRAIN = False
+    DEFAULT_PARAMAS = DEFAULT_PARAMAS
+
     DATA_TYPE_MAP = DATA_TYPE_MAP
     WEIGHT_PATH = WEIGHT_PATH
-    DEFAULT_PARAMAS = DEFAULT_PARAMAS
 
     def __init__(
         self,

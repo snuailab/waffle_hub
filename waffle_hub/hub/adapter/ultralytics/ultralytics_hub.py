@@ -24,11 +24,12 @@ from .config import DEFAULT_PARAMAS, MODEL_TYPES, TASK_MAP, TASK_SUFFIX
 
 class UltralyticsHub(BaseHub):
     BACKEND_NAME = "ultralytics"
-
     MODEL_TYPES = MODEL_TYPES
+    MULTI_GPU_TRAIN = True
+    DEFAULT_PARAMAS = DEFAULT_PARAMAS
+
     TASK_MAP = TASK_MAP
     TASK_SUFFIX = TASK_SUFFIX
-    DEFAULT_PARAMAS = DEFAULT_PARAMAS
 
     def __init__(
         self,
