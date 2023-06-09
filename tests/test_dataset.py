@@ -349,7 +349,10 @@ def _total_transformers(dataset_name, task: TaskType, transformers_path, root_di
 
 def test_transformers(transformers_detection_path, transformers_classification_path, tmpdir):
     _total_transformers(
-        "transformers_object_detection", TaskType.OBJECT_DETECTION, transformers_detection_path, tmpdir
+        "transformers_object_detection",
+        TaskType.OBJECT_DETECTION,
+        transformers_detection_path,
+        tmpdir,
     )
     _total_transformers(
         "transformers_classification",
