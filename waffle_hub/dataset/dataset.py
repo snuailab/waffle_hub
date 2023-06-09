@@ -767,6 +767,36 @@ class Dataset:
         coco_root_dir: Union[str, list[str]],
         root_dir: str = None,
     ) -> "Dataset":
+        """
+        Import dataset from autocare dlt format.
+        This method is used for importing dataset from autocare dlt format.
+
+        Args:
+            name (str): name of dataset.
+            task (str): task of dataset.
+            coco_file (Union[str, list[str]]): coco annotation file path.
+            coco_root_dir (Union[str, list[str]]): root directory of coco dataset.
+            root_dir (str, optional): root directory of dataset. Defaults to None.
+
+        Raises:
+            FileExistsError: if new dataset name already exist.
+
+        Examples:
+            # Import one coco json file.
+            >>> ds = Dataset.from_coco("my_dataset", "object_detection", "path/to/coco.json", "path/to/coco_root")
+            >>> ds.images
+            {1: <Image: 1>, 2: <Image: 2>, 3: <Image: 3>, 4: <Image: 4>, 5: <Image: 5>}
+            >>> ds.annotations
+            {1: <Annotation: 1>, 2: <Annotation: 2>, 3: <Annotation: 3>, 4: <Annotation: 4>, 5: <Annotation: 5>}
+            >>> ds.categories
+            {1: <Category: 1>, 2: <Category: 2>, 3: <Category: 3>, 4: <Category: 4>, 5: <Category: 5>}
+            >>> ds.category_names
+            ['person', 'bicycle', 'car', 'motorcycle', 'airplane']
+
+
+        Returns:
+            Dataset: Dataset Class.
+        """
         ds = Dataset.new(name, task, root_dir)
         ds.initialize()
 
@@ -1193,13 +1223,6 @@ class Dataset:
         Returns:
             Dataset: Dataset Class
         """
-        if task not in [
-            TaskType.CLASSIFICATION,
-            TaskType.OBJECT_DETECTION,
-            TaskType.INSTANCE_SEGMENTATION,
-            TaskType.TEXT_RECOGNITION,
-        ]:
-            raise NotImplementedError(f"not supported task: {task}")
 
         try:
             if task in [
@@ -1210,6 +1233,8 @@ class Dataset:
                 url = "https://raw.githubusercontent.com/snuailab/assets/main/waffle/sample_dataset/mnist.zip"
             elif task == TaskType.TEXT_RECOGNITION:
                 url = "https://raw.githubusercontent.com/snuailab/assets/main/waffle/sample_dataset/ocr_sample.zip"
+            else:
+                raise NotImplementedError(f"not supported task: {task}")
 
             temp_dir = Path(mkdtemp())
             network.get_file_from_url(url, temp_dir / "mnist.zip")
@@ -1279,7 +1304,7 @@ class Dataset:
         if self.task == TaskType.TEXT_RECOGNITION:
             if len(self.images) < Dataset.MINIMUM_TRAINABLE_IMAGE_NUM_PER_CATEGORY:
                 raise ValueError(
-                    f"number of image is bigger than MINIMUM_TRAINABLE_IMAGE_NUM_PER_CATEGORY({Dataset.MINIMUM_TRAINABLE_IMAGE_NUM_PER_CATEGORY})"
+                    f"number of image should be bigger than MINIMUM_TRAINABLE_IMAGE_NUM_PER_CATEGORY({Dataset.MINIMUM_TRAINABLE_IMAGE_NUM_PER_CATEGORY})"
                 )
             return
         if not self.trainable():
