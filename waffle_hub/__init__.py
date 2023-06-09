@@ -53,6 +53,7 @@ class DataType(BaseEnum):
     ULTRALYTICS = enum.auto()
 
     COCO = enum.auto()
+
     AUTOCARE_DLT = enum.auto()
 
     TRANSFORMERS = enum.auto()

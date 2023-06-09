@@ -76,6 +76,13 @@ def test_annotation():
         num_keypoints=3,
     )
 
+    # text recognition
+    a = Annotation.text_recognition(
+        annotation_id=1,
+        image_id=1,
+        caption="1",
+    )
+
 
 def test_image():
 
@@ -123,6 +130,13 @@ def test_category():
         supercategory="object",
         keypoints=["a", "b", "c"],
         skeleton=[[1, 2], [2, 3]],
+    )
+
+    # text recognition
+    category = Category.text_recognition(
+        category_id=1,
+        name="test",
+        supercategory="object",
     )
 
 
@@ -188,6 +202,8 @@ def _export(dataset_name, task: TaskType, root_dir):
         dataset.export("yolo")
     if task in [TaskType.OBJECT_DETECTION, TaskType.CLASSIFICATION]:
         dataset.export("transformers")
+    if task in [TaskType.OBJECT_DETECTION, TaskType.TEXT_RECOGNITION, TaskType.CLASSIFICATION]:
+        dataset.export("autocare_dlt")
 
 
 # test dummy
@@ -216,7 +232,12 @@ def _total_dummy(
 
 
 def test_dummy(tmpdir):
-    for task in [TaskType.CLASSIFICATION, TaskType.OBJECT_DETECTION, TaskType.INSTANCE_SEGMENTATION]:
+    for task in [
+        TaskType.CLASSIFICATION,
+        TaskType.OBJECT_DETECTION,
+        TaskType.INSTANCE_SEGMENTATION,
+        TaskType.TEXT_RECOGNITION,
+    ]:
         _total_dummy(f"dummy_{task}", task, 100, 5, 10, tmpdir)
 
     with pytest.raises(ValueError):
@@ -269,9 +290,38 @@ def _total_coco(dataset_name, task: TaskType, coco_path, root_dir):
     _export(dataset_name, task, root_dir)
 
 
-def test_coco(coco_path, tmpdir):
-    for task in [TaskType.CLASSIFICATION, TaskType.OBJECT_DETECTION, TaskType.INSTANCE_SEGMENTATION]:
-        _total_coco(f"coco_{task}", task, coco_path, tmpdir)
+@pytest.mark.parametrize(
+    "task", [TaskType.CLASSIFICATION, TaskType.OBJECT_DETECTION, TaskType.INSTANCE_SEGMENTATION]
+)
+def test_coco(coco_path, tmpdir, task):
+    _total_coco(f"coco_{task}", task, coco_path, tmpdir)
+
+
+# test autocare_dlt
+def _from_autocare_dlt(dataset_name, task: TaskType, coco_path, root_dir):
+    dataset = Dataset.from_autocare_dlt(
+        name=dataset_name,
+        task=task,
+        coco_file=coco_path / "coco.json",
+        coco_root_dir=coco_path / "images",
+        root_dir=root_dir,
+    )
+    assert dataset.dataset_info_file.exists()
+
+
+def _total_autocare_dlt(dataset_name, task: TaskType, coco_path, root_dir):
+    _from_autocare_dlt(dataset_name, task, coco_path, root_dir)
+    _load(dataset_name, root_dir)
+    _clone(dataset_name, root_dir)
+    _split(dataset_name, root_dir)
+    _export(dataset_name, task, root_dir)
+
+
+@pytest.mark.parametrize(
+    "task", [TaskType.CLASSIFICATION, TaskType.OBJECT_DETECTION, TaskType.TEXT_RECOGNITION]
+)
+def test_autocare_dlt(coco_path, tmpdir, task):
+    _total_autocare_dlt(f"autocare_dlt_{task}", task, coco_path, tmpdir)
 
 
 # test transformers

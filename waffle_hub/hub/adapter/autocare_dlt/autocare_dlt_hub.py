@@ -133,6 +133,15 @@ class AutocareDLTHub(BaseHub):
             def preprocess(x, *args, **kwargs):
                 return normalize(x)
 
+        elif self.task == TaskType.TEXT_RECOGNITION:
+            normalize = T.Normalize([0, 0, 0], [1, 1, 1], inplace=True)
+
+            def preprocess(x, *args, **kwargs):
+                return normalize(x)
+
+        else:
+            raise NotImplementedError(f"task {self.task} is not supported yet")
+
         return preprocess
 
     def get_postprocess(self, *args, **kwargs):
@@ -151,6 +160,15 @@ class AutocareDLTHub(BaseHub):
             def inner(x: torch.Tensor, *args, **kwargs):
                 x = [t.squeeze() for t in x]
                 return x
+
+        elif self.task == TaskType.TEXT_RECOGNITION:
+
+            def inner(x: torch.Tensor, *args, **kwargs):
+                scores, character_class_ids = x.max(dim=-1)
+                return character_class_ids, scores
+
+        else:
+            raise NotImplementedError(f"task {self.task} is not supported yet")
 
         return inner
 
@@ -198,6 +216,8 @@ class AutocareDLTHub(BaseHub):
             str(cfg.dataset_path / "test.json"),
             str(cfg.dataset_path / "images"),
         )
+        if self.model_type == "LicencePlateRecognition":
+            data_config["data"]["mode"] = "lpr"
 
         cfg.data_config = self.artifact_dir / "data.json"
         io.save_json(data_config, cfg.data_config, create_directory=True)
@@ -275,7 +295,10 @@ class AutocareDLTHub(BaseHub):
         categories = [x["name"] for x in self.categories]
         cfg = io.load_json(self.artifact_dir / "model.json")
         cfg["ckpt"] = str(self.best_ckpt_file)
-        cfg["model"]["head"]["num_classes"] = len(categories)
+        if self.task == TaskType.TEXT_RECOGNITION:
+            cfg["model"]["Prediction"]["num_classes"] = len(categories) + 1
+        else:
+            cfg["model"]["head"]["num_classes"] = len(categories)
         cfg["num_classes"] = len(categories)
         model, categories = build_model(Box(cfg), strict=True)
 

@@ -663,7 +663,7 @@ class BaseHub:
             set_name=cfg.set_name,
         ).get_dataloader(cfg.batch_size, cfg.workers)
 
-        result_parser = get_parser(self.task)(**cfg.to_dict())
+        result_parser = get_parser(self.task)(**cfg.to_dict(), categories=self.categories)
 
         callback._total_steps = len(dataloader) + 1
 
@@ -822,7 +822,7 @@ class BaseHub:
             cfg.source, cfg.image_size, letter_box=cfg.letter_box
         ).get_dataloader(cfg.batch_size, cfg.workers)
 
-        result_parser = get_parser(self.task)(**cfg.to_dict())
+        result_parser = get_parser(self.task)(**cfg.to_dict(), categories=self.categories)
 
         results = []
         callback._total_steps = len(dataloader) + 1
@@ -992,6 +992,8 @@ class BaseHub:
             output_names = ["predictions"]
         elif self.task == "instance_segmentation":
             output_names = ["bbox", "conf", "class_id", "masks"]
+        elif self.task == "text_recognition":
+            output_names = ["class_ids", "confs"]
         else:
             raise NotImplementedError(f"{self.task} does not support export yet.")
 

@@ -1,4 +1,6 @@
 from typing import Union
+from functools import reduce
+from operator import eq
 
 import torch
 from torchmetrics.classification import Accuracy
@@ -9,6 +11,7 @@ from waffle_hub.schema.evaluate import (
     ClassificationMetric,
     InstanceSegmentationMetric,
     ObjectDetectionMetric,
+    TextRecognitionMetric,
 )
 from waffle_hub.schema.fields import Annotation
 
@@ -53,6 +56,9 @@ def convert_to_torchmetric_format(total: list[Annotation], task: TaskType, predi
 
             datas.append(data)
 
+        elif task == TaskType.TEXT_RECOGNITION:
+            datas.append(annotations[0].caption)
+
         else:
             raise NotImplementedError
 
@@ -60,6 +66,8 @@ def convert_to_torchmetric_format(total: list[Annotation], task: TaskType, predi
         datas = [{k: torch.tensor(v) for k, v in data.items()} for data in datas]
     elif isinstance(datas[0], int):
         datas = torch.tensor(datas)
+    elif isinstance(datas[0], str):
+        pass
     else:
         raise NotImplementedError
 
@@ -103,6 +111,16 @@ def evaluate_segmentation(
     return InstanceSegmentationMetric(float(map_dict["map"]))
 
 
+def evalute_text_recognition(
+    preds: list[Annotation], labels: list[Annotation], num_classes: int
+) -> ObjectDetectionMetric:
+
+    correct = reduce(lambda n, pair: n+eq(*pair), zip(preds, labels), 0)
+    acc = correct / len(preds)
+
+    return TextRecognitionMetric(float(acc))
+
+
 def evaluate_function(
     preds: list[Annotation],
     labels: list[Annotation],
@@ -110,7 +128,9 @@ def evaluate_function(
     num_classes: int = None,
     *args,
     **kwargs
-) -> Union[ClassificationMetric, ObjectDetectionMetric, InstanceSegmentationMetric]:
+) -> Union[
+    ClassificationMetric, ObjectDetectionMetric, InstanceSegmentationMetric, TextRecognitionMetric
+]:
     preds = convert_to_torchmetric_format(preds, task, prediction=True)
     labels = convert_to_torchmetric_format(labels, task)
 
@@ -120,5 +140,7 @@ def evaluate_function(
         return evaluate_object_detection(preds, labels, num_classes, *args, **kwargs)
     elif task == TaskType.INSTANCE_SEGMENTATION:
         return evaluate_segmentation(preds, labels, num_classes, *args, **kwargs)
+    elif task == TaskType.TEXT_RECOGNITION:
+        return evalute_text_recognition(preds, labels, num_classes, *args, **kwargs)
     else:
         raise NotImplementedError
