@@ -3,8 +3,6 @@ Ultralytics Hub
 See BaseHub documentation for more details about usage.
 """
 
-import subprocess
-import sys
 import warnings
 from pathlib import Path
 from typing import Union
@@ -20,6 +18,7 @@ from waffle_hub.hub.base_hub import BaseHub
 from waffle_hub.hub.model.wrapper import ModelWrapper
 from waffle_hub.schema.configs import TrainConfig
 from waffle_hub.utils.callback import TrainCallback
+from waffle_hub.utils.process import run_python_file
 
 from .config import DEFAULT_PARAMAS, MODEL_TYPES, TASK_MAP, TASK_SUFFIX
 
@@ -286,7 +285,7 @@ class UltralyticsHub(BaseHub):
         with open(script_file, "w") as f:
             f.write(code)
 
-        subprocess.run([sys.executable, script_file], check=True)
+        run_python_file(script_file)
 
     def on_train_end(self, cfg: TrainConfig):
         io.copy_file(
