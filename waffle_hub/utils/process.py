@@ -1,14 +1,12 @@
-import os
-import sys
 import subprocess
-
-from typing import Union
+import sys
 from pathlib import Path
+from typing import Union
 
 
 def _refine_script(script_path):
     """Make script file to be compatible with both on Windows and Linux."""
-    with open(script_path, "r") as f:
+    with open(script_path) as f:
         script = f.read()
     script = script.replace("\r\n", "\n").replace("\\", "/")
     with open(script_path, "w") as f:
