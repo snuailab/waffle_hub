@@ -1,7 +1,6 @@
 import time
 from pathlib import Path
 
-import pytest
 import torch
 
 from waffle_hub import TaskType
@@ -16,62 +15,6 @@ from waffle_hub.schema.result import (
     InferenceResult,
     TrainResult,
 )
-
-
-@pytest.fixture
-def instance_segmentation_dataset(coco_path: Path, tmpdir: Path):
-    dataset: Dataset = Dataset.from_coco(
-        name="seg",
-        task=TaskType.INSTANCE_SEGMENTATION,
-        coco_file=coco_path / "coco.json",
-        coco_root_dir=coco_path / "images",
-        root_dir=tmpdir,
-    )
-    dataset.split(0.2, 0.2, 0.6)
-
-    return dataset
-
-
-@pytest.fixture
-def object_detection_dataset(coco_path: Path, tmpdir: Path):
-    dataset: Dataset = Dataset.from_coco(
-        name="od",
-        task=TaskType.OBJECT_DETECTION,
-        coco_file=coco_path / "coco.json",
-        coco_root_dir=coco_path / "images",
-        root_dir=tmpdir,
-    )
-    dataset.split(0.2, 0.2, 0.6)
-
-    return dataset
-
-
-@pytest.fixture
-def classification_dataset(coco_path: Path, tmpdir: Path):
-    dataset: Dataset = Dataset.from_coco(
-        name="cls",
-        task=TaskType.CLASSIFICATION,
-        coco_file=coco_path / "coco.json",
-        coco_root_dir=coco_path / "images",
-        root_dir=tmpdir,
-    )
-    dataset.split(0.2, 0.2, 0.6)
-
-    return dataset
-
-
-@pytest.fixture
-def text_recognition_dataset(coco_path: Path, tmpdir: Path):
-    dataset: Dataset = Dataset.from_coco(
-        name="ocr",
-        task=TaskType.TEXT_RECOGNITION,
-        coco_file=coco_path / "coco.json",
-        coco_root_dir=coco_path / "images",
-        root_dir=tmpdir,
-    )
-    dataset.split(0.8)
-
-    return dataset
 
 
 def _train(hub, dataset: Dataset, image_size: int, hold: bool = True):
