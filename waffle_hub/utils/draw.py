@@ -1,3 +1,4 @@
+import logging
 from pathlib import Path
 from typing import Union
 
@@ -107,10 +108,16 @@ def draw_text_recognition(
     loc_x: int = 0,
     loc_y: int = 10,
 ):
-    if not Path(FONT_NAME).exists():
-        get_file_from_url(FONT_URL, FONT_NAME, True)
+    # download font
+    try:
+        global FONT_NAME
+        if not Path(FONT_NAME).exists():
+            get_file_from_url(FONT_URL, FONT_NAME, True)
+        font = ImageFont.truetype(FONT_NAME, int(FONT_SCALE) * 25)
+    except:
+        font = ImageFont.load_default()
+        logging.warning("Don't load font file, Using default font.")
 
-    font = ImageFont.truetype(FONT_NAME, int(FONT_SCALE) * 25)
     img_pil = Image.fromarray(image)
     draw = ImageDraw.Draw(img_pil)
     draw.text(

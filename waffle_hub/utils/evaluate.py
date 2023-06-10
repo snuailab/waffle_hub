@@ -1,3 +1,5 @@
+from functools import reduce
+from operator import eq
 from typing import Union
 
 import torch
@@ -114,7 +116,8 @@ def evalute_text_recognition(
     preds: list[Annotation], labels: list[Annotation], num_classes: int
 ) -> ObjectDetectionMetric:
 
-    acc = CharErrorRate()(preds, labels)
+    correct = reduce(lambda n, pair: n + eq(*pair), zip(preds, labels), 0)
+    acc = correct / len(preds)
 
     return TextRecognitionMetric(float(acc))
 

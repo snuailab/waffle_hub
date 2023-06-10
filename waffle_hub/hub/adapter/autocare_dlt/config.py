@@ -38,8 +38,8 @@ WEIGHT_PATH = {
         "LicencePlateRecognition": {
             "s": "temp/autocare_dlt/text_recognizers/small/model.pth",
             "m": "temp/autocare_dlt/text_recognizers/small/model.pth",
-            "l": "temp/autocare_dlt/text_recognizers/small/model.pth",    
-        }
+            "l": "temp/autocare_dlt/text_recognizers/small/model.pth",
+        },
     },
 }
 
@@ -121,25 +121,25 @@ DEFAULT_PARAMAS = {
         "LicencePlateRecognition": {
             "s": TrainConfig(
                 epochs=50,
-                image_size=[224, 224],
-                learning_rate=0.01,
+                image_size=[240, 80],
+                learning_rate=0.0002,
                 letter_box=False,
                 batch_size=256,
             ),
             "m": TrainConfig(
                 epochs=50,
-                image_size=[224, 224],
-                learning_rate=0.01,
+                image_size=[240, 80],
+                learning_rate=0.0002,
                 letter_box=False,
                 batch_size=128,
             ),
             "l": TrainConfig(
                 epochs=50,
-                image_size=[224, 224],
-                learning_rate=0.01,
+                image_size=[240, 80],
+                learning_rate=0.0002,
                 letter_box=False,
                 batch_size=64,
             ),
-        }
+        },
     },
 }

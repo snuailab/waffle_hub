@@ -20,4 +20,4 @@ class InstanceSegmentationMetric(BaseSchema):
 
 @dataclass
 class TextRecognitionMetric(BaseSchema):
-    cer: float
+    accuracy: float

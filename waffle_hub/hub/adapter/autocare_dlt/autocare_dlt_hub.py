@@ -218,7 +218,7 @@ class AutocareDLTHub(BaseHub):
             str(cfg.dataset_path / "images"),
         )
         if self.model_type == "LicencePlateRecognition":
-            data_config["data"]["mode"] =  "lpr"
+            data_config["data"]["mode"] = "lpr"
 
         cfg.data_config = self.artifact_dir / "data.json"
         io.save_json(data_config, cfg.data_config, create_directory=True)

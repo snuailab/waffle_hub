@@ -227,13 +227,14 @@ class Dataset:
                 if self.task == TaskType.TEXT_RECOGNITION:
                     texts = map(lambda a: a.caption, annotations)
                     character_count = Counter("".join(texts))
-                    category_count = Counter()
                     for k in character_count:
-                        category_count[category_name_to_id[k]] = character_count[k]
+                        category_to_images[category_name_to_id[k]].append(self.images[image_id])
                 else:
                     category_ids = map(lambda a: a.category_id, annotations)
                     category_count = Counter(category_ids)
-                category_to_images[category_count.most_common(1)[0][0]].append(self.images[image_id])
+                    category_to_images[category_count.most_common(1)[0][0]].append(
+                        self.images[image_id]
+                    )
             self._category_to_images = dict(category_to_images)
         return self._category_to_images
 
@@ -767,6 +768,36 @@ class Dataset:
         coco_root_dir: Union[str, list[str]],
         root_dir: str = None,
     ) -> "Dataset":
+        """
+        Import dataset from autocare dlt format.
+        This method is used for importing dataset from autocare dlt format.
+
+        Args:
+            name (str): name of dataset.
+            task (str): task of dataset.
+            coco_file (Union[str, list[str]]): coco annotation file path.
+            coco_root_dir (Union[str, list[str]]): root directory of coco dataset.
+            root_dir (str, optional): root directory of dataset. Defaults to None.
+
+        Raises:
+            FileExistsError: if new dataset name already exist.
+
+        Examples:
+            # Import one coco json file.
+            >>> ds = Dataset.from_coco("my_dataset", "object_detection", "path/to/coco.json", "path/to/coco_root")
+            >>> ds.images
+            {1: <Image: 1>, 2: <Image: 2>, 3: <Image: 3>, 4: <Image: 4>, 5: <Image: 5>}
+            >>> ds.annotations
+            {1: <Annotation: 1>, 2: <Annotation: 2>, 3: <Annotation: 3>, 4: <Annotation: 4>, 5: <Annotation: 5>}
+            >>> ds.categories
+            {1: <Category: 1>, 2: <Category: 2>, 3: <Category: 3>, 4: <Category: 4>, 5: <Category: 5>}
+            >>> ds.category_names
+            ['person', 'bicycle', 'car', 'motorcycle', 'airplane']
+
+
+        Returns:
+            Dataset: Dataset Class.
+        """
         ds = Dataset.new(name, task, root_dir)
         ds.initialize()
 
@@ -843,14 +874,6 @@ class Dataset:
 
                 for annotation_dict in annotation_dicts:
                     annotation_dict.pop("id")
-                    caption = annotation_dict.get("caption", None)
-                    if caption:
-                        for c in set(caption):
-                            if c not in ds.category_names:
-                                raise ValueError(
-                                    f"character {c} is not in categories, please check your dataset"
-                                )
-
                     ds.add_annotations(
                         [
                             Annotation.from_dict(
@@ -1096,6 +1119,15 @@ class Dataset:
 
         def _import(dataset: HFDataset, task: str, image_ids: list[int]):
             if task == "object_detection":
+                categories = dataset.features["objects"].feature["category"].names
+                for category_id, category_name in enumerate(categories):
+                    category = Category.object_detection(
+                        category_id=category_id + 1,
+                        supercategory="object",
+                        name=category_name,
+                    )
+                    ds.add_categories([category])
+
                 for data in dataset:
                     data["image"].save(f"{ds.raw_image_dir}/{data['image_id']}.jpg")
                     image = Image.new(
@@ -1123,16 +1155,16 @@ class Dataset:
                         )
                         ds.add_annotations([annotation])
 
-                categories = dataset.features["objects"].feature["category"].names
+            elif task == "classification":
+                categories = dataset.features["label"].names
                 for category_id, category_name in enumerate(categories):
-                    category = Category.object_detection(
+                    category = Category.classification(
                         category_id=category_id + 1,
                         supercategory="object",
                         name=category_name,
                     )
                     ds.add_categories([category])
 
-            elif task == "classification":
                 for image_id, data in zip(image_ids, dataset):
                     image_save_path = f"{ds.raw_image_dir}/{image_id}.jpg"
                     data["image"].save(image_save_path)
@@ -1153,14 +1185,6 @@ class Dataset:
                     )
                     ds.add_annotations([annotation])
 
-                categories = dataset.features["label"].names
-                for category_id, category_name in enumerate(categories):
-                    category = Category.classification(
-                        category_id=category_id + 1,
-                        supercategory="object",
-                        name=category_name,
-                    )
-                    ds.add_categories([category])
             else:
                 raise ValueError("task should be one of ['classification', 'object_detection']")
 
@@ -1193,17 +1217,20 @@ class Dataset:
         Returns:
             Dataset: Dataset Class
         """
-        if task not in [
-            TaskType.CLASSIFICATION,
-            TaskType.OBJECT_DETECTION,
-            TaskType.INSTANCE_SEGMENTATION,
-            TaskType.TEXT_RECOGNITION
-        ]:
-            raise NotImplementedError(f"not supported task: {task}")
 
+        temp_dir = Path(mkdtemp())
         try:
-            url = "https://raw.githubusercontent.com/snuailab/assets/main/waffle/sample_dataset/mnist.zip"
-            temp_dir = Path(mkdtemp())
+            if task in [
+                TaskType.CLASSIFICATION,
+                TaskType.OBJECT_DETECTION,
+                TaskType.INSTANCE_SEGMENTATION,
+            ]:
+                url = "https://raw.githubusercontent.com/snuailab/assets/main/waffle/sample_dataset/mnist.zip"
+            elif task == TaskType.TEXT_RECOGNITION:
+                url = "https://raw.githubusercontent.com/snuailab/assets/main/waffle/sample_dataset/ocr_sample.zip"
+            else:
+                raise NotImplementedError(f"not supported task: {task}")
+
             network.get_file_from_url(url, temp_dir / "mnist.zip")
             io.unzip(temp_dir / "mnist.zip", temp_dir)
 
@@ -1394,6 +1421,10 @@ class Dataset:
             annotations (list[Annotation]): list of "Annotation"s
         """
         for item in annotations:
+            if self.task == TaskType.TEXT_RECOGNITION:
+                for char in item.caption:
+                    if char not in self.category_names:
+                        raise ValueError(f"Category '{char}' is not in dataset")
             item_path = self.annotation_dir / f"{item.image_id}" / f"{item.annotation_id}.json"
             io.save_json(item.to_dict(), item_path, create_directory=True)
 
