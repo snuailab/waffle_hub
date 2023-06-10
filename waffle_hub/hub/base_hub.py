@@ -524,28 +524,28 @@ class BaseHub:
         elif device.isdigit():
             if not torch.cuda.is_available():
                 raise ValueError("CUDA is not available.")
-            if (
-                int(device) >= torch.cuda.device_count()
-            ):  # TODO: https://github.com/ultralytics/ultralytics/issues/3098
-                raise IndexError(
-                    f"GPU[{device}] index is out of range. device id should be smaller than {torch.cuda.device_count()}\n"
-                )
+            # if (
+            #     int(device) >= torch.cuda.device_count()  # TODO: torch.cuda.device_count() occurs unexpected errors
+            # ):
+            #     raise IndexError(
+            #         f"GPU[{device}] index is out of range. device id should be smaller than {torch.cuda.device_count()}\n"
+            #     )
             logger.info(f"Single GPU training: {device}")
         elif "," in device:
             if not torch.cuda.is_available():
                 raise ValueError("CUDA is not available.")
             if not self.MULTI_GPU_TRAIN:
                 raise ValueError(f"{self.backend} does not support MULTI_GPU_TRAIN.")
-            if len(device.split(",")) > torch.cuda.device_count():
-                raise ValueError(
-                    f"GPU number is not enough. {device}\n"
-                    + f"Given device: {device}\n"
-                    + f"Available device count: {torch.cuda.device_count()}"
-                )
-            if not all([int(x) < torch.cuda.device_count() for x in device.split(",")]):
-                raise IndexError(
-                    f"GPU index is out of range. device id should be smaller than {torch.cuda.device_count()}\n"
-                )
+            # if len(device.split(",")) > torch.cuda.device_count():  # TODO: torch.cuda.device_count() occurs unexpected errors
+            #     raise ValueError(
+            #         f"GPU number is not enough. {device}\n"
+            #         + f"Given device: {device}\n"
+            #         + f"Available device count: {torch.cuda.device_count()}"
+            #     )
+            # if not all([int(x) < torch.cuda.device_count() for x in device.split(",")]):
+            #     raise IndexError(
+            #         f"GPU index is out of range. device id should be smaller than {torch.cuda.device_count()}\n"
+            #     )
             logger.info(f"Multi GPU training: {device}")
         else:
             raise ValueError(f"Invalid device: {device}\n" + "Please use 'cpu', '0', '0,1,2,3'")
