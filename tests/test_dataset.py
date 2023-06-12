@@ -349,7 +349,10 @@ def _total_transformers(dataset_name, task: TaskType, transformers_path, root_di
 
 def test_transformers(transformers_detection_path, transformers_classification_path, tmpdir):
     _total_transformers(
-        "transformers_object_detection", TaskType.OBJECT_DETECTION, transformers_detection_path, tmpdir
+        "transformers_object_detection",
+        TaskType.OBJECT_DETECTION,
+        transformers_detection_path,
+        tmpdir,
     )
     _total_transformers(
         "transformers_classification",
@@ -467,3 +470,21 @@ def test_merge(coco_path, tmpdir):
     assert category_counts[1] == category_1_num
     assert category_counts[2] == category_2_num
     assert category_counts[3] == category_1_num
+
+
+def test_extract_dataset_by_category(tmpdir):
+    ds = Dataset.dummy(
+        name="extract",
+        root_dir=tmpdir,
+        task="classification",
+        image_num=100,
+        category_num=5,
+    )
+
+    extracted_ds = ds.extract_dataset_by_categories(
+        name="extracted",
+        root_dir=tmpdir,
+        category_ids=[1],
+    )
+    assert len(extracted_ds.categories.keys()) == 1
+    assert len(extracted_ds.category_names) == 1

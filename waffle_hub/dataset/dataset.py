@@ -1541,6 +1541,65 @@ class Dataset:
             create_directory=True,
         )
 
+    def change_category_name(self, category_id: int, new_name: str) -> "Dataset":
+        """
+        Change category name
+
+        Args:
+            category_id (int): category id
+            new_name (str): new category name
+
+        Returns:
+            Dataset: changed dataset
+
+        """
+        target_file = self.category_dir / f"{category_id}.json"
+        if not target_file.exists():
+            raise FileNotFoundError(f"{self.name} dataset doesn't have category id: {category_id}")
+        if new_name in self.category_names:
+            raise ValueError(f"deplicate category name: {new_name}")
+
+        category = io.load_json(target_file)
+        category["name"] = new_name
+
+        self.category_names[category_id - 1] = new_name
+        self.__dict__.pop("categories", None)
+
+        io.save_json(category, target_file)
+
+        return Dataset.load(self.name, self.root_dir)
+
+    def extract_dataset_by_categories(
+        self, name: str, root_dir: str, category_ids: list[int]
+    ) -> "Dataset":
+        """
+        Extract dataset by category
+
+        Args:
+            name (str): dataset name
+            root_dir (str): dataset root directory
+            category_ids (list[int]): category id
+
+        Returns:
+            Dataset: extracted dataset
+
+        """
+
+        if set(category_ids) - set(self.categories.keys()):
+            raise ValueError(f"dataset doesn't have category ids: {category_ids}")
+
+        ds = Dataset.new(
+            name=name,
+            root_dir=root_dir,
+            task=self.task,
+        )
+        for category_id in category_ids:
+            ds.add_categories([self.categories[category_id]])
+            ds.add_images(self.category_to_images[category_id])
+            ds.add_annotations(self.category_to_annotations[category_id])
+
+        return ds
+
     # export
     def get_split_ids(self) -> list[list[int]]:
         """
