@@ -22,8 +22,9 @@ from datasets import Dataset as HFDataset
 from datasets import DatasetDict, load_from_disk
 from waffle_hub import DataType, SplitMethod, TaskType
 from waffle_hub.dataset.adapter import (
+    export_autocare_dlt,
     export_coco,
-    export_huggingface,
+    export_transformers,
     export_yolo,
 )
 from waffle_hub.schema import Annotation, Category, DatasetInfo, Image
@@ -217,11 +218,23 @@ class Dataset:
     def category_to_images(self) -> dict[int, list[Image]]:
         if not hasattr(self, "_category_to_images"):
             category_to_images = {category_id: [] for category_id in self.categories.keys()}
+            category_name_to_id = {
+                category.name: category.category_id for category in self.categories.values()
+            }
             for image_id, annotations in tqdm.tqdm(
                 self.image_to_annotations.items(), desc="Building category to image index"
             ):
-                category_count = Counter(map(lambda a: a.category_id, annotations))
-                category_to_images[category_count.most_common(1)[0][0]].append(self.images[image_id])
+                if self.task == TaskType.TEXT_RECOGNITION:
+                    texts = map(lambda a: a.caption, annotations)
+                    character_count = Counter("".join(texts))
+                    for k in character_count:
+                        category_to_images[category_name_to_id[k]].append(self.images[image_id])
+                else:
+                    category_ids = map(lambda a: a.category_id, annotations)
+                    category_count = Counter(category_ids)
+                    category_to_images[category_count.most_common(1)[0][0]].append(
+                        self.images[image_id]
+                    )
             self._category_to_images = dict(category_to_images)
         return self._category_to_images
 
@@ -374,6 +387,12 @@ class Dataset:
                         name=f"category_{category_id}",
                         supercategory="object",
                     )
+                elif task == TaskType.TEXT_RECOGNITION:
+                    category = Category.text_recognition(
+                        category_id=category_id,
+                        name=chr(64 + category_id),
+                        supercategory="object",
+                    )
 
                 ds.add_categories([category])
 
@@ -422,7 +441,14 @@ class Dataset:
                         )
                         for i in range(random.randint(1, 5))
                     ]
-
+                elif task == TaskType.TEXT_RECOGNITION:
+                    annotations = [
+                        Annotation.text_recognition(
+                            annotation_id=annotation_id,
+                            image_id=image_id,
+                            caption=chr(64 + random.randint(1, category_num)),
+                        )
+                    ]
                 ds.add_annotations(annotations)
                 annotation_id += len(annotations)
 
@@ -734,6 +760,156 @@ class Dataset:
         return ds
 
     @classmethod
+    def from_autocare_dlt(
+        cls,
+        name: str,
+        task: str,
+        coco_file: Union[str, list[str]],
+        coco_root_dir: Union[str, list[str]],
+        root_dir: str = None,
+    ) -> "Dataset":
+        """
+        Import dataset from autocare dlt format.
+        This method is used for importing dataset from autocare dlt format.
+
+        Args:
+            name (str): name of dataset.
+            task (str): task of dataset.
+            coco_file (Union[str, list[str]]): coco annotation file path.
+            coco_root_dir (Union[str, list[str]]): root directory of coco dataset.
+            root_dir (str, optional): root directory of dataset. Defaults to None.
+
+        Raises:
+            FileExistsError: if new dataset name already exist.
+
+        Examples:
+            # Import one coco json file.
+            >>> ds = Dataset.from_coco("my_dataset", "object_detection", "path/to/coco.json", "path/to/coco_root")
+            >>> ds.images
+            {1: <Image: 1>, 2: <Image: 2>, 3: <Image: 3>, 4: <Image: 4>, 5: <Image: 5>}
+            >>> ds.annotations
+            {1: <Annotation: 1>, 2: <Annotation: 2>, 3: <Annotation: 3>, 4: <Annotation: 4>, 5: <Annotation: 5>}
+            >>> ds.categories
+            {1: <Category: 1>, 2: <Category: 2>, 3: <Category: 3>, 4: <Category: 4>, 5: <Category: 5>}
+            >>> ds.category_names
+            ['person', 'bicycle', 'car', 'motorcycle', 'airplane']
+
+
+        Returns:
+            Dataset: Dataset Class.
+        """
+        ds = Dataset.new(name, task, root_dir)
+        ds.initialize()
+
+        if isinstance(coco_file, list) and isinstance(coco_root_dir, list):
+            if len(coco_file) != len(coco_root_dir):
+                raise ValueError("coco_file and coco_root_dir should have same length.")
+        if not isinstance(coco_file, list) and isinstance(coco_root_dir, list):
+            raise ValueError(
+                "ambiguous input. The number of coco_file should be same or greater than coco_root_dir."
+            )
+        if not isinstance(coco_file, list):
+            coco_file = [coco_file]
+        if not isinstance(coco_root_dir, list):
+            coco_root_dir = [coco_root_dir] * len(coco_file)
+
+        coco_files = coco_file
+        coco_root_dirs = coco_root_dir
+
+        if len(coco_files) == 1:
+            set_names = [None]
+        elif len(coco_files) == 2:
+            set_names = ["train", "val"]
+        elif len(coco_files) == 3:
+            set_names = ["train", "val", "test"]
+        else:
+            raise ValueError("coco_file should have 1, 2, or 3 files.")
+
+        cocos = [COCO(coco_file) for coco_file in coco_files]
+
+        # categories should be same between coco files
+        categories = cocos[0].loadCats(cocos[0].getCatIds())
+        for coco in cocos[1:]:
+            if categories != coco.loadCats(coco.getCatIds()):
+                raise ValueError("categories should be same between coco files.")
+
+        coco_cat_id_to_waffle_cat_id = {}
+        for i, category in enumerate(categories, start=1):
+            coco_category_id = category.pop("id")
+            coco_cat_id_to_waffle_cat_id[coco_category_id] = i
+            ds.add_categories([Category.from_dict({**category, "category_id": i}, task=ds.task)])
+
+        # import coco dataset
+        total_length = sum([len(coco.getImgIds()) for coco in cocos])
+        logging.info(f"Importing coco dataset. Total length: {total_length}")
+        pgbar = tqdm.tqdm(total=total_length, desc="Importing coco dataset")
+
+        image_id = 1
+        annotation_id = 1
+
+        # parse coco annotation file
+        for coco, coco_root_dir, set_name in tqdm.tqdm(zip(cocos, coco_root_dirs, set_names)):
+
+            image_ids = []
+            for coco_image_id, annotation_dicts in coco.imgToAnns.items():
+                if len(annotation_dicts) == 0:
+                    warnings.warn(f"image_id {coco_image_id} has no annotations.")
+                    continue
+
+                image_dict = coco.loadImgs(coco_image_id)[0]
+                image_dict.pop("id")
+
+                file_name = image_dict.pop("file_name")
+                image_path = Path(coco_root_dir) / file_name
+                if not image_path.exists():
+                    raise FileNotFoundError(f"{image_path} does not exist.")
+
+                if set_name:
+                    file_name = f"{set_name}/{file_name}"
+
+                ds.add_images(
+                    [Image.from_dict({**image_dict, "image_id": image_id, "file_name": file_name})]
+                )
+                io.copy_file(image_path, ds.raw_image_dir / file_name, create_directory=True)
+
+                for annotation_dict in annotation_dicts:
+                    annotation_dict.pop("id")
+                    ds.add_annotations(
+                        [
+                            Annotation.from_dict(
+                                {
+                                    **annotation_dict,
+                                    "image_id": image_id,
+                                    "annotation_id": annotation_id,
+                                    "category_id": coco_cat_id_to_waffle_cat_id[
+                                        annotation_dict["category_id"]
+                                    ],
+                                },
+                                task=ds.task,
+                            )
+                        ]
+                    )
+                    annotation_id += 1
+
+                image_ids.append(image_id)
+                image_id += 1
+                pgbar.update(1)
+
+            if set_name:
+                io.save_json(image_ids, ds.set_dir / f"{set_name}.json", create_directory=True)
+
+        pgbar.close()
+
+        if len(coco_files) == 2:
+            logging.info("copying val set to test set")
+            io.copy_file(ds.val_set_file, ds.test_set_file, create_directory=True)
+
+        # TODO: add unlabeled set
+        io.save_json([], ds.unlabeled_set_file, create_directory=True)
+
+        return ds
+
+    @classmethod
     def from_yolo(
         cls,
         name: str,
@@ -902,7 +1078,7 @@ class Dataset:
         return ds
 
     @classmethod
-    def from_huggingface(
+    def from_transformers(
         cls,
         name: str,
         task: str,
@@ -910,12 +1086,12 @@ class Dataset:
         root_dir=None,
     ) -> "Dataset":
         """
-        Import Dataset from huggingface datasets.
-        This method imports huggingface dataset from directory.
+        Import Dataset from transformers datasets.
+        This method imports transformers dataset from directory.
 
         Args:
             name (str): Dataset name.
-            dataset_dir (str): Hugging Face dataset directory.
+            dataset_dir (str): Transformers dataset directory.
             task (str): Task name.
             root_dir (str, optional): Dataset root directory. Defaults to None.
 
@@ -924,7 +1100,7 @@ class Dataset:
             ValueError: if dataset is not Dataset or DatasetDict
 
         Examples:
-            >>> ds = Dataset.from_huggingface("huggingface", "object_detection", "path/to/huggingface/dataset")
+            >>> ds = Dataset.from_transformers("transformers", "object_detection", "path/to/transformers/dataset")
 
         Returns:
             Dataset: Dataset Class
@@ -943,6 +1119,15 @@ class Dataset:
 
         def _import(dataset: HFDataset, task: str, image_ids: list[int]):
             if task == "object_detection":
+                categories = dataset.features["objects"].feature["category"].names
+                for category_id, category_name in enumerate(categories):
+                    category = Category.object_detection(
+                        category_id=category_id + 1,
+                        supercategory="object",
+                        name=category_name,
+                    )
+                    ds.add_categories([category])
+
                 for data in dataset:
                     data["image"].save(f"{ds.raw_image_dir}/{data['image_id']}.jpg")
                     image = Image.new(
@@ -970,16 +1155,16 @@ class Dataset:
                         )
                         ds.add_annotations([annotation])
 
-                categories = dataset.features["objects"].feature["category"].names
+            elif task == "classification":
+                categories = dataset.features["label"].names
                 for category_id, category_name in enumerate(categories):
-                    category = Category.object_detection(
+                    category = Category.classification(
                         category_id=category_id + 1,
                         supercategory="object",
                         name=category_name,
                     )
                     ds.add_categories([category])
 
-            elif task == "classification":
                 for image_id, data in zip(image_ids, dataset):
                     image_save_path = f"{ds.raw_image_dir}/{image_id}.jpg"
                     data["image"].save(image_save_path)
@@ -1000,14 +1185,6 @@ class Dataset:
                     )
                     ds.add_annotations([annotation])
 
-                categories = dataset.features["label"].names
-                for category_id, category_name in enumerate(categories):
-                    category = Category.classification(
-                        category_id=category_id + 1,
-                        supercategory="object",
-                        name=category_name,
-                    )
-                    ds.add_categories([category])
             else:
                 raise ValueError("task should be one of ['classification', 'object_detection']")
 
@@ -1040,16 +1217,20 @@ class Dataset:
         Returns:
             Dataset: Dataset Class
         """
-        if task not in [
-            TaskType.CLASSIFICATION,
-            TaskType.OBJECT_DETECTION,
-            TaskType.INSTANCE_SEGMENTATION,
-        ]:
-            raise NotImplementedError(f"not supported task: {task}")
 
+        temp_dir = Path(mkdtemp())
         try:
-            url = "https://raw.githubusercontent.com/snuailab/assets/main/waffle/sample_dataset/mnist.zip"
-            temp_dir = Path(mkdtemp())
+            if task in [
+                TaskType.CLASSIFICATION,
+                TaskType.OBJECT_DETECTION,
+                TaskType.INSTANCE_SEGMENTATION,
+            ]:
+                url = "https://raw.githubusercontent.com/snuailab/assets/main/waffle/sample_dataset/mnist.zip"
+            elif task == TaskType.TEXT_RECOGNITION:
+                url = "https://raw.githubusercontent.com/snuailab/assets/main/waffle/sample_dataset/ocr_sample.zip"
+            else:
+                raise NotImplementedError(f"not supported task: {task}")
+
             network.get_file_from_url(url, temp_dir / "mnist.zip")
             io.unzip(temp_dir / "mnist.zip", temp_dir)
 
@@ -1240,6 +1421,10 @@ class Dataset:
             annotations (list[Annotation]): list of "Annotation"s
         """
         for item in annotations:
+            if self.task == TaskType.TEXT_RECOGNITION:
+                for char in item.caption:
+                    if char not in self.category_names:
+                        raise ValueError(f"Category '{char}' is not in dataset")
             item_path = self.annotation_dir / f"{item.image_id}" / f"{item.annotation_id}.json"
             io.save_json(item.to_dict(), item_path, create_directory=True)
 
@@ -1401,15 +1586,16 @@ class Dataset:
         if data_type in [DataType.YOLO, DataType.ULTRALYTICS]:
             export_dir: Path = self.export_dir / str(DataType.YOLO)
             export_function = export_yolo
-        elif data_type in [
-            DataType.COCO,
-            DataType.AUTOCARE_DLT,
-        ]:
+        elif data_type in [DataType.COCO]:
             export_dir: Path = self.export_dir / str(DataType.COCO)
             export_function = export_coco
-        elif data_type in [DataType.HUGGINGFACE, DataType.TRANSFORMERS]:
-            export_dir: Path = self.export_dir / str(DataType.HUGGINGFACE)
-            export_function = export_huggingface
+        elif data_type in [DataType.AUTOCARE_DLT]:
+            export_dir: Path = self.export_dir / str(DataType.AUTOCARE_DLT)
+            export_function = export_autocare_dlt
+        elif data_type in [DataType.TRANSFORMERS]:
+            export_dir: Path = self.export_dir / str(DataType.TRANSFORMERS)
+            export_function = export_transformers
+
         else:
             raise ValueError(f"Invalid data_type: {data_type}")
 

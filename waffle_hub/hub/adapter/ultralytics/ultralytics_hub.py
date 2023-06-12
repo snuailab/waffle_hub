@@ -3,16 +3,12 @@ Ultralytics Hub
 See BaseHub documentation for more details about usage.
 """
 
-from waffle_hub import get_installed_backend_version
-
-BACKEND_NAME = "ultralytics"
-BACKEND_VERSION = get_installed_backend_version(BACKEND_NAME)
-
 import warnings
 from pathlib import Path
 from typing import Union
 
 import torch
+import ultralytics
 from torchvision import transforms as T
 from ultralytics import YOLO
 from waffle_utils.file import io
@@ -22,15 +18,19 @@ from waffle_hub.hub.base_hub import BaseHub
 from waffle_hub.hub.model.wrapper import ModelWrapper
 from waffle_hub.schema.configs import TrainConfig
 from waffle_hub.utils.callback import TrainCallback
+from waffle_hub.utils.process import run_python_file
 
 from .config import DEFAULT_PARAMAS, MODEL_TYPES, TASK_MAP, TASK_SUFFIX
 
 
 class UltralyticsHub(BaseHub):
+    BACKEND_NAME = "ultralytics"
     MODEL_TYPES = MODEL_TYPES
+    MULTI_GPU_TRAIN = True
+    DEFAULT_PARAMAS = DEFAULT_PARAMAS
+
     TASK_MAP = TASK_MAP
     TASK_SUFFIX = TASK_SUFFIX
-    DEFAULT_PARAMAS = DEFAULT_PARAMAS
 
     def __init__(
         self,
@@ -43,21 +43,21 @@ class UltralyticsHub(BaseHub):
         backend: str = None,
         version: str = None,
     ):
-        """Create Ultralytics Hub Class. Do not use this class directly. Use UltralyticsHub.new() instead."""
+        if backend is not None and UltralyticsHub.BACKEND_NAME != backend:
+            raise ValueError(
+                f"Backend {backend} is not supported. Please use {UltralyticsHub.BACKEND_NAME}"
+            )
 
-        if backend is not None and backend != BACKEND_NAME:
-            raise ValueError(f"you've loaded {backend}. backend must be {BACKEND_NAME}")
-
-        if version is not None and version != BACKEND_VERSION:
+        if version is not None and ultralytics.__version__ != version:
             warnings.warn(
-                f"you've loaded a {BACKEND_NAME}=={version} version while {BACKEND_NAME}=={BACKEND_VERSION} version is installed."
-                "It will cause unexpected results."
+                f"You've loaded the Hub created with ultralytics=={version}, \n"
+                + f"but the installed version is {ultralytics.__version__}."
             )
 
         super().__init__(
             name=name,
-            backend=BACKEND_NAME,
-            version=BACKEND_VERSION,
+            backend=UltralyticsHub.BACKEND_NAME,
+            version=ultralytics.__version__,
             task=task,
             model_type=model_type,
             model_size=model_size,
@@ -262,23 +262,30 @@ class UltralyticsHub(BaseHub):
 
     def training(self, cfg: TrainConfig, callback: TrainCallback):
 
-        model = YOLO(cfg.pretrained_model, task=self.backend_task_name)
+        code = f"""if __name__ == "__main__":
+        from ultralytics import YOLO
+        model = YOLO("{cfg.pretrained_model}", task="{self.backend_task_name}")
         model.train(
-            data=cfg.dataset_path,
-            epochs=cfg.epochs,
-            batch=cfg.batch_size,
-            imgsz=cfg.image_size,
-            lr0=cfg.learning_rate,
-            lrf=cfg.learning_rate,
-            rect=cfg.letter_box,
-            device=cfg.device,
-            workers=cfg.workers,
-            seed=cfg.seed,
-            verbose=cfg.verbose,
-            project=self.hub_dir,
-            name=self.ARTIFACT_DIR,
-        )
-        del model
+            data="{cfg.dataset_path}",
+            epochs={cfg.epochs},
+            batch={cfg.batch_size},
+            imgsz={cfg.image_size},
+            lr0={cfg.learning_rate},
+            lrf={cfg.learning_rate},
+            rect={cfg.letter_box},
+            device="{cfg.device}",
+            workers={cfg.workers},
+            seed={cfg.seed},
+            verbose={cfg.verbose},
+            project="{self.hub_dir}",
+            name="{self.ARTIFACT_DIR}",
+        )"""
+
+        script_file = str((self.hub_dir / "train.py").absolute())
+        with open(script_file, "w") as f:
+            f.write(code)
+
+        run_python_file(script_file)
 
     def on_train_end(self, cfg: TrainConfig):
         io.copy_file(

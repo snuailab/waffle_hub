@@ -1,93 +1,6 @@
-__version__ = "0.2.2"
+__version__ = "0.2.3"
 
 import enum
-import importlib
-import warnings
-from collections import OrderedDict
-
-from tabulate import tabulate
-
-# pytorch install check (necessary installation)
-pytorch_version = "1.13.1"
-try:
-    import torch
-
-    if pytorch_version not in torch.__version__:
-        warnings.warn(
-            f"""
-            torch {torch.__version__} has not been tested.
-            We recommend you to use {pytorch_version}
-            """
-        )
-except ModuleNotFoundError as e:
-    strings = []
-
-    e.msg = "Need to install torch\n" + "\n".join(strings)
-    raise e
-
-# backend supports
-_backends = OrderedDict(
-    {
-        "ultralytics": ["8.0.112"],
-        "autocare_dlt": ["0.2.3"],
-        "transformers": ["4.28.1"],
-    }
-)
-
-
-def get_backends() -> dict:
-    return _backends
-
-
-def get_installed_backend_version(backend: str) -> str:
-
-    backends = get_backends()
-    versions = backends[backend]
-
-    if backend not in backends:
-        raise ModuleNotFoundError(
-            f"{backend} is not supported.\n Available backends {list(backends.keys())}"
-        )
-
-    try:
-        module = importlib.import_module(backend)
-        if module.__version__ not in versions:
-            warnings.warn(
-                f"""
-                {backend} {module.__version__} has not been tested.
-                We recommend you to use one of {versions}
-                """
-            )
-        return module.__version__
-
-    except ModuleNotFoundError as e:
-
-        install_queries = "\n".join([f"- pip install {backend}=={version}" for version in versions])
-
-        e.msg = f"""
-            Need to install {backend}.
-            Tested versions:
-            {install_queries}
-            """
-        raise e
-
-
-def get_available_backends() -> str:
-    """Available backends"""
-    backends = get_backends()
-
-    table_data = []
-    for name, versions in backends.items():
-        for i, version in enumerate(versions):
-            table_data.append([name if i == 0 else "", version])
-
-    table = tabulate(
-        table_data,
-        headers=["Backend", "Version"],
-        tablefmt="simple_outline",
-    )
-
-    return table
 
 
 class CustomEnumMeta(enum.EnumMeta):
@@ -140,9 +53,9 @@ class DataType(BaseEnum):
     ULTRALYTICS = enum.auto()
 
     COCO = enum.auto()
+
     AUTOCARE_DLT = enum.auto()
 
-    HUGGINGFACE = enum.auto()
     TRANSFORMERS = enum.auto()
 
 

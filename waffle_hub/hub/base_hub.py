@@ -8,6 +8,7 @@ Hub is a multi-backend compatible interface for model training, evaluation, infe
 
 """
 import logging
+import os
 import threading
 import time
 import warnings
@@ -54,8 +55,11 @@ logger = logging.getLogger(__name__)
 
 
 class BaseHub:
-
-    MODEL_TYPES = {}
+    # Hub Spec. must have
+    BACKEND_NAME = None
+    MODEL_TYPES = None
+    MULTI_GPU_TRAIN = None
+    DEFAULT_PARAMAS = None
 
     # directory settings
     DEFAULT_ROOT_DIR = Path("./hubs")
@@ -97,6 +101,18 @@ class BaseHub:
         categories: Union[list[dict], list] = None,
         root_dir: str = None,
     ):
+        if self.BACKEND_NAME is None:
+            raise AttributeError("BACKEND_NAME must be specified.")
+
+        if self.MODEL_TYPES is None:
+            raise AttributeError("MODEL_TYPES must be specified.")
+
+        if self.MULTI_GPU_TRAIN is None:
+            raise AttributeError("MULTI_GPU_TRAIN must be specified.")
+
+        if self.DEFAULT_PARAMAS is None:
+            raise AttributeError("DEFAULT_PARAMAS must be specified.")
+
         self.name: str = name
         self.task: str = task
         self.model_type: str = model_type
@@ -126,6 +142,35 @@ class BaseHub:
             model_config.save_yaml(self.model_config_file)
         except Exception as e:
             raise e
+
+    @classmethod
+    def new(
+        cls,
+        name: str,
+        task: str = None,
+        model_type: str = None,
+        model_size: str = None,
+        categories: Union[list[dict], list] = None,
+        root_dir: str = None,
+    ):
+        """Create Hub.
+
+        Args:
+            name (str): Hub name
+            task (str, optional): Task Name. See Hub.TASKS. Defaults to None.
+            model_type (str, optional): Model Type. See Hub.MODEL_TYPES. Defaults to None.
+            model_size (str, optional): Model Size. See Hub.MODEL_SIZES. Defaults to None.
+            categories (Union[list[dict], list]): class dictionary or list. [{"supercategory": "name"}, ] or ["name",].
+            root_dir (str, optional): Root directory of hub repository. Defaults to None.
+        """
+        return cls(
+            name=name,
+            task=task,
+            model_type=model_type,
+            model_size=model_size,
+            categories=categories,
+            root_dir=root_dir,
+        )
 
     @classmethod
     def load(cls, name: str, root_dir: str = None) -> "BaseHub":
@@ -472,7 +517,49 @@ class BaseHub:
 
     # Train Hook
     def before_train(self, cfg: TrainConfig):
-        pass
+        # check device
+        device = cfg.device
+        if device == "cpu":
+            logger.info("CPU training")
+        elif device.isdigit():
+            if not torch.cuda.is_available():
+                raise ValueError("CUDA is not available.")
+            # if (
+            #     int(device) >= torch.cuda.device_count()  # TODO: torch.cuda.device_count() occurs unexpected errors
+            # ):
+            #     raise IndexError(
+            #         f"GPU[{device}] index is out of range. device id should be smaller than {torch.cuda.device_count()}\n"
+            #     )
+            logger.info(f"Single GPU training: {device}")
+        elif "," in device:
+            if not torch.cuda.is_available():
+                raise ValueError("CUDA is not available.")
+            if not self.MULTI_GPU_TRAIN:
+                raise ValueError(f"{self.backend} does not support MULTI_GPU_TRAIN.")
+            # if len(device.split(",")) > torch.cuda.device_count():  # TODO: torch.cuda.device_count() occurs unexpected errors
+            #     raise ValueError(
+            #         f"GPU number is not enough. {device}\n"
+            #         + f"Given device: {device}\n"
+            #         + f"Available device count: {torch.cuda.device_count()}"
+            #     )
+            # if not all([int(x) < torch.cuda.device_count() for x in device.split(",")]):
+            #     raise IndexError(
+            #         f"GPU index is out of range. device id should be smaller than {torch.cuda.device_count()}\n"
+            #     )
+            logger.info(f"Multi GPU training: {device}")
+        else:
+            raise ValueError(f"Invalid device: {device}\n" + "Please use 'cpu', '0', '0,1,2,3'")
+
+        # check if it is already trained
+        rank = os.getenv("RANK", -1)
+        if self.artifact_dir.exists() and rank in [
+            -1,
+            0,
+        ]:  # TODO: need to ensure that training is not already running
+            raise FileExistsError(
+                f"{self.artifact_dir}\n"
+                "Train artifacts already exist. Remove artifact to re-train (hub.delete_artifact())."
+            )
 
     def on_train_start(self, cfg: TrainConfig):
         pass
@@ -516,7 +603,8 @@ class BaseHub:
             learning_rate (float, optional): learning rate. None to use default. Defaults to None.
             letter_box (bool, optional): letter box. None to use default. Defaults to None.
             pretrained_model (str, optional): pretrained model. None to use default. Defaults to None.
-            device (str, optional): device. "cpu" or "gpu_id". Defaults to "0".
+            device (str, optional):
+                "cpu" or "gpu_id" or comma seperated "gpu_ids". Defaults to "0".
             workers (int, optional): number of workers. Defaults to 2.
             seed (int, optional): random seed. Defaults to 0.
             verbose (bool, optional): verbose. Defaults to True.
@@ -536,7 +624,9 @@ class BaseHub:
                     image_size=640,
                     learning_rate=0.001,
                     letterbox=False,
-                    device="0",
+                    device="0",  # use gpu 0
+                    # device="0,1,2,3",  # use gpu 0,1,2,3
+                    # device="cpu",  # use cpu
                     workers=2,
                     seed=123
                 )
@@ -548,12 +638,6 @@ class BaseHub:
         Returns:
             TrainResult: train result
         """
-
-        if self.artifact_dir.exists():
-            raise FileExistsError(
-                f"{self.artifact_dir}\n"
-                "Train artifacts already exist. Remove artifact to re-train (hub.delete_artifact())."
-            )
 
         def inner(callback: TrainCallback, result: TrainResult):
             try:
@@ -634,7 +718,7 @@ class BaseHub:
             set_name=cfg.set_name,
         ).get_dataloader(cfg.batch_size, cfg.workers)
 
-        result_parser = get_parser(self.task)(**cfg.to_dict())
+        result_parser = get_parser(self.task)(**cfg.to_dict(), categories=self.categories)
 
         callback._total_steps = len(dataloader) + 1
 
@@ -793,7 +877,7 @@ class BaseHub:
             cfg.source, cfg.image_size, letter_box=cfg.letter_box
         ).get_dataloader(cfg.batch_size, cfg.workers)
 
-        result_parser = get_parser(self.task)(**cfg.to_dict())
+        result_parser = get_parser(self.task)(**cfg.to_dict(), categories=self.categories)
 
         results = []
         callback._total_steps = len(dataloader) + 1
@@ -963,6 +1047,8 @@ class BaseHub:
             output_names = ["predictions"]
         elif self.task == "instance_segmentation":
             output_names = ["bbox", "conf", "class_id", "masks"]
+        elif self.task == "text_recognition":
+            output_names = ["class_ids", "confs"]
         else:
             raise NotImplementedError(f"{self.task} does not support export yet.")
 

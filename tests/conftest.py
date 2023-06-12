@@ -3,6 +3,9 @@ from pathlib import Path
 import pytest
 from waffle_utils.file import io, network
 
+from waffle_hub import TaskType
+from waffle_hub.dataset import Dataset
+
 
 @pytest.fixture(scope="session")
 def coco_path(tmp_path_factory: pytest.TempPathFactory):
@@ -39,28 +42,84 @@ def yolo_path(tmp_path_factory: pytest.TempPathFactory):
 
 
 @pytest.fixture(scope="session")
-def huggingface_detection_path(tmp_path_factory: pytest.TempPathFactory):
+def transformers_detection_path(tmp_path_factory: pytest.TempPathFactory):
     url = "https://raw.githubusercontent.com/snuailab/assets/main/waffle/sample_dataset/mnist_huggingface_detection.zip"
 
-    tmpdir = tmp_path_factory.mktemp("huggingface")
+    tmpdir = tmp_path_factory.mktemp("transformers")
     zip_file = tmpdir / "mnist_huggingface_detection.zip"
-    huggingface_path = tmpdir / "extract"
+    transformers_path = tmpdir / "extract"
 
     network.get_file_from_url(url, zip_file, create_directory=True)
-    io.unzip(zip_file, huggingface_path, create_directory=True)
+    io.unzip(zip_file, transformers_path, create_directory=True)
 
-    return Path(huggingface_path)
+    return Path(transformers_path)
 
 
 @pytest.fixture(scope="session")
-def huggingface_classification_path(tmp_path_factory: pytest.TempPathFactory):
+def transformers_classification_path(tmp_path_factory: pytest.TempPathFactory):
     url = "https://raw.githubusercontent.com/snuailab/assets/main/waffle/sample_dataset/mnist_huggingface_classification.zip"
 
-    tmpdir = tmp_path_factory.mktemp("huggingface")
+    tmpdir = tmp_path_factory.mktemp("transformers")
     zip_file = tmpdir / "mnist_huggingface_classification.zip"
-    huggingface_path = tmpdir / "extract"
+    transformers_path = tmpdir / "extract"
 
     network.get_file_from_url(url, zip_file, create_directory=True)
-    io.unzip(zip_file, huggingface_path, create_directory=True)
+    io.unzip(zip_file, transformers_path, create_directory=True)
 
-    return Path(huggingface_path)
+    return Path(transformers_path)
+
+
+@pytest.fixture
+def instance_segmentation_dataset(coco_path: Path, tmpdir: Path):
+    dataset: Dataset = Dataset.from_coco(
+        name="seg",
+        task=TaskType.INSTANCE_SEGMENTATION,
+        coco_file=coco_path / "coco.json",
+        coco_root_dir=coco_path / "images",
+        root_dir=tmpdir,
+    )
+    dataset.split(0.2, 0.2, 0.6)
+
+    return dataset
+
+
+@pytest.fixture
+def object_detection_dataset(coco_path: Path, tmpdir: Path):
+    dataset: Dataset = Dataset.from_coco(
+        name="od",
+        task=TaskType.OBJECT_DETECTION,
+        coco_file=coco_path / "coco.json",
+        coco_root_dir=coco_path / "images",
+        root_dir=tmpdir,
+    )
+    dataset.split(0.2, 0.2, 0.6)
+
+    return dataset
+
+
+@pytest.fixture
+def classification_dataset(coco_path: Path, tmpdir: Path):
+    dataset: Dataset = Dataset.from_coco(
+        name="cls",
+        task=TaskType.CLASSIFICATION,
+        coco_file=coco_path / "coco.json",
+        coco_root_dir=coco_path / "images",
+        root_dir=tmpdir,
+    )
+    dataset.split(0.2, 0.2, 0.6)
+
+    return dataset
+
+
+@pytest.fixture
+def text_recognition_dataset(coco_path: Path, tmpdir: Path):
+    dataset: Dataset = Dataset.from_coco(
+        name="ocr",
+        task=TaskType.TEXT_RECOGNITION,
+        coco_file=coco_path / "coco.json",
+        coco_root_dir=coco_path / "images",
+        root_dir=tmpdir,
+    )
+    dataset.split(0.8)
+
+    return dataset

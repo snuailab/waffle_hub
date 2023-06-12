@@ -1,13 +1,13 @@
 import time
 from pathlib import Path
 
-import pytest
 import torch
 
 from waffle_hub import TaskType
 from waffle_hub.dataset import Dataset
+from waffle_hub.hub import get_hub, load_hub
 from waffle_hub.hub.adapter.autocare_dlt import AutocareDLTHub
-from waffle_hub.hub.adapter.hugging_face import HuggingFaceHub
+from waffle_hub.hub.adapter.transformers import TransformersHub
 from waffle_hub.hub.adapter.ultralytics import UltralyticsHub
 from waffle_hub.schema.result import (
     EvaluateResult,
@@ -15,48 +15,6 @@ from waffle_hub.schema.result import (
     InferenceResult,
     TrainResult,
 )
-
-
-@pytest.fixture
-def instance_segmentation_dataset(coco_path: Path, tmpdir: Path):
-    dataset: Dataset = Dataset.from_coco(
-        name="seg",
-        task=TaskType.INSTANCE_SEGMENTATION,
-        coco_file=coco_path / "coco.json",
-        coco_root_dir=coco_path / "images",
-        root_dir=tmpdir,
-    )
-    dataset.split(0.2, 0.2, 0.6)
-
-    return dataset
-
-
-@pytest.fixture
-def object_detection_dataset(coco_path: Path, tmpdir: Path):
-    dataset: Dataset = Dataset.from_coco(
-        name="od",
-        task=TaskType.OBJECT_DETECTION,
-        coco_file=coco_path / "coco.json",
-        coco_root_dir=coco_path / "images",
-        root_dir=tmpdir,
-    )
-    dataset.split(0.2, 0.2, 0.6)
-
-    return dataset
-
-
-@pytest.fixture
-def classification_dataset(coco_path: Path, tmpdir: Path):
-    dataset: Dataset = Dataset.from_coco(
-        name="cls",
-        task=TaskType.CLASSIFICATION,
-        coco_file=coco_path / "coco.json",
-        coco_root_dir=coco_path / "images",
-        root_dir=tmpdir,
-    )
-    dataset.split(0.2, 0.2, 0.6)
-
-    return dataset
 
 
 def _train(hub, dataset: Dataset, image_size: int, hold: bool = True):
@@ -170,6 +128,18 @@ def _benchmark(hub, image_size):
     hub.benchmark(device="cpu", half=False, image_size=image_size)
 
 
+def _util(hub):
+    name = hub.name
+    backend = hub.backend
+    root_dir = hub.root_dir
+
+    hub_class = get_hub(backend)
+    assert hub_class == type(hub)
+
+    hub_loaded = load_hub(name, root_dir)
+    assert isinstance(hub_loaded, type(hub))
+
+
 def _total(hub, dataset: Dataset, image_size: int, hold: bool = True):
 
     _train(hub, dataset, image_size, hold=hold)
@@ -179,6 +149,7 @@ def _total(hub, dataset: Dataset, image_size: int, hold: bool = True):
     # _export(hub, half=True, hold=hold)  # cpu cannot be half
     _feature_extraction(hub, image_size)
     _benchmark(hub, image_size)
+    _util(hub)
 
 
 def test_ultralytics_segmentation(instance_segmentation_dataset: Dataset, tmpdir: Path):
@@ -253,13 +224,13 @@ def test_ultralytics_classification(classification_dataset: Dataset, tmpdir: Pat
     _total(hub, dataset, image_size)
 
 
-def test_huggingface_object_detection(object_detection_dataset: Dataset, tmpdir: Path):
+def test_transformers_object_detection(object_detection_dataset: Dataset, tmpdir: Path):
     image_size = 32
     dataset = object_detection_dataset
 
     # test hub
     name = "test_det"
-    hub = HuggingFaceHub.new(
+    hub = TransformersHub.new(
         name=name,
         task=TaskType.OBJECT_DETECTION,
         model_type="YOLOS",
@@ -267,23 +238,23 @@ def test_huggingface_object_detection(object_detection_dataset: Dataset, tmpdir:
         categories=object_detection_dataset.category_names,
         root_dir=tmpdir,
     )
-    hub = HuggingFaceHub.load(name=name, root_dir=tmpdir)
-    hub: HuggingFaceHub = HuggingFaceHub.from_model_config(
+    hub = TransformersHub.load(name=name, root_dir=tmpdir)
+    hub: TransformersHub = TransformersHub.from_model_config(
         name=name,
-        model_config_file=tmpdir / name / HuggingFaceHub.MODEL_CONFIG_FILE,
+        model_config_file=tmpdir / name / TransformersHub.MODEL_CONFIG_FILE,
         root_dir=tmpdir,
     )
 
     _total(hub, dataset, image_size)
 
 
-def test_huggingface_classification(classification_dataset: Dataset, tmpdir: Path):
+def test_transformers_classification(classification_dataset: Dataset, tmpdir: Path):
     image_size = 224
     dataset = classification_dataset
 
     # test hub
     name = "test_cls"
-    hub = HuggingFaceHub.new(
+    hub = TransformersHub.new(
         name=name,
         task=TaskType.CLASSIFICATION,
         model_type="ViT",
@@ -291,10 +262,10 @@ def test_huggingface_classification(classification_dataset: Dataset, tmpdir: Pat
         categories=classification_dataset.category_names,
         root_dir=tmpdir,
     )
-    hub = HuggingFaceHub.load(name=name, root_dir=tmpdir)
-    hub: HuggingFaceHub = HuggingFaceHub.from_model_config(
+    hub = TransformersHub.load(name=name, root_dir=tmpdir)
+    hub: TransformersHub = TransformersHub.from_model_config(
         name=name,
-        model_config_file=tmpdir / name / HuggingFaceHub.MODEL_CONFIG_FILE,
+        model_config_file=tmpdir / name / TransformersHub.MODEL_CONFIG_FILE,
         root_dir=tmpdir,
     )
 
@@ -373,6 +344,30 @@ def test_autocare_dlt_classification(classification_dataset: Dataset, tmpdir: Pa
         model_type="Classifier",
         model_size="s",
         categories=super_cat_dict_list,
+        root_dir=tmpdir,
+    )
+    hub = AutocareDLTHub.load(name=name, root_dir=tmpdir)
+    hub: AutocareDLTHub = AutocareDLTHub.from_model_config(
+        name=name,
+        model_config_file=tmpdir / name / AutocareDLTHub.MODEL_CONFIG_FILE,
+        root_dir=tmpdir,
+    )
+
+    _total(hub, dataset, image_size)
+
+
+def test_autocare_dlt_text_recognition(text_recognition_dataset: Dataset, tmpdir: Path):
+    image_size = 32
+    dataset = text_recognition_dataset
+
+    # test hub
+    name = "test_ocr"
+    hub = AutocareDLTHub.new(
+        name=name,
+        task=TaskType.TEXT_RECOGNITION,
+        model_type="TextRecognition",
+        model_size="s",
+        categories=dataset.category_names,
         root_dir=tmpdir,
     )
     hub = AutocareDLTHub.load(name=name, root_dir=tmpdir)

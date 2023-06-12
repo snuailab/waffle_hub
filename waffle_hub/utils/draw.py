@@ -1,7 +1,11 @@
+import logging
+from pathlib import Path
 from typing import Union
 
 import cv2
 import numpy as np
+from PIL import Image, ImageDraw, ImageFont
+from waffle_utils.file.network import get_file_from_url
 
 from waffle_hub import TaskType
 from waffle_hub.schema.fields import Annotation
@@ -9,8 +13,10 @@ from waffle_hub.schema.fields import Annotation
 FONT_FACE = cv2.FONT_HERSHEY_DUPLEX
 FONT_SCALE = 1.0
 FONT_WEIGHT = 2
-
 THICKNESS = 2
+FONT_URL = "https://raw.githubusercontent.com/snuailab/assets/main/waffle/fonts/gulim.ttc"
+FONT_NAME = "gulim.ttc"
+
 
 # random colors with 1000 categories
 colors = np.random.randint(0, 255, (1000, 3), dtype="uint8").tolist()
@@ -96,6 +102,37 @@ def draw_instance_segmentation(
     return image
 
 
+def draw_text_recognition(
+    image: np.ndarray,
+    annotation: Annotation,
+    loc_x: int = 0,
+    loc_y: int = 10,
+):
+    # download font
+    try:
+        global FONT_NAME
+        if not Path(FONT_NAME).exists():
+            get_file_from_url(FONT_URL, FONT_NAME, True)
+        font = ImageFont.truetype(FONT_NAME, int(FONT_SCALE) * 25)
+    except:
+        font = ImageFont.load_default()
+        logging.warning("Don't load font file, Using default font.")
+
+    img_pil = Image.fromarray(image)
+    draw = ImageDraw.Draw(img_pil)
+    draw.text(
+        (loc_x, loc_y),
+        annotation.caption,
+        font=font,
+        fill=tuple(colors[0]),
+        stroke_width=FONT_WEIGHT,
+    )
+
+    image = np.array(img_pil)
+
+    return image
+
+
 def draw_results(
     image: Union[np.ndarray, str],
     results: list[Annotation],
@@ -105,15 +142,11 @@ def draw_results(
     if isinstance(image, str):
         image = cv2.imread(image)
 
-    classification_results = [result for result in results if result.task == TaskType.CLASSIFICATION]
-    object_detection_results = [
-        result for result in results if result.task == TaskType.OBJECT_DETECTION
-    ]
-    instance_segmentation_results = [
-        result for result in results if result.task == TaskType.INSTANCE_SEGMENTATION
-    ]
+    task_results = {task: [] for task in TaskType}
+    for result in results:
+        task_results[result.task.upper()].append(result)
 
-    for i, result in enumerate(classification_results, start=1):
+    for i, result in enumerate(task_results[TaskType.CLASSIFICATION], start=1):
         image = draw_classification(
             image,
             result,
@@ -122,10 +155,13 @@ def draw_results(
             loc_y=30 * i,
         )
 
-    for i, result in enumerate(object_detection_results, start=1):
+    for i, result in enumerate(task_results[TaskType.OBJECT_DETECTION], start=1):
         image = draw_object_detection(image, result, names=names)
 
-    for i, result in enumerate(instance_segmentation_results, start=1):
+    for i, result in enumerate(task_results[TaskType.INSTANCE_SEGMENTATION], start=1):
         image = draw_instance_segmentation(image, result, names=names)
+
+    for i, result in enumerate(task_results[TaskType.TEXT_RECOGNITION], start=1):
+        image = draw_text_recognition(image, result, loc_x=10, loc_y=10)
 
     return image

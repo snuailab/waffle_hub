@@ -3,15 +3,11 @@ Tx Model Hub
 See BaseHub documentation for more details about usage.
 """
 
-from waffle_hub import get_installed_backend_version
-
-BACKEND_NAME = "autocare_dlt"
-BACKEND_VERSION = get_installed_backend_version(BACKEND_NAME)
-
 import warnings
 from pathlib import Path
 from typing import Union
 
+import autocare_dlt
 import tbparse
 import torch
 from autocare_dlt.core.model import build_model
@@ -35,10 +31,13 @@ from .config import DATA_TYPE_MAP, DEFAULT_PARAMAS, MODEL_TYPES, WEIGHT_PATH
 
 
 class AutocareDLTHub(BaseHub):
+    BACKEND_NAME = "autocare_dlt"
     MODEL_TYPES = MODEL_TYPES
+    MULTI_GPU_TRAIN = False
+    DEFAULT_PARAMAS = DEFAULT_PARAMAS
+
     DATA_TYPE_MAP = DATA_TYPE_MAP
     WEIGHT_PATH = WEIGHT_PATH
-    DEFAULT_PARAMAS = DEFAULT_PARAMAS
 
     def __init__(
         self,
@@ -51,21 +50,21 @@ class AutocareDLTHub(BaseHub):
         backend: str = None,
         version: str = None,
     ):
-        """Create Tx Model Hub Class. Do not use this class directly. Use AutocareDLTHub.new() instead."""
+        if backend is not None and AutocareDLTHub.BACKEND_NAME != backend:
+            raise ValueError(
+                f"Backend {backend} is not supported. Please use {AutocareDLTHub.BACKEND_NAME}"
+            )
 
-        if backend is not None and backend != BACKEND_NAME:
-            raise ValueError(f"you've loaded {backend}. backend must be {BACKEND_NAME}")
-
-        if version is not None and version != BACKEND_VERSION:
+        if version is not None and autocare_dlt.__version__ != version:
             warnings.warn(
-                f"you've loaded a {BACKEND_NAME}=={version} version while {BACKEND_NAME}=={BACKEND_VERSION} version is installed."
-                "It will cause unexpected results."
+                f"You've loaded the Hub created with autocare_dlt=={version}, \n"
+                + f"but the installed version is {autocare_dlt.__version__}."
             )
 
         super().__init__(
             name=name,
-            backend=BACKEND_NAME,
-            version=BACKEND_VERSION,
+            backend=AutocareDLTHub.BACKEND_NAME,
+            version=autocare_dlt.__version__,
             task=task,
             model_type=model_type,
             model_size=model_size,
@@ -135,6 +134,15 @@ class AutocareDLTHub(BaseHub):
             def preprocess(x, *args, **kwargs):
                 return normalize(x)
 
+        elif self.task == TaskType.TEXT_RECOGNITION:
+            normalize = T.Normalize([0, 0, 0], [1, 1, 1], inplace=True)
+
+            def preprocess(x, *args, **kwargs):
+                return normalize(x)
+
+        else:
+            raise NotImplementedError(f"task {self.task} is not supported yet")
+
         return preprocess
 
     def get_postprocess(self, *args, **kwargs):
@@ -153,6 +161,15 @@ class AutocareDLTHub(BaseHub):
             def inner(x: torch.Tensor, *args, **kwargs):
                 x = [t.squeeze() for t in x]
                 return x
+
+        elif self.task == TaskType.TEXT_RECOGNITION:
+
+            def inner(x: torch.Tensor, *args, **kwargs):
+                scores, character_class_ids = x.max(dim=-1)
+                return character_class_ids, scores
+
+        else:
+            raise NotImplementedError(f"task {self.task} is not supported yet")
 
         return inner
 
@@ -200,6 +217,8 @@ class AutocareDLTHub(BaseHub):
             str(cfg.dataset_path / "test.json"),
             str(cfg.dataset_path / "images"),
         )
+        if self.model_type == "LicencePlateRecognition":
+            data_config["data"]["mode"] = "lpr"
 
         cfg.data_config = self.artifact_dir / "data.json"
         io.save_json(data_config, cfg.data_config, create_directory=True)
@@ -277,7 +296,10 @@ class AutocareDLTHub(BaseHub):
         categories = [x["name"] for x in self.categories]
         cfg = io.load_json(self.artifact_dir / "model.json")
         cfg["ckpt"] = str(self.best_ckpt_file)
-        cfg["model"]["head"]["num_classes"] = len(categories)
+        if self.task == TaskType.TEXT_RECOGNITION:
+            cfg["model"]["Prediction"]["num_classes"] = len(categories) + 1
+        else:
+            cfg["model"]["head"]["num_classes"] = len(categories)
         cfg["num_classes"] = len(categories)
         model, categories = build_model(Box(cfg), strict=True)
 
