@@ -213,7 +213,7 @@ def _dummy(dataset_name, task: TaskType, image_num, category_num, unlabeled_imag
         task=task,
         image_num=image_num,
         category_num=category_num,
-        unlabeld_image_num=unlabeled_image_num,
+        unlabeled_image_num=unlabeled_image_num,
         root_dir=root_dir,
     )
     assert len(dataset.images) == image_num
@@ -470,3 +470,43 @@ def test_merge(coco_path, tmpdir):
     assert category_counts[1] == category_1_num
     assert category_counts[2] == category_2_num
     assert category_counts[3] == category_1_num
+
+
+def test_cached_property(tmpdir):
+    ds = Dataset.dummy(
+        name="cached_property",
+        task=TaskType.CLASSIFICATION,
+        image_num=10,
+        category_num=1,
+        unlabeled_image_num=0,
+        root_dir=tmpdir,
+    )
+    before_img_to_anns = ds.image_to_annotations
+    before_cate_to_imgs = ds.category_to_images
+    before_cate_to_anns = ds.category_to_annotations
+    before_cate_names = ds.category_names
+    before_cates = ds.categories
+    before_imgs = ds.images
+    before_anns = ds.annotations
+
+    # image - unlabeled
+    new_img1 = Image.new(11, "11.png", 32, 32)
+    new_img2 = Image.new(12, "12.png", 32, 32)
+    ds.add_images([new_img1, new_img2])
+    assert len(ds.images) == len(before_imgs)
+    assert len(ds.image_to_annotations.keys()) == len(before_img_to_anns.keys())
+
+    # annotation / image - labeled
+    new_ann = Annotation.classification(11, 11, 1)
+    ds.add_annotations([new_ann])
+    assert len(ds.annotations) == len(before_anns) + 1
+    assert len(ds.images) == len(before_imgs) + 1
+    assert len(ds.image_to_annotations.keys()) == len(before_img_to_anns.keys()) + 1
+
+    # category
+    new_cate = Category.classification(2, "new")
+    ds.add_categories([new_cate])
+    assert len(ds.categories) == len(before_cates) + 1
+    assert len(ds.category_names) == len(before_cate_names) + 1
+    assert len(ds.category_to_images.keys()) == len(before_cate_to_imgs.keys()) + 1
+    assert len(ds.category_to_annotations.keys()) == len(before_cate_to_anns.keys()) + 1

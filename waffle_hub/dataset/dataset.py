@@ -3,7 +3,7 @@ import logging
 import random
 import shutil
 import warnings
-from collections import Counter, OrderedDict, defaultdict
+from collections import Counter, OrderedDict
 from functools import cached_property
 from pathlib import Path
 from tempfile import mkdtemp
@@ -194,7 +194,7 @@ class Dataset:
 
     @cached_property
     def image_to_annotations(self) -> dict[int, list[Annotation]]:
-        image_to_annotations = defaultdict(list)
+        image_to_annotations = {image_id: [] for image_id in self.images.keys()}
         for annotation in tqdm.tqdm(
             self.annotations.values(), desc="Building image to annotation index"
         ):
@@ -203,7 +203,7 @@ class Dataset:
 
     @cached_property
     def category_to_annotations(self) -> dict[int, list[Annotation]]:
-        category_to_annotations = defaultdict(list)
+        category_to_annotations = {category_id: [] for category_id in self.categories.keys()}
         for annotation in tqdm.tqdm(
             self.annotations.values(), desc="Building category to annotation index"
         ):
@@ -331,7 +331,7 @@ class Dataset:
         task: str,
         image_num: int = 100,
         category_num: int = 10,
-        unlabeld_image_num: int = 0,
+        unlabeled_image_num: int = 0,
         root_dir: str = None,
     ) -> "Dataset":
         """
@@ -443,8 +443,8 @@ class Dataset:
                 ds.add_annotations(annotations)
                 annotation_id += len(annotations)
 
-            if unlabeld_image_num > 0:
-                for image_id in range(image_num + 1, image_num + unlabeld_image_num + 1):
+            if unlabeled_image_num > 0:
+                for image_id in range(image_num + 1, image_num + unlabeled_image_num + 1):
                     file_name = f"image_{image_id}.jpg"
                     ds.add_images(
                         [Image(image_id=image_id, file_name=file_name, width=100, height=100)]
@@ -1432,6 +1432,8 @@ class Dataset:
             annotations (list[Annotation]): list of "Annotation"s
         """
         self.__dict__.pop("annotations", None)
+        self.__dict__.pop("image_to_annotations", None)
+        self.__dict__.pop("images", None)
         for item in annotations:
             if self.task == TaskType.TEXT_RECOGNITION:
                 for char in item.caption:
