@@ -1,10 +1,11 @@
-from typing import Union
 from functools import reduce
 from operator import eq
+from typing import Union
 
 import torch
 from torchmetrics.classification import Accuracy
 from torchmetrics.detection import mean_ap
+from torchmetrics.text import CharErrorRate
 
 from waffle_hub import TaskType
 from waffle_hub.schema.evaluate import (
@@ -115,7 +116,7 @@ def evalute_text_recognition(
     preds: list[Annotation], labels: list[Annotation], num_classes: int
 ) -> ObjectDetectionMetric:
 
-    correct = reduce(lambda n, pair: n+eq(*pair), zip(preds, labels), 0)
+    correct = reduce(lambda n, pair: n + eq(*pair), zip(preds, labels), 0)
     acc = correct / len(preds)
 
     return TextRecognitionMetric(float(acc))
