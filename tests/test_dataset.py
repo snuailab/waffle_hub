@@ -244,6 +244,39 @@ def test_dummy(tmpdir):
         _total_dummy("dummy", TaskType.CLASSIFICATION, 3, 3, 0, tmpdir)
 
 
+# test dummy
+def _dummy(dataset_name, task: TaskType, image_num, category_num, unlabeled_image_num, root_dir):
+    dataset = Dataset.dummy(
+        name=dataset_name,
+        task=task,
+        image_num=image_num,
+        category_num=category_num,
+        unlabeld_image_num=unlabeled_image_num,
+        root_dir=root_dir,
+    )
+    assert len(dataset.images) == image_num
+    assert len(dataset.categories) == category_num
+    assert len(dataset.unlabeled_images) == unlabeled_image_num
+
+
+def _total_dummy(
+    dataset_name, task: TaskType, image_num, category_num, unlabeled_image_num, root_dir
+):
+    _dummy(dataset_name, task, image_num, category_num, unlabeled_image_num, root_dir)
+    _load(dataset_name, root_dir)
+    _clone(dataset_name, root_dir)
+    _split(dataset_name, root_dir)
+    _export(dataset_name, task, root_dir)
+
+
+def test_dummy(tmpdir):
+    for task in [TaskType.CLASSIFICATION, TaskType.OBJECT_DETECTION, TaskType.INSTANCE_SEGMENTATION]:
+        _total_dummy(f"dummy_{task}", task, 100, 5, 10, tmpdir)
+
+    with pytest.raises(ValueError):
+        _total_dummy("dummy", TaskType.CLASSIFICATION, 3, 3, 0, tmpdir)
+
+
 # test coco
 def _from_coco(dataset_name, task: TaskType, coco_path, root_dir):
     dataset = Dataset.from_coco(

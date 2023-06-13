@@ -1,4 +1,4 @@
-name: Waffle Hub cpu test
+name: Waffle Hub multi-gpu(ddp) test on self-hosted runner
 
 on:
   pull_request:
@@ -7,12 +7,11 @@ on:
 jobs:
   Tests:
     timeout-minutes: 60
-    runs-on: ${{ matrix.os }}
+    runs-on: self-hosted
     strategy:
       fail-fast: false
       matrix:
-        os: [ubuntu-latest, windows-latest]
-        python-version: ['3.9', '3.10']
+        python-version: ['3.9']
     steps:
       - uses: actions/checkout@v3
       - uses: actions/setup-python@v4
@@ -25,7 +24,7 @@ jobs:
       - name: Install requirements
         run: |
           python -m pip install --upgrade pip wheel
-          pip install torch==1.13.1+cpu torchvision==0.14.1+cpu torchaudio==0.13.1 --extra-index-url https://download.pytorch.org/whl/cpu
+          pip install torch==1.13.1+cu117 torchvision==0.14.1+cu117 torchaudio==0.13.1 --extra-index-url https://download.pytorch.org/whl/cu117
           pip install -r requirements.txt
           pip install pytest
         shell: bash  # for Windows compatibility
@@ -36,4 +35,4 @@ jobs:
           pip list
       - name: Pytest tests
         shell: bash  # for Windows compatibility
-        run: python -m pytest tests/test_dataset.py tests/test_cli.py tests/test_hub.py -v
+        run: python -m pytest tests/test_ddp.py -v

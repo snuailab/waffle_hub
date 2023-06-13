@@ -59,14 +59,13 @@ class CustomCallback(TrainerCallback):
 
 class TransformersHub(BaseHub):
     BACKEND_NAME = "transformers"
+    MODEL_TYPES = MODEL_TYPES
+    MULTI_GPU_TRAIN = False
+    DEFAULT_PARAMAS = DEFAULT_PARAMAS
 
     # Override
     LAST_CKPT_FILE = "weights/last_ckpt"
     BEST_CKPT_FILE = "weights/best_ckpt"
-
-    # Common
-    MODEL_TYPES = MODEL_TYPES
-    DEFAULT_PARAMAS = DEFAULT_PARAMAS
 
     def __init__(
         self,

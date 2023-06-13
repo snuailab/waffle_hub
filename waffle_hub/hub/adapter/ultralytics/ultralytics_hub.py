@@ -18,17 +18,19 @@ from waffle_hub.hub.base_hub import BaseHub
 from waffle_hub.hub.model.wrapper import ModelWrapper
 from waffle_hub.schema.configs import TrainConfig
 from waffle_hub.utils.callback import TrainCallback
+from waffle_hub.utils.process import run_python_file
 
 from .config import DEFAULT_PARAMAS, MODEL_TYPES, TASK_MAP, TASK_SUFFIX
 
 
 class UltralyticsHub(BaseHub):
     BACKEND_NAME = "ultralytics"
-
     MODEL_TYPES = MODEL_TYPES
+    MULTI_GPU_TRAIN = True
+    DEFAULT_PARAMAS = DEFAULT_PARAMAS
+
     TASK_MAP = TASK_MAP
     TASK_SUFFIX = TASK_SUFFIX
-    DEFAULT_PARAMAS = DEFAULT_PARAMAS
 
     def __init__(
         self,
@@ -260,23 +262,30 @@ class UltralyticsHub(BaseHub):
 
     def training(self, cfg: TrainConfig, callback: TrainCallback):
 
-        model = YOLO(cfg.pretrained_model, task=self.backend_task_name)
+        code = f"""if __name__ == "__main__":
+        from ultralytics import YOLO
+        model = YOLO("{cfg.pretrained_model}", task="{self.backend_task_name}")
         model.train(
-            data=cfg.dataset_path,
-            epochs=cfg.epochs,
-            batch=cfg.batch_size,
-            imgsz=cfg.image_size,
-            lr0=cfg.learning_rate,
-            lrf=cfg.learning_rate,
-            rect=cfg.letter_box,
-            device=cfg.device,
-            workers=cfg.workers,
-            seed=cfg.seed,
-            verbose=cfg.verbose,
-            project=self.hub_dir,
-            name=self.ARTIFACT_DIR,
-        )
-        del model
+            data="{cfg.dataset_path}",
+            epochs={cfg.epochs},
+            batch={cfg.batch_size},
+            imgsz={cfg.image_size},
+            lr0={cfg.learning_rate},
+            lrf={cfg.learning_rate},
+            rect={cfg.letter_box},
+            device="{cfg.device}",
+            workers={cfg.workers},
+            seed={cfg.seed},
+            verbose={cfg.verbose},
+            project="{self.hub_dir}",
+            name="{self.ARTIFACT_DIR}",
+        )"""
+
+        script_file = str((self.hub_dir / "train.py").absolute())
+        with open(script_file, "w") as f:
+            f.write(code)
+
+        run_python_file(script_file)
 
     def on_train_end(self, cfg: TrainConfig):
         io.copy_file(
