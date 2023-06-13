@@ -252,8 +252,17 @@ class Dataset:
     @cached_property
     def category_to_annotations(self) -> dict[int, list[Annotation]]:
         category_to_annotations = {category_id: [] for category_id in self.categories.keys()}
+        category_name_to_id = {
+            category.name: category.category_id for category in self.categories.values()
+        }
         for annotation in self.annotations.values():
-            category_to_annotations[annotation.category_id].append(annotation)
+            if self.task == TaskType.TEXT_RECOGNITION:
+                texts = annotation.caption
+                characters = set(texts)
+                for char in characters:
+                    category_to_annotations[category_name_to_id[char]].append(annotation)
+            else:
+                category_to_annotations[annotation.category_id].append(annotation)
         return dict(category_to_annotations)
 
     @cached_property
