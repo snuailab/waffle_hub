@@ -5,7 +5,7 @@ import torch
 
 from waffle_hub import TaskType
 from waffle_hub.dataset import Dataset
-from waffle_hub.hub import get_hub, load_hub
+from waffle_hub.hub import Hub
 from waffle_hub.hub.adapter.autocare_dlt import AutocareDLTHub
 from waffle_hub.hub.adapter.transformers import TransformersHub
 from waffle_hub.hub.adapter.ultralytics import UltralyticsHub
@@ -133,10 +133,10 @@ def _util(hub):
     backend = hub.backend
     root_dir = hub.root_dir
 
-    hub_class = get_hub(backend)
+    hub_class = Hub.get_hub_class(backend)
     assert hub_class == type(hub)
 
-    hub_loaded = load_hub(name, root_dir)
+    hub_loaded = Hub.load(name, root_dir)
     assert isinstance(hub_loaded, type(hub))
 
 

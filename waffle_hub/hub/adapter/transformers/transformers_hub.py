@@ -1,6 +1,6 @@
 """
 Transformers Hub
-See BaseHub documentation for more details about usage.
+See Hub documentation for more details about usage.
 """
 
 import os
@@ -30,7 +30,7 @@ from waffle_hub.hub.adapter.transformers.train_input_helper import (
     ClassifierInputHelper,
     ObjectDetectionInputHelper,
 )
-from waffle_hub.hub.base_hub import BaseHub
+from waffle_hub.hub import Hub
 from waffle_hub.hub.model.wrapper import ModelWrapper
 from waffle_hub.schema.configs import TrainConfig
 from waffle_hub.utils.callback import TrainCallback
@@ -57,7 +57,7 @@ class CustomCallback(TrainerCallback):
             return control_copy
 
 
-class TransformersHub(BaseHub):
+class TransformersHub(Hub):
     BACKEND_NAME = "transformers"
     MODEL_TYPES = MODEL_TYPES
     MULTI_GPU_TRAIN = False

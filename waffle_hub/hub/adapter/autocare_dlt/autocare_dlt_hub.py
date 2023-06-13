@@ -1,6 +1,6 @@
 """
 Tx Model Hub
-See BaseHub documentation for more details about usage.
+See Hub documentation for more details about usage.
 """
 
 import warnings
@@ -22,7 +22,7 @@ from waffle_hub.hub.adapter.autocare_dlt.configs import (
     get_data_config,
     get_model_config,
 )
-from waffle_hub.hub.base_hub import BaseHub
+from waffle_hub.hub import Hub
 from waffle_hub.hub.model.wrapper import ModelWrapper
 from waffle_hub.schema.configs import TrainConfig
 from waffle_hub.utils.callback import TrainCallback
@@ -30,7 +30,7 @@ from waffle_hub.utils.callback import TrainCallback
 from .config import DATA_TYPE_MAP, DEFAULT_PARAMAS, MODEL_TYPES, WEIGHT_PATH
 
 
-class AutocareDLTHub(BaseHub):
+class AutocareDLTHub(Hub):
     BACKEND_NAME = "autocare_dlt"
     MODEL_TYPES = MODEL_TYPES
     MULTI_GPU_TRAIN = False
@@ -224,7 +224,7 @@ class AutocareDLTHub(BaseHub):
         io.save_json(data_config, cfg.data_config, create_directory=True)
         categories = (
             self.categories
-            if self._BaseHub__task == "classification"
+            if self._Hub__task == "classification"
             else [x["name"] for x in self.categories]
         )
 

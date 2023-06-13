@@ -11,6 +11,7 @@ import logging
 import os
 import threading
 import time
+import importlib
 import warnings
 from functools import cached_property
 from pathlib import Path
@@ -24,7 +25,7 @@ import tqdm
 from waffle_utils.file import io
 from waffle_utils.utils import type_validator
 
-from waffle_hub import TaskType
+from waffle_hub import TaskType, BACKEND_MAP
 from waffle_hub.dataset import Dataset
 from waffle_hub.hub.model.wrapper import get_parser
 from waffle_hub.schema.configs import (
@@ -54,7 +55,7 @@ from waffle_hub.utils.evaluate import evaluate_function
 logger = logging.getLogger(__name__)
 
 
-class BaseHub:
+class Hub:
     # Hub Spec. must have
     BACKEND_NAME = None
     MODEL_TYPES = None
@@ -142,28 +143,62 @@ class BaseHub:
             model_config.save_yaml(self.model_config_file)
         except Exception as e:
             raise e
+    
+    @classmethod
+    def get_hub_class(cls, backend: str = None) -> "Hub":
+        """
+        Get hub class
+
+        Args:
+            backend (str): Backend name
+
+        Raises:
+            ModuleNotFoundError: If backend is not supported
+
+        Returns:
+            Hub: Backend hub Class
+        """
+        if backend not in BACKEND_MAP:
+            raise ModuleNotFoundError(f"Backend {backend} is not supported")
+
+        backend_info = BACKEND_MAP[backend]
+        module = importlib.import_module(backend_info["import_path"])
+        hub_class = getattr(module, backend_info["class_name"])
+        return hub_class
+    
+    @classmethod
+    def get_available_backends(cls) -> list[str]:
+        """
+        Get available backends
+
+        Returns:
+            list[str]: Available backends
+        """
+        return list(BACKEND_MAP.keys())
 
     @classmethod
     def new(
         cls,
         name: str,
+        backend: str,
         task: str = None,
         model_type: str = None,
         model_size: str = None,
         categories: Union[list[dict], list] = None,
         root_dir: str = None,
-    ):
+    ) -> "Hub":
         """Create Hub.
 
         Args:
             name (str): Hub name
+            backend (str): Backend name. See Hub.BACKENDS.
             task (str, optional): Task Name. See Hub.TASKS. Defaults to None.
             model_type (str, optional): Model Type. See Hub.MODEL_TYPES. Defaults to None.
             model_size (str, optional): Model Size. See Hub.MODEL_SIZES. Defaults to None.
             categories (Union[list[dict], list]): class dictionary or list. [{"supercategory": "name"}, ] or ["name",].
             root_dir (str, optional): Root directory of hub repository. Defaults to None.
         """
-        return cls(
+        return cls.get_hub_class(backend)(
             name=name,
             task=task,
             model_type=model_type,
@@ -173,7 +208,7 @@ class BaseHub:
         )
 
     @classmethod
-    def load(cls, name: str, root_dir: str = None) -> "BaseHub":
+    def load(cls, name: str, root_dir: str = None) -> "Hub":
         """Load Hub by name.
 
         Args:
@@ -186,20 +221,20 @@ class BaseHub:
         Returns:
             Hub: Hub instance
         """
-        root_dir = Path(root_dir if root_dir else BaseHub.DEFAULT_ROOT_DIR)
-        model_config_file = root_dir / name / BaseHub.MODEL_CONFIG_FILE
+        root_dir = Path(root_dir if root_dir else Hub.DEFAULT_ROOT_DIR)
+        model_config_file = root_dir / name / Hub.MODEL_CONFIG_FILE
         if not model_config_file.exists():
             raise FileNotFoundError(f"Model[{name}] does not exists. {model_config_file}")
-        model_config = io.load_yaml(model_config_file)
-        return cls(
+        model_config = ModelConfig.load(model_config_file)
+        return cls.get_hub_class(model_config.backend)(
             **{
-                **model_config,
+                **model_config.to_dict(),
                 "root_dir": root_dir,
             }
         )
 
     @classmethod
-    def from_model_config(cls, name: str, model_config_file: str, root_dir: str = None) -> "BaseHub":
+    def from_model_config(cls, name: str, model_config_file: str, root_dir: str = None) -> "Hub":
         """Create new Hub with model config.
 
         Args:
@@ -218,6 +253,26 @@ class BaseHub:
                 "root_dir": root_dir,
             }
         )
+    
+    @classmethod
+    def get_hub_list(cls, root_dir: str = None) -> list[str]:
+        """Get hub name list in root_dir.
+
+        Args:
+            root_dir (str, optional): hub root directory. Defaults to None.
+
+        Returns:
+            list[str]: hub list
+        """
+        root_dir = Path(root_dir if root_dir else Hub.DEFAULT_ROOT_DIR)
+
+        hub_name_list = []
+        for hub_dir in root_dir.iterdir():
+            if hub_dir.is_dir():
+                model_config_file = hub_dir / Hub.MODEL_CONFIG_FILE
+                if model_config_file.exists():
+                    hub_name_list.append(hub_dir.name)
+        return hub_name_list
 
     # properties
     @property
@@ -238,7 +293,7 @@ class BaseHub:
     @root_dir.setter
     @type_validator(Path, strict=False)
     def root_dir(self, v):
-        self.__root_dir = Path(v) if v else BaseHub.DEFAULT_ROOT_DIR
+        self.__root_dir = Path(v) if v else Hub.DEFAULT_ROOT_DIR
 
     @property
     def task(self) -> str:
@@ -328,57 +383,57 @@ class BaseHub:
     @cached_property
     def model_config_file(self) -> Path:
         """Model Config yaml File"""
-        return self.hub_dir / BaseHub.MODEL_CONFIG_FILE
+        return self.hub_dir / Hub.MODEL_CONFIG_FILE
 
     @cached_property
     def artifact_dir(self) -> Path:
         """Artifact Directory. This is raw output of each backend."""
-        return self.hub_dir / BaseHub.ARTIFACT_DIR
+        return self.hub_dir / Hub.ARTIFACT_DIR
 
     @cached_property
     def inference_dir(self) -> Path:
         """Inference Results Directory"""
-        return self.hub_dir / BaseHub.INFERENCE_DIR
+        return self.hub_dir / Hub.INFERENCE_DIR
 
     @cached_property
     def inference_file(self) -> Path:
         """Inference Results File"""
-        return self.inference_dir / BaseHub.INFERENCE_FILE
+        return self.inference_dir / Hub.INFERENCE_FILE
 
     @cached_property
     def draw_dir(self) -> Path:
         """Draw Results Directory"""
-        return self.inference_dir / BaseHub.DRAW_DIR
+        return self.inference_dir / Hub.DRAW_DIR
 
     @cached_property
     def train_config_file(self) -> Path:
         """Train Config yaml File"""
-        return self.hub_dir / BaseHub.TRAIN_CONFIG_FILE
+        return self.hub_dir / Hub.TRAIN_CONFIG_FILE
 
     @cached_property
     def best_ckpt_file(self) -> Path:
         """Best Checkpoint File"""
-        return self.hub_dir / BaseHub.BEST_CKPT_FILE
+        return self.hub_dir / Hub.BEST_CKPT_FILE
 
     @cached_property
     def onnx_file(self) -> Path:
         """Best Checkpoint File"""
-        return self.hub_dir / BaseHub.ONNX_FILE
+        return self.hub_dir / Hub.ONNX_FILE
 
     @cached_property
     def last_ckpt_file(self) -> Path:
         """Last Checkpoint File"""
-        return self.hub_dir / BaseHub.LAST_CKPT_FILE
+        return self.hub_dir / Hub.LAST_CKPT_FILE
 
     @cached_property
     def metric_file(self) -> Path:
         """Metric Csv File"""
-        return self.hub_dir / BaseHub.METRIC_FILE
+        return self.hub_dir / Hub.METRIC_FILE
 
     @cached_property
     def evaluate_file(self) -> Path:
         """Evaluate Json File"""
-        return self.hub_dir / BaseHub.EVALUATE_FILE
+        return self.hub_dir / Hub.EVALUATE_FILE
 
     # common functions
     def delete_artifact(self):
