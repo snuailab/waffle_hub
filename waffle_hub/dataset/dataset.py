@@ -53,42 +53,48 @@ class Dataset:
 
     def affects(*fields):
         fields = list(fields)
-        if set(fields) - {"image", "annotation", "category"}:
+        field = fields[0]
+        if len(fields) != 1:
+            raise ValueError("Only one field can be specified")
+        if field not in ["image", "annotation", "category"]:
             raise ValueError("Invalid field name")
 
         field2attrs = {
             "image": [
                 "images",
-                "image_to_annotations",
                 "unlabeled_images",
+                "image_to_annotations",
                 "annotation_to_images",
-                "num_images_per_category",
                 "category_to_images",
+                "num_images_per_category",
             ],
             "annotation": [
                 "annotations",
+                "images",
+                "unlabeled_images",
                 "annotation_to_images",
                 "image_to_annotations",
-                "num_annotations_per_category",
                 "category_to_annotations",
+                "category_to_images",
+                "num_annotations_per_category",
+                "num_images_per_category",
             ],
             "category": [
                 "categories",
                 "category_names",
-                "category_to_images",
                 "category_to_annotations",
-                "num_images_per_category",
+                "category_to_images",
                 "num_annotations_per_category",
+                "num_images_per_category",
             ],
         }
 
         def decorator(func):
             def wrapper(self, *args, **kwargs):
                 res = func(self, *args, **kwargs)
-                for field in fields:
-                    for attr in field2attrs[field]:
-                        if hasattr(self, attr):
-                            delattr(self, attr)
+                for attr in field2attrs[field]:
+                    if hasattr(self, attr):
+                        delattr(self, attr)
                 return res
 
             return wrapper
@@ -239,18 +245,14 @@ class Dataset:
     @cached_property
     def image_to_annotations(self) -> dict[int, list[Annotation]]:
         image_to_annotations = {image_id: [] for image_id in self.images.keys()}
-        for annotation in tqdm.tqdm(
-            self.annotations.values(), desc="Building image to annotation index"
-        ):
+        for annotation in self.annotations.values():
             image_to_annotations[annotation.image_id].append(annotation)
         return dict(image_to_annotations)
 
     @cached_property
     def category_to_annotations(self) -> dict[int, list[Annotation]]:
         category_to_annotations = {category_id: [] for category_id in self.categories.keys()}
-        for annotation in tqdm.tqdm(
-            self.annotations.values(), desc="Building category to annotation index"
-        ):
+        for annotation in self.annotations.values():
             category_to_annotations[annotation.category_id].append(annotation)
         return dict(category_to_annotations)
 
@@ -260,9 +262,7 @@ class Dataset:
         category_name_to_id = {
             category.name: category.category_id for category in self.categories.values()
         }
-        for image_id, annotations in tqdm.tqdm(
-            self.image_to_annotations.items(), desc="Building category to image index"
-        ):
+        for image_id, annotations in self.image_to_annotations.items():
             if self.task == TaskType.TEXT_RECOGNITION:
                 texts = map(lambda a: a.caption, annotations)
                 character_count = Counter("".join(texts))
@@ -283,12 +283,11 @@ class Dataset:
 
     @cached_property
     def num_annotations_per_category(self) -> dict[int, int]:
-        if not hasattr(self, "_num_annotations_per_category"):
-            self._num_annotations_per_category = {
-                category_id: len(annotations)
-                for category_id, annotations in self.category_to_annotations.items()
-            }
-        return self._num_annotations_per_category
+        num_annotations_per_category = {
+            category_id: len(annotations)
+            for category_id, annotations in self.category_to_annotations.items()
+        }
+        return num_annotations_per_category
 
     # factories
     @classmethod
@@ -1461,7 +1460,7 @@ class Dataset:
             item_path = self.category_dir / f"{item_id}.json"
             io.save_json(item.to_dict(), item_path)
 
-    @affects("annotation", "image")
+    @affects("annotation")
     def add_annotations(self, annotations: list[Annotation]):
         """Add "Annotation"s to dataset.
 

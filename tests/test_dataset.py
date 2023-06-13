@@ -251,7 +251,7 @@ def _dummy(dataset_name, task: TaskType, image_num, category_num, unlabeled_imag
         task=task,
         image_num=image_num,
         category_num=category_num,
-        unlabeld_image_num=unlabeled_image_num,
+        unlabeled_image_num=unlabeled_image_num,
         root_dir=root_dir,
     )
     assert len(dataset.images) == image_num
