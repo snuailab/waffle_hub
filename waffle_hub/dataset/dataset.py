@@ -51,6 +51,50 @@ class Dataset:
 
     MINIMUM_TRAINABLE_IMAGE_NUM_PER_CATEGORY = 3
 
+    def affects(*fields):
+        fields = list(fields)
+        if set(fields) - {"image", "annotation", "category"}:
+            raise ValueError("Invalid field name")
+
+        field2attrs = {
+            "image": [
+                "images",
+                "image_to_annotations",
+                "unlabeled_images",
+                "annotation_to_images",
+                "num_images_per_category",
+                "category_to_images",
+            ],
+            "annotation": [
+                "annotations",
+                "annotation_to_images",
+                "image_to_annotations",
+                "num_annotations_per_category",
+                "category_to_annotations",
+            ],
+            "category": [
+                "categories",
+                "category_names",
+                "category_to_images",
+                "category_to_annotations",
+                "num_images_per_category",
+                "num_annotations_per_category",
+            ],
+        }
+
+        def decorator(func):
+            def wrapper(self, *args, **kwargs):
+                res = func(self, *args, **kwargs)
+                for field in fields:
+                    for attr in field2attrs[field]:
+                        if hasattr(self, attr):
+                            delattr(self, attr)
+                return res
+
+            return wrapper
+
+        return decorator
+
     def __init__(
         self,
         name: str,
@@ -1385,55 +1429,45 @@ class Dataset:
             return [Annotation.from_json(f, self.task) for f in self.prediction_dir.glob("*/*.json")]
 
     # add
+    @affects("image")
     def add_images(self, images: list[Image]):
         """Add "Image"s to dataset.
 
         Args:
             images (list[Image]): list of "Image"s
         """
-        self.__dict__.pop("images", None)
-        self.__dict__.pop("unlabeled_images", None)
-        self.__dict__.pop("image_to_annotations", None)
         for item in images:
             item_id = item.image_id
             item_path = self.image_dir / f"{item_id}.json"
             io.save_json(item.to_dict(), item_path)
 
+    @affects("category")
     def add_categories(self, categories: list[Category]):
         """Add "Category"s to dataset.
 
         Args:
             categories (list[Category]): list of "Category"s
         """
-        category_names_list = [category.name for category in categories]
-        category_names = set(category_names_list)
-        if (
-            len(category_names) != len(category_names_list)
-            or set(self.category_names) & category_names
-        ):
-            raise ValueError("Category names should be unique")
-
-        self.__dict__.pop("categories", None)
-        self.__dict__.pop("category_names", None)
-        self.__dict__.pop("category_to_images", None)
-        self.__dict__.pop("category_to_annotations", None)
-        self.__dict__.pop("num_images_per_category", None)
-        self.__dict__.pop("num_annotations_per_category", None)
+        # category_names_list = [category.name for category in categories]
+        # category_names = set(category_names_list)
+        # if (
+        #     len(category_names) != len(category_names_list)
+        #     or set(self.category_names) & category_names
+        # ):
+        #     raise ValueError("Category names should be unique")
 
         for item in categories:
             item_id = item.category_id
             item_path = self.category_dir / f"{item_id}.json"
             io.save_json(item.to_dict(), item_path)
 
+    @affects("annotation", "image")
     def add_annotations(self, annotations: list[Annotation]):
         """Add "Annotation"s to dataset.
 
         Args:
             annotations (list[Annotation]): list of "Annotation"s
         """
-        self.__dict__.pop("annotations", None)
-        self.__dict__.pop("image_to_annotations", None)
-        self.__dict__.pop("images", None)
         for item in annotations:
             if self.task == TaskType.TEXT_RECOGNITION:
                 for char in item.caption:
