@@ -7,11 +7,11 @@ Hub is a multi-backend compatible interface for model training, evaluation, infe
     Check out docstrings for more details.
 
 """
+import importlib
 import logging
 import os
 import threading
 import time
-import importlib
 import warnings
 from functools import cached_property
 from pathlib import Path
@@ -25,7 +25,7 @@ import tqdm
 from waffle_utils.file import io
 from waffle_utils.utils import type_validator
 
-from waffle_hub import TaskType, BACKEND_MAP
+from waffle_hub import BACKEND_MAP, TaskType
 from waffle_hub.dataset import Dataset
 from waffle_hub.hub.model.wrapper import get_parser
 from waffle_hub.schema.configs import (
@@ -60,7 +60,7 @@ class Hub:
     BACKEND_NAME = None
     MODEL_TYPES = None
     MULTI_GPU_TRAIN = None
-    DEFAULT_PARAMAS = None
+    DEFAULT_PARAMS = None
 
     # directory settings
     DEFAULT_ROOT_DIR = Path("./hubs")
@@ -111,8 +111,8 @@ class Hub:
         if self.MULTI_GPU_TRAIN is None:
             raise AttributeError("MULTI_GPU_TRAIN must be specified.")
 
-        if self.DEFAULT_PARAMAS is None:
-            raise AttributeError("DEFAULT_PARAMAS must be specified.")
+        if self.DEFAULT_PARAMS is None:
+            raise AttributeError("DEFAULT_PARAMS must be specified.")
 
         self.name: str = name
         self.task: str = task
@@ -143,7 +143,10 @@ class Hub:
             model_config.save_yaml(self.model_config_file)
         except Exception as e:
             raise e
-    
+
+    def __repr__(self):
+        return self.get_model_config().__repr__()
+
     @classmethod
     def get_hub_class(cls, backend: str = None) -> "Hub":
         """
@@ -165,7 +168,7 @@ class Hub:
         module = importlib.import_module(backend_info["import_path"])
         hub_class = getattr(module, backend_info["class_name"])
         return hub_class
-    
+
     @classmethod
     def get_available_backends(cls) -> list[str]:
         """
@@ -177,27 +180,136 @@ class Hub:
         return list(BACKEND_MAP.keys())
 
     @classmethod
+    def get_available_tasks(cls, backend: str = None) -> list[str]:
+        """
+        Get available tasks
+
+        Args:
+            backend (str): Backend name
+
+        Raises:
+            ModuleNotFoundError: If backend is not supported
+
+        Returns:
+            list[str]: Available tasks
+        """
+        backend = backend if backend else cls.BACKEND_NAME
+        hub = cls.get_hub_class(backend)
+        return list(hub.MODEL_TYPES.keys())
+
+    @classmethod
+    def get_available_model_types(cls, backend: str = None, task: str = None) -> list[str]:
+        """
+        Get available model types
+
+        Args:
+            backend (str): Backend name
+            task (str): Task name
+
+        Raises:
+            ModuleNotFoundError: If backend is not supported
+
+        Returns:
+            list[str]: Available model types
+        """
+        backend = backend if backend else cls.BACKEND_NAME
+        hub = cls.get_hub_class(backend)
+        if task not in hub.MODEL_TYPES:
+            raise ValueError(f"{task} is not supported with {backend}")
+        return list(hub.MODEL_TYPES[task].keys())
+
+    @classmethod
+    def get_available_model_sizes(
+        cls, backend: str = None, task: str = None, model_type: str = None
+    ) -> list[str]:
+        """
+        Get available model sizes
+
+        Args:
+            backend (str): Backend name
+            task (str): Task name
+            model_type (str): Model type
+
+        Raises:
+            ModuleNotFoundError: If backend is not supported
+
+        Returns:
+            list[str]: Available model sizes
+        """
+        backend = backend if backend else cls.BACKEND_NAME
+        hub = cls.get_hub_class(backend)
+        if task not in hub.MODEL_TYPES:
+            raise ValueError(f"{task} is not supported with {backend}")
+        if model_type not in hub.MODEL_TYPES[task]:
+            raise ValueError(f"{model_type} is not supported with {backend}")
+        return hub.MODEL_TYPES[task][model_type]
+
+    @classmethod
+    def get_default_train_params(
+        cls, backend: str = None, task: str = None, model_type: str = None, model_size: str = None
+    ) -> dict:
+        """
+        Get default train params
+
+        Args:
+            backend (str): Backend name
+            task (str): Task name
+            model_type (str): Model type
+            model_size (str): Model size
+
+        Raises:
+            ModuleNotFoundError: If backend is not supported
+
+        Returns:
+            dict: Default train params
+        """
+        backend = backend if backend else cls.BACKEND_NAME
+        hub = cls.get_hub_class(backend)
+        if task not in hub.MODEL_TYPES:
+            raise ValueError(f"{task} is not supported with {backend}")
+        if model_type not in hub.MODEL_TYPES[task]:
+            raise ValueError(f"{model_type} is not supported with {backend}")
+        if model_size not in hub.MODEL_TYPES[task][model_type]:
+            raise ValueError(f"{model_size} is not supported with {backend}")
+        return hub.DEFAULT_PARAMS[task][model_type][model_size]
+
+    @classmethod
     def new(
         cls,
         name: str,
-        backend: str,
+        backend: str = None,
         task: str = None,
         model_type: str = None,
         model_size: str = None,
         categories: Union[list[dict], list] = None,
         root_dir: str = None,
+        *args,
+        **kwargs,
     ) -> "Hub":
         """Create Hub.
 
         Args:
             name (str): Hub name
-            backend (str): Backend name. See Hub.BACKENDS.
+            backend (str, optional): Backend name. See Hub.BACKENDS. Defaults to None.
             task (str, optional): Task Name. See Hub.TASKS. Defaults to None.
             model_type (str, optional): Model Type. See Hub.MODEL_TYPES. Defaults to None.
             model_size (str, optional): Model Size. See Hub.MODEL_SIZES. Defaults to None.
             categories (Union[list[dict], list]): class dictionary or list. [{"supercategory": "name"}, ] or ["name",].
             root_dir (str, optional): Root directory of hub repository. Defaults to None.
+
+        Returns:
+            Hub: Hub instance
         """
+        if name in cls.get_hub_list(root_dir):
+            raise ValueError(f"{name} already exists. Try another name.")
+
+        backend = backend if backend else cls.get_available_backends()[0]
+        task = task if task else cls.get_available_tasks(backend)[0]
+        model_type = model_type if model_type else cls.get_available_model_types(backend, task)[0]
+        model_size = (
+            model_size if model_size else cls.get_available_model_sizes(backend, task, model_type)[0]
+        )
+
         return cls.get_hub_class(backend)(
             name=name,
             task=task,
@@ -245,15 +357,18 @@ class Hub:
         Returns:
             Hub: New Hub instance
         """
+        if name in cls.get_hub_list(root_dir):
+            raise ValueError(f"{name} already exists. Try another name.")
+
         model_config = io.load_yaml(model_config_file)
-        return cls(
+        return cls.new(
             **{
                 **model_config,
                 "name": name,
                 "root_dir": root_dir,
             }
         )
-    
+
     @classmethod
     def get_hub_list(cls, root_dir: str = None) -> list[str]:
         """Get hub name list in root_dir.
@@ -365,15 +480,6 @@ class Hub:
         if isinstance(v[0], str):
             v = [{"supercategory": "object", "name": n} for n in v]
         self.__categories = v
-
-    @property
-    def default_params(self):
-        """Get default values from model.
-
-        Returns:
-            dict: default values
-        """
-        return self.DEFAULT_PARAMAS[self.task][self.model_type][self.model_size]
 
     @cached_property
     def hub_dir(self) -> Path:
@@ -728,7 +834,7 @@ class Hub:
         for k, v in cfg.to_dict().items():
             if v is None:
                 field_value = getattr(
-                    self.DEFAULT_PARAMAS[self.task][self.model_type][self.model_size], k
+                    self.DEFAULT_PARAMS[self.task][self.model_type][self.model_size], k
                 )
                 setattr(cfg, k, field_value)
 

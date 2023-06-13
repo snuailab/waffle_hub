@@ -18,23 +18,23 @@ from waffle_utils.file import io
 from waffle_utils.utils import type_validator
 
 from waffle_hub import TaskType
+from waffle_hub.hub import Hub
 from waffle_hub.hub.adapter.autocare_dlt.configs import (
     get_data_config,
     get_model_config,
 )
-from waffle_hub.hub import Hub
 from waffle_hub.hub.model.wrapper import ModelWrapper
 from waffle_hub.schema.configs import TrainConfig
 from waffle_hub.utils.callback import TrainCallback
 
-from .config import DATA_TYPE_MAP, DEFAULT_PARAMAS, MODEL_TYPES, WEIGHT_PATH
+from .config import DATA_TYPE_MAP, DEFAULT_PARAMS, MODEL_TYPES, WEIGHT_PATH
 
 
 class AutocareDLTHub(Hub):
     BACKEND_NAME = "autocare_dlt"
     MODEL_TYPES = MODEL_TYPES
     MULTI_GPU_TRAIN = False
-    DEFAULT_PARAMAS = DEFAULT_PARAMAS
+    DEFAULT_PARAMS = DEFAULT_PARAMS
 
     DATA_TYPE_MAP = DATA_TYPE_MAP
     WEIGHT_PATH = WEIGHT_PATH
@@ -92,6 +92,9 @@ class AutocareDLTHub(Hub):
             categories (Union[list[dict], list]): class dictionary or list. [{"supercategory": "name"}, ] or ["name",].
             root_dir (str, optional): Root directory of hub repository. Defaults to None.
         """
+
+        warnings.warn("UltralyticsHub.new() is deprecated. Please use Hub.new() instead.")
+
         return cls(
             name=name,
             task=task,

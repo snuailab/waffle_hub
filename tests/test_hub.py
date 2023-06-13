@@ -6,9 +6,6 @@ import torch
 from waffle_hub import TaskType
 from waffle_hub.dataset import Dataset
 from waffle_hub.hub import Hub
-from waffle_hub.hub.adapter.autocare_dlt import AutocareDLTHub
-from waffle_hub.hub.adapter.transformers import TransformersHub
-from waffle_hub.hub.adapter.ultralytics import UltralyticsHub
 from waffle_hub.schema.result import (
     EvaluateResult,
     ExportResult,
@@ -158,18 +155,19 @@ def test_ultralytics_segmentation(instance_segmentation_dataset: Dataset, tmpdir
 
     # test hub
     name = "test_seg"
-    hub = UltralyticsHub.new(
+    hub = Hub.new(
         name=name,
+        backend="ultralytics",
         task=TaskType.INSTANCE_SEGMENTATION,
         model_type="yolov8",
         model_size="n",
         categories=dataset.category_names,
         root_dir=tmpdir,
     )
-    hub = UltralyticsHub.load(name=name, root_dir=tmpdir)
-    hub: UltralyticsHub = UltralyticsHub.from_model_config(
-        name=name,
-        model_config_file=tmpdir / name / UltralyticsHub.MODEL_CONFIG_FILE,
+    hub = Hub.load(name=name, root_dir=tmpdir)
+    hub: Hub = Hub.from_model_config(
+        name=name + "_from_model_config",
+        model_config_file=tmpdir / name / Hub.MODEL_CONFIG_FILE,
         root_dir=tmpdir,
     )
 
@@ -182,18 +180,19 @@ def test_ultralytics_object_detection(object_detection_dataset: Dataset, tmpdir:
 
     # test hub
     name = "test_det"
-    hub = UltralyticsHub.new(
+    hub = Hub.new(
         name=name,
+        backend="ultralytics",
         task=TaskType.OBJECT_DETECTION,
         model_type="yolov8",
         model_size="n",
         categories=dataset.category_names,
         root_dir=tmpdir,
     )
-    hub = UltralyticsHub.load(name=name, root_dir=tmpdir)
-    hub: UltralyticsHub = UltralyticsHub.from_model_config(
-        name=name,
-        model_config_file=tmpdir / name / UltralyticsHub.MODEL_CONFIG_FILE,
+    hub = Hub.load(name=name, root_dir=tmpdir)
+    hub: Hub = Hub.from_model_config(
+        name=name + "_from_model_config",
+        model_config_file=tmpdir / name / Hub.MODEL_CONFIG_FILE,
         root_dir=tmpdir,
     )
 
@@ -206,18 +205,19 @@ def test_ultralytics_classification(classification_dataset: Dataset, tmpdir: Pat
 
     # test hub
     name = "test_cls"
-    hub = UltralyticsHub.new(
+    hub = Hub.new(
         name=name,
+        backend="ultralytics",
         task=TaskType.CLASSIFICATION,
         model_type="yolov8",
         model_size="n",
         categories=classification_dataset.category_names,
         root_dir=tmpdir,
     )
-    hub = UltralyticsHub.load(name=name, root_dir=tmpdir)
-    hub: UltralyticsHub = UltralyticsHub.from_model_config(
-        name=name,
-        model_config_file=tmpdir / name / UltralyticsHub.MODEL_CONFIG_FILE,
+    hub = Hub.load(name=name, root_dir=tmpdir)
+    hub: Hub = Hub.from_model_config(
+        name=name + "_from_model_config",
+        model_config_file=tmpdir / name / Hub.MODEL_CONFIG_FILE,
         root_dir=tmpdir,
     )
 
@@ -230,18 +230,19 @@ def test_transformers_object_detection(object_detection_dataset: Dataset, tmpdir
 
     # test hub
     name = "test_det"
-    hub = TransformersHub.new(
+    hub = Hub.new(
         name=name,
+        backend="transformers",
         task=TaskType.OBJECT_DETECTION,
         model_type="YOLOS",
         model_size="tiny",
         categories=object_detection_dataset.category_names,
         root_dir=tmpdir,
     )
-    hub = TransformersHub.load(name=name, root_dir=tmpdir)
-    hub: TransformersHub = TransformersHub.from_model_config(
-        name=name,
-        model_config_file=tmpdir / name / TransformersHub.MODEL_CONFIG_FILE,
+    hub = Hub.load(name=name, root_dir=tmpdir)
+    hub: Hub = Hub.from_model_config(
+        name=name + "_from_model_config",
+        model_config_file=tmpdir / name / Hub.MODEL_CONFIG_FILE,
         root_dir=tmpdir,
     )
 
@@ -254,18 +255,19 @@ def test_transformers_classification(classification_dataset: Dataset, tmpdir: Pa
 
     # test hub
     name = "test_cls"
-    hub = TransformersHub.new(
+    hub = Hub.new(
         name=name,
+        backend="transformers",
         task=TaskType.CLASSIFICATION,
         model_type="ViT",
         model_size="tiny",
         categories=classification_dataset.category_names,
         root_dir=tmpdir,
     )
-    hub = TransformersHub.load(name=name, root_dir=tmpdir)
-    hub: TransformersHub = TransformersHub.from_model_config(
-        name=name,
-        model_config_file=tmpdir / name / TransformersHub.MODEL_CONFIG_FILE,
+    hub = Hub.load(name=name, root_dir=tmpdir)
+    hub: Hub = Hub.from_model_config(
+        name=name + "_from_model_config",
+        model_config_file=tmpdir / name / Hub.MODEL_CONFIG_FILE,
         root_dir=tmpdir,
     )
 
@@ -278,18 +280,19 @@ def test_non_hold(classification_dataset: Dataset, tmpdir: Path):
 
     # test hub
     name = "test_cls"
-    hub = UltralyticsHub.new(
+    hub = Hub.new(
         name=name,
+        backend="ultralytics",
         task=TaskType.CLASSIFICATION,
         model_type="yolov8",
         model_size="n",
         categories=classification_dataset.category_names,
         root_dir=tmpdir,
     )
-    hub = UltralyticsHub.load(name=name, root_dir=tmpdir)
-    hub: UltralyticsHub = UltralyticsHub.from_model_config(
-        name=name,
-        model_config_file=tmpdir / name / UltralyticsHub.MODEL_CONFIG_FILE,
+    hub = Hub.load(name=name, root_dir=tmpdir)
+    hub: Hub = Hub.from_model_config(
+        name=name + "_from_model_config",
+        model_config_file=tmpdir / name / Hub.MODEL_CONFIG_FILE,
         root_dir=tmpdir,
     )
 
@@ -302,18 +305,19 @@ def test_autocare_dlt_object_detection(object_detection_dataset: Dataset, tmpdir
 
     # test hub
     name = "test_det"
-    hub = AutocareDLTHub.new(
+    hub = Hub.new(
         name=name,
+        backend="autocare_dlt",
         task=TaskType.OBJECT_DETECTION,
         model_type="YOLOv5",
         model_size="s",
         categories=object_detection_dataset.category_names,
         root_dir=tmpdir,
     )
-    hub = AutocareDLTHub.load(name=name, root_dir=tmpdir)
-    hub: AutocareDLTHub = AutocareDLTHub.from_model_config(
-        name=name,
-        model_config_file=tmpdir / name / AutocareDLTHub.MODEL_CONFIG_FILE,
+    hub = Hub.load(name=name, root_dir=tmpdir)
+    hub: Hub = Hub.from_model_config(
+        name=name + "_from_model_config",
+        model_config_file=tmpdir / name / Hub.MODEL_CONFIG_FILE,
         root_dir=tmpdir,
     )
 
@@ -338,18 +342,19 @@ def test_autocare_dlt_classification(classification_dataset: Dataset, tmpdir: Pa
 
     # test hub
     name = "test_cls"
-    hub = AutocareDLTHub.new(
+    hub = Hub.new(
         name=name,
+        backend="autocare_dlt",
         task=TaskType.CLASSIFICATION,
         model_type="Classifier",
         model_size="s",
         categories=super_cat_dict_list,
         root_dir=tmpdir,
     )
-    hub = AutocareDLTHub.load(name=name, root_dir=tmpdir)
-    hub: AutocareDLTHub = AutocareDLTHub.from_model_config(
-        name=name,
-        model_config_file=tmpdir / name / AutocareDLTHub.MODEL_CONFIG_FILE,
+    hub = Hub.load(name=name, root_dir=tmpdir)
+    hub: Hub = Hub.from_model_config(
+        name=name + "_from_model_config",
+        model_config_file=tmpdir / name / Hub.MODEL_CONFIG_FILE,
         root_dir=tmpdir,
     )
 
@@ -362,18 +367,19 @@ def test_autocare_dlt_text_recognition(text_recognition_dataset: Dataset, tmpdir
 
     # test hub
     name = "test_ocr"
-    hub = AutocareDLTHub.new(
+    hub = Hub.new(
         name=name,
+        backend="autocare_dlt",
         task=TaskType.TEXT_RECOGNITION,
         model_type="TextRecognition",
         model_size="s",
         categories=dataset.category_names,
         root_dir=tmpdir,
     )
-    hub = AutocareDLTHub.load(name=name, root_dir=tmpdir)
-    hub: AutocareDLTHub = AutocareDLTHub.from_model_config(
-        name=name,
-        model_config_file=tmpdir / name / AutocareDLTHub.MODEL_CONFIG_FILE,
+    hub = Hub.load(name=name, root_dir=tmpdir)
+    hub: Hub = Hub.from_model_config(
+        name=name + "_from_model_config",
+        model_config_file=tmpdir / name / Hub.MODEL_CONFIG_FILE,
         root_dir=tmpdir,
     )
 

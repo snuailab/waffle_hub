@@ -20,14 +20,14 @@ from waffle_hub.schema.configs import TrainConfig
 from waffle_hub.utils.callback import TrainCallback
 from waffle_hub.utils.process import run_python_file
 
-from .config import DEFAULT_PARAMAS, MODEL_TYPES, TASK_MAP, TASK_SUFFIX
+from .config import DEFAULT_PARAMS, MODEL_TYPES, TASK_MAP, TASK_SUFFIX
 
 
 class UltralyticsHub(Hub):
     BACKEND_NAME = "ultralytics"
     MODEL_TYPES = MODEL_TYPES
     MULTI_GPU_TRAIN = True
-    DEFAULT_PARAMAS = DEFAULT_PARAMAS
+    DEFAULT_PARAMS = DEFAULT_PARAMS
 
     TASK_MAP = TASK_MAP
     TASK_SUFFIX = TASK_SUFFIX
@@ -87,6 +87,9 @@ class UltralyticsHub(Hub):
             categories (Union[list[dict], list]): class dictionary or list. [{"supercategory": "name"}, ] or ["name",].
             root_dir (str, optional): Root directory of hub repository. Defaults to None.
         """
+
+        warnings.warn("UltralyticsHub.new() is deprecated. Please use Hub.new() instead.")
+
         return cls(
             name=name,
             task=task,

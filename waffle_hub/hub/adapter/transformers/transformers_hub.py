@@ -12,6 +12,7 @@ from typing import Callable, Union
 
 import torch
 import transformers
+from datasets import load_from_disk
 from torchvision import transforms as T
 from transformers import (
     AutoImageProcessor,
@@ -24,18 +25,17 @@ from transformers import (
 from transformers.utils import ModelOutput
 from waffle_utils.file import io
 
-from datasets import load_from_disk
 from waffle_hub import TaskType
+from waffle_hub.hub import Hub
 from waffle_hub.hub.adapter.transformers.train_input_helper import (
     ClassifierInputHelper,
     ObjectDetectionInputHelper,
 )
-from waffle_hub.hub import Hub
 from waffle_hub.hub.model.wrapper import ModelWrapper
 from waffle_hub.schema.configs import TrainConfig
 from waffle_hub.utils.callback import TrainCallback
 
-from .config import DEFAULT_PARAMAS, MODEL_TYPES
+from .config import DEFAULT_PARAMS, MODEL_TYPES
 
 
 class CustomCallback(TrainerCallback):
@@ -61,7 +61,7 @@ class TransformersHub(Hub):
     BACKEND_NAME = "transformers"
     MODEL_TYPES = MODEL_TYPES
     MULTI_GPU_TRAIN = False
-    DEFAULT_PARAMAS = DEFAULT_PARAMAS
+    DEFAULT_PARAMS = DEFAULT_PARAMS
 
     # Override
     LAST_CKPT_FILE = "weights/last_ckpt"
@@ -121,6 +121,8 @@ class TransformersHub(Hub):
         categories: Union[list[dict], list] = None,
         root_dir: str = None,
     ):
+
+        warnings.warn("UltralyticsHub.new() is deprecated. Please use Hub.new() instead.")
 
         return cls(
             name=name,
