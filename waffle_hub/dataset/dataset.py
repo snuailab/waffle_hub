@@ -623,7 +623,7 @@ class Dataset:
                 io.remove_directory(merged_ds.dataset_dir)
             raise e
 
-        return merged_ds
+        return Dataset.load(name, root_dir)
 
     @classmethod
     def from_coco(
