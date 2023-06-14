@@ -251,7 +251,7 @@ def _dummy(dataset_name, task: TaskType, image_num, category_num, unlabeled_imag
         task=task,
         image_num=image_num,
         category_num=category_num,
-        unlabeld_image_num=unlabeled_image_num,
+        unlabeled_image_num=unlabeled_image_num,
         root_dir=root_dir,
     )
     assert len(dataset.images) == image_num
@@ -541,5 +541,8 @@ def test_cached_property(tmpdir):
     ds.add_categories([new_cate])
     assert len(ds.categories) == len(before_cates) + 1
     assert len(ds.category_names) == len(before_cate_names) + 1
-    assert len(ds.category_to_images.keys()) == len(before_cate_to_imgs.keys()) + 1
+
+    new_ann = Annotation.classification(11, 11, 2)
+    ds.add_annotations([new_ann])
     assert len(ds.category_to_annotations.keys()) == len(before_cate_to_anns.keys()) + 1
+    assert len(ds.category_to_images.keys()) == len(before_cate_to_imgs.keys()) + 1
