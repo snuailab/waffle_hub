@@ -541,5 +541,8 @@ def test_cached_property(tmpdir):
     ds.add_categories([new_cate])
     assert len(ds.categories) == len(before_cates) + 1
     assert len(ds.category_names) == len(before_cate_names) + 1
-    assert len(ds.category_to_images.keys()) == len(before_cate_to_imgs.keys()) + 1
+
+    new_ann = Annotation.classification(11, 11, 2)
+    ds.add_annotations([new_ann])
     assert len(ds.category_to_annotations.keys()) == len(before_cate_to_anns.keys()) + 1
+    assert len(ds.category_to_images.keys()) == len(before_cate_to_imgs.keys()) + 1

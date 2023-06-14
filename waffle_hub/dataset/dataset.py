@@ -217,22 +217,18 @@ class Dataset:
 
     @cached_property
     def image_to_annotations(self) -> dict[int, list[Annotation]]:
-        image_to_annotations = {image_id: [] for image_id in self.images.keys()}
-        for annotation in tqdm.tqdm(
-            self.annotations.values(), desc="Building image to annotation index"
-        ):
+        image_to_annotations = defaultdict(list)
+        for annotation in self.annotations.values():
             image_to_annotations[annotation.image_id].append(annotation)
         return dict(image_to_annotations)
 
     @cached_property
     def category_to_annotations(self) -> dict[int, list[Annotation]]:
-        category_to_annotations = {category_id: [] for category_id in self.categories.keys()}
+        category_to_annotations = defaultdict(list)
         category_name_to_id = {
             category.name: category.category_id for category in self.categories.values()
         }
-        for annotation in tqdm.tqdm(
-            self.annotations.values(), desc="Building category to annotation index"
-        ):
+        for annotation in self.annotations.values():
             if self.task == TaskType.TEXT_RECOGNITION:
                 texts = annotation.caption
                 characters = set(texts)
@@ -244,13 +240,11 @@ class Dataset:
 
     @cached_property
     def category_to_images(self) -> dict[int, list[Image]]:
-        category_to_images = {category_id: [] for category_id in self.categories.keys()}
+        category_to_images = defaultdict(list)
         category_name_to_id = {
             category.name: category.category_id for category in self.categories.values()
         }
-        for image_id, annotations in tqdm.tqdm(
-            self.image_to_annotations.items(), desc="Building category to image index"
-        ):
+        for image_id, annotations in self.image_to_annotations.items():
             if self.task == TaskType.TEXT_RECOGNITION:
                 texts = map(lambda a: a.caption, annotations)
                 character_count = Counter("".join(texts))
@@ -264,9 +258,9 @@ class Dataset:
 
     @cached_property
     def num_images_per_category(self) -> dict[int, int]:
-        num_images_per_category = {
-            category_id: len(images) for category_id, images in self.category_to_images.items()
-        }
+        num_images_per_category = defaultdict(int)
+        for category_id, images in self.category_to_images.items():
+            num_images_per_category[category_id] = len(images)
         return num_images_per_category
 
     @cached_property
