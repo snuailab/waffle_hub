@@ -56,9 +56,9 @@ class Dataset:
         func = getattr(self, function_name)
 
         def wrapper(*args, **kwargs):
+            return_value = func(*args, **kwargs)
             if hasattr(self, property_name):
                 delattr(self, property_name)
-            return_value = func(*args, **kwargs)
             return return_value
 
         setattr(self, function_name, wrapper)
@@ -78,14 +78,18 @@ class Dataset:
 
         self.update_hook("categories", "add_categories")
         self.update_hook("category_names", "add_categories")
-        self.update_hook("images", "add_annotations")
+
         self.update_hook("unlabeled_images", "add_images")
-        self.update_hook("annotations", "add_annotations")
-        self.update_hook("image_to_annotations", "add_annotations")
-        self.update_hook("category_to_annotations", "add_annotations")
-        self.update_hook("category_to_images", "add_annotations")
+        self.update_hook("category_to_images", "add_images")
         self.update_hook("num_images_per_category", "add_images")
+
+        self.update_hook("annotations", "add_annotations")
+        self.update_hook("images", "add_annotations")
+        self.update_hook("image_to_annotations", "add_annotations")
+        self.update_hook("category_to_images", "add_annotations")
+        self.update_hook("category_to_annotations", "add_annotations")
         self.update_hook("num_annotations_per_category", "add_annotations")
+        self.update_hook("num_images_per_category", "add_annotations")
 
     # properties
     @property
@@ -226,7 +230,7 @@ class Dataset:
     def category_to_annotations(self) -> dict[int, list[Annotation]]:
         category_to_annotations = defaultdict(list)
         category_name_to_id = {
-            category.name: category.category_id for category in self.categories.values()
+            category.name: category.category_id for category in self.get_categories()
         }
         for annotation in self.annotations.values():
             if self.task == TaskType.TEXT_RECOGNITION:
@@ -242,7 +246,7 @@ class Dataset:
     def category_to_images(self) -> dict[int, list[Image]]:
         category_to_images = defaultdict(list)
         category_name_to_id = {
-            category.name: category.category_id for category in self.categories.values()
+            category.name: category.category_id for category in self.get_categories()
         }
         for image_id, annotations in self.image_to_annotations.items():
             if self.task == TaskType.TEXT_RECOGNITION:
