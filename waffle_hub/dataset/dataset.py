@@ -1427,13 +1427,13 @@ class Dataset:
         Args:
             categories (list[Category]): list of "Category"s
         """
-        # category_names_list = [category.name for category in categories]
-        # category_names = set(category_names_list)
-        # if (
-        #     len(category_names) != len(category_names_list)
-        #     or set(self.category_names) & category_names
-        # ):
-        #     raise ValueError("Category names should be unique")
+        category_names_list = [category.name for category in categories]
+        category_names = set(category_names_list)
+        if (
+            len(category_names) != len(category_names_list)
+            or set(self.category_names) & category_names
+        ):
+            raise ValueError("Category names should be unique")
 
         for item in categories:
             item_id = item.category_id
