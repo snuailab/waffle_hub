@@ -2,8 +2,9 @@ import copy
 import logging
 import random
 import shutil
+import sys
 import warnings
-from collections import Counter, OrderedDict
+from collections import Counter, OrderedDict, defaultdict
 from functools import cached_property
 from pathlib import Path
 from tempfile import mkdtemp
@@ -51,55 +52,16 @@ class Dataset:
 
     MINIMUM_TRAINABLE_IMAGE_NUM_PER_CATEGORY = 3
 
-    def affects(*fields):
-        fields = list(fields)
-        field = fields[0]
-        if len(fields) != 1:
-            raise ValueError("Only one field can be specified")
-        if field not in ["image", "annotation", "category"]:
-            raise ValueError("Invalid field name")
+    def update_hook(self, property_name, function_name):
+        func = getattr(self, function_name)
 
-        field2attrs = {
-            "image": [
-                "images",
-                "unlabeled_images",
-                "image_to_annotations",
-                "annotation_to_images",
-                "category_to_images",
-                "num_images_per_category",
-            ],
-            "annotation": [
-                "annotations",
-                "images",
-                "unlabeled_images",
-                "annotation_to_images",
-                "image_to_annotations",
-                "category_to_annotations",
-                "category_to_images",
-                "num_annotations_per_category",
-                "num_images_per_category",
-            ],
-            "category": [
-                "categories",
-                "category_names",
-                "category_to_annotations",
-                "category_to_images",
-                "num_annotations_per_category",
-                "num_images_per_category",
-            ],
-        }
+        def wrapper(*args, **kwargs):
+            if hasattr(self, property_name):
+                delattr(self, property_name)
+            return_value = func(*args, **kwargs)
+            return return_value
 
-        def decorator(func):
-            def wrapper(self, *args, **kwargs):
-                res = func(self, *args, **kwargs)
-                for attr in field2attrs[field]:
-                    if hasattr(self, attr):
-                        delattr(self, attr)
-                return res
-
-            return wrapper
-
-        return decorator
+        setattr(self, function_name, wrapper)
 
     def __init__(
         self,
@@ -113,6 +75,17 @@ class Dataset:
         self.created = created
 
         self.root_dir = Path(root_dir) if root_dir else Dataset.DEFAULT_DATASET_ROOT_DIR
+
+        self.update_hook("categories", "add_categories")
+        self.update_hook("category_names", "add_categories")
+        self.update_hook("images", "add_annotations")
+        self.update_hook("unlabeled_images", "add_images")
+        self.update_hook("annotations", "add_annotations")
+        self.update_hook("image_to_annotations", "add_annotations")
+        self.update_hook("category_to_annotations", "add_annotations")
+        self.update_hook("category_to_images", "add_annotations")
+        self.update_hook("num_images_per_category", "add_images")
+        self.update_hook("num_annotations_per_category", "add_annotations")
 
     # properties
     @property
@@ -245,7 +218,9 @@ class Dataset:
     @cached_property
     def image_to_annotations(self) -> dict[int, list[Annotation]]:
         image_to_annotations = {image_id: [] for image_id in self.images.keys()}
-        for annotation in self.annotations.values():
+        for annotation in tqdm.tqdm(
+            self.annotations.values(), desc="Building image to annotation index"
+        ):
             image_to_annotations[annotation.image_id].append(annotation)
         return dict(image_to_annotations)
 
@@ -255,7 +230,9 @@ class Dataset:
         category_name_to_id = {
             category.name: category.category_id for category in self.categories.values()
         }
-        for annotation in self.annotations.values():
+        for annotation in tqdm.tqdm(
+            self.annotations.values(), desc="Building category to annotation index"
+        ):
             if self.task == TaskType.TEXT_RECOGNITION:
                 texts = annotation.caption
                 characters = set(texts)
@@ -271,7 +248,9 @@ class Dataset:
         category_name_to_id = {
             category.name: category.category_id for category in self.categories.values()
         }
-        for image_id, annotations in self.image_to_annotations.items():
+        for image_id, annotations in tqdm.tqdm(
+            self.image_to_annotations.items(), desc="Building category to image index"
+        ):
             if self.task == TaskType.TEXT_RECOGNITION:
                 texts = map(lambda a: a.caption, annotations)
                 character_count = Counter("".join(texts))
@@ -1437,7 +1416,6 @@ class Dataset:
             return [Annotation.from_json(f, self.task) for f in self.prediction_dir.glob("*/*.json")]
 
     # add
-    @affects("image")
     def add_images(self, images: list[Image]):
         """Add "Image"s to dataset.
 
@@ -1449,7 +1427,6 @@ class Dataset:
             item_path = self.image_dir / f"{item_id}.json"
             io.save_json(item.to_dict(), item_path)
 
-    @affects("category")
     def add_categories(self, categories: list[Category]):
         """Add "Category"s to dataset.
 
@@ -1469,7 +1446,6 @@ class Dataset:
             item_path = self.category_dir / f"{item_id}.json"
             io.save_json(item.to_dict(), item_path)
 
-    @affects("annotation")
     def add_annotations(self, annotations: list[Annotation]):
         """Add "Annotation"s to dataset.
 
