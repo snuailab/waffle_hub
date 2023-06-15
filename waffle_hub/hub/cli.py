@@ -49,5 +49,9 @@ class HubCLI(BaseCLI):
         return self.hub
 
 
-if __name__ == "__main__":
+def main():
     fire.Fire(HubCLI, serialize=str)
+
+
+if __name__ == "__main__":
+    main()

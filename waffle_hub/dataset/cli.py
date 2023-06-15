@@ -38,5 +38,9 @@ class DatasetCLI(BaseCLI):
         return self.dataset
 
 
-if __name__ == "__main__":
+def main():
     fire.Fire(DatasetCLI, serialize=str)
+
+
+if __name__ == "__main__":
+    main()
