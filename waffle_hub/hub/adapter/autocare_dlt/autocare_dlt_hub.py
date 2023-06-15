@@ -49,6 +49,8 @@ class AutocareDLTHub(Hub):
         root_dir: str = None,
         backend: str = None,
         version: str = None,
+        *args,
+        **kwargs,
     ):
         if backend is not None and AutocareDLTHub.BACKEND_NAME != backend:
             raise ValueError(
@@ -81,6 +83,8 @@ class AutocareDLTHub(Hub):
         model_size: str = None,
         categories: Union[list[dict], list] = None,
         root_dir: str = None,
+        *args,
+        **kwargs,
     ):
         """Create Tx Model Hub.
 

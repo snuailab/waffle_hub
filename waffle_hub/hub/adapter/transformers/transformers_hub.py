@@ -12,7 +12,6 @@ from typing import Callable, Union
 
 import torch
 import transformers
-from datasets import load_from_disk
 from torchvision import transforms as T
 from transformers import (
     AutoImageProcessor,
@@ -25,6 +24,7 @@ from transformers import (
 from transformers.utils import ModelOutput
 from waffle_utils.file import io
 
+from datasets import load_from_disk
 from waffle_hub import TaskType
 from waffle_hub.hub import Hub
 from waffle_hub.hub.adapter.transformers.train_input_helper import (
@@ -77,6 +77,8 @@ class TransformersHub(Hub):
         root_dir: str = None,
         backend: str = None,
         version: str = None,
+        *args,
+        **kwargs,
     ):
         if backend is not None and TransformersHub.BACKEND_NAME != backend:
             raise ValueError(
@@ -120,6 +122,8 @@ class TransformersHub(Hub):
         model_size: str = None,
         categories: Union[list[dict], list] = None,
         root_dir: str = None,
+        *args,
+        **kwargs,
     ):
 
         warnings.warn("UltralyticsHub.new() is deprecated. Please use Hub.new() instead.")
