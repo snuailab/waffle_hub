@@ -1,5 +1,4 @@
 import inspect
-from typing import Union
 
 import fire
 
@@ -7,50 +6,71 @@ from waffle_hub.hub import Hub
 from waffle_hub.utils.base_cli import BaseCLI
 
 
-class HubCLI(BaseCLI):
-    def __init__(
-        self,
-        name: str = None,
-        backend: str = None,
-        task: str = None,
-        model_type: str = None,
-        model_size: str = None,
-        categories: Union[list[dict], list] = None,
-        root_dir: str = None,
-    ):
-
+class HubInstance(BaseCLI):
+    def __init__(self, name: str, root_dir: str = None):
         self.hub = None
-        if name is None:
-            pass
-        elif name in Hub.get_hub_list():
-            if all([backend, task, model_type, model_size, categories]):
-                raise ValueError(
-                    "You can't specify any arguments except name when loading existing hub.\n"
-                    + "If you are trying to create new hub, please specify another name."
-                )
+        if name in Hub.get_hub_list():
             self.hub = Hub.load(name, root_dir=root_dir)
         else:
-            self.hub = Hub.new(
-                name=name,
-                backend=backend,
-                task=task,
-                model_type=model_type,
-                model_size=model_size,
-                categories=categories,
-                root_dir=root_dir,
-            )
+            raise ValueError(f"Hub {name} does not exist.")
 
         super().__init__()
 
-    def get_class(self):
-        return Hub
-
-    def get_instance(self):
+    def get_object(self):
         return self.hub
 
 
+def switch_type(command: str, **kwargs):
+
+    class_method_names = [
+        function_name for function_name, _ in inspect.getmembers(Hub, predicate=inspect.ismethod)
+    ]
+
+    if command in class_method_names:
+        if kwargs.get("help", False):
+            return getattr(Hub, command).__doc__
+        else:
+            try:
+                return getattr(Hub, command)(**kwargs)
+            except TypeError:
+                raise TypeError(
+                    "You've given wrong arguments. Please check the help message below.\n\n"
+                    + f"input: {kwargs}\n\n"
+                    + getattr(Hub, command).__doc__
+                )
+            except Exception as e:
+                raise e
+    elif kwargs.get("name", None) is not None:
+        name = kwargs.pop("name")
+        root_dir = kwargs.pop("root_dir", None)
+        hub_instance = HubInstance(name, root_dir=root_dir)
+
+        instance_method_names = [
+            function_name
+            for function_name, _ in inspect.getmembers(hub_instance, predicate=inspect.ismethod)
+        ]
+        if command not in instance_method_names:
+            raise ValueError(f"Command {command} does not exist.")
+
+        if kwargs.get("help", False):
+            return getattr(hub_instance, command).__doc__
+        else:
+            try:
+                return getattr(hub_instance, command)(**kwargs)
+            except TypeError:
+                raise TypeError(
+                    "You've given wrong arguments. Please check the help message below.\n\n"
+                    + f"input: {kwargs}\n\n"
+                    + getattr(hub_instance, command).__doc__
+                )
+            except Exception as e:
+                raise e
+    else:
+        raise ValueError(f"Command {command} does not exist.")
+
+
 def main():
-    fire.Fire(HubCLI, serialize=str)
+    fire.Fire(switch_type, serialize=str)
 
 
 if __name__ == "__main__":
