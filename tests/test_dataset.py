@@ -456,11 +456,9 @@ def test_merge(coco_path, tmpdir):
         root_dir=tmpdir,
     )
 
-    cateids_of_ann = [annotation.category_id for annotation in ds1.get_annotations()]
-    category_counts = Counter(cateids_of_ann)
-
-    category_1_num = category_counts[1]
-    category_2_num = category_counts[2]
+    num_ann_per_cate = ds1.get_num_annotations_per_category()
+    category_1_num = num_ann_per_cate[1]
+    category_2_num = num_ann_per_cate[2]
 
     ds = Dataset.merge(
         name="merge",
@@ -470,15 +468,14 @@ def test_merge(coco_path, tmpdir):
         task=TaskType.OBJECT_DETECTION,
     )
 
-    cateids_of_ann = [annotation.category_id for annotation in ds.get_annotations()]
-    category_counts = Counter(cateids_of_ann)
+    merged_num_ann_per_cate = ds1.get_num_annotations_per_category()
 
     assert (ds.raw_image_dir).exists()
     assert len(ds.get_images()) == 100
     assert len(ds.get_annotations()) == 100
     assert len(ds.get_categories()) == 2
-    assert category_counts[1] == category_1_num
-    assert category_counts[2] == category_2_num
+    assert merged_num_ann_per_cate[1] == category_1_num
+    assert merged_num_ann_per_cate[2] == category_2_num
 
     # test merge with different category name
     category = load_json(ds1.category_dir / "1.json")
