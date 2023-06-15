@@ -67,12 +67,6 @@ def cli(_class, _instance):
         elif command in class_method_names:
             try:
                 return getattr(_class, command)(**kwargs)
-            except TypeError:
-                raise TypeError(
-                    "You've given wrong arguments. Please check the help message below.\n\n"
-                    + f"input: {kwargs}\n\n"
-                    + getattr(_class, command).__doc__
-                )
             except Exception as e:
                 raise e
 
@@ -86,12 +80,6 @@ def cli(_class, _instance):
 
             try:
                 return getattr(instance, command)(**kwargs)
-            except TypeError:
-                raise TypeError(
-                    "You've given wrong arguments. Please check the help message below.\n\n"
-                    + f"input: {kwargs}\n\n"
-                    + getattr(instance, command).__doc__
-                )
             except Exception as e:
                 raise e
 
@@ -103,7 +91,10 @@ def cli(_class, _instance):
             root_dir = kwargs.pop("root_dir", None)
             instance = _instance(name, root_dir=root_dir)
 
-            return getattr(instance, command)
+            try:
+                return getattr(instance, command)
+            except Exception as e:
+                raise e
         else:
             raise ValueError(f"Command {command} does not exist.")
 

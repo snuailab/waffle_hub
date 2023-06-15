@@ -9,7 +9,7 @@ from waffle_hub.utils.base_cli import BaseCLI, cli
 class HubInstance(BaseCLI):
     def __init__(self, name: str, root_dir: str = None):
         self.hub = None
-        if name in Hub.get_hub_list():
+        if name in Hub.get_hub_list(root_dir):
             self.hub = Hub.load(name, root_dir=root_dir)
         else:
             raise ValueError(f"Hub {name} does not exist.")

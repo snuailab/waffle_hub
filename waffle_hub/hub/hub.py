@@ -481,8 +481,8 @@ class Hub:
     @categories.setter
     @type_validator(list)
     def categories(self, v):
-        if isinstance(v[0], str):
-            v = [{"supercategory": "object", "name": n} for n in v]
+        if not isinstance(v[0], dict):
+            v = [{"supercategory": "object", "name": str(n)} for n in v]
         self.__categories = v
 
     @cached_property
