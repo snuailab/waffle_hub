@@ -1304,14 +1304,17 @@ class Dataset:
         Returns:
             list[Category]: "Category" list
         """
-        return [
-            Category.from_json(f, self.task)
-            for f in (
-                [self.category_dir / f"{category_id}.json" for category_id in category_ids]
-                if category_ids
-                else self.category_dir.glob("*.json")
-            )
-        ]
+        return sorted(
+            [
+                Category.from_json(f, self.task)
+                for f in (
+                    [self.category_dir / f"{category_id}.json" for category_id in category_ids]
+                    if category_ids
+                    else self.category_dir.glob("*.json")
+                )
+            ],
+            key=lambda x: x.category_id,
+        )
 
     def get_annotations(self, image_id: int = None) -> list[Annotation]:
         """Get "Annotation"s.
