@@ -180,22 +180,21 @@ class Dataset:
         return dict(category_to_annotations)
 
     def get_category_to_images(self) -> dict[int, list[Image]]:
-        category_to_images = defaultdict(list)
+        category_to_images = category_to_images = {c.category_id: [] for c in self.get_categories()}
         category_name_to_id = {
             category.name: category.category_id for category in self.get_categories()
         }
-
-        images = self.get_images()
-        for image in images:
-            annotations = self.get_annotations(image.image_id)
-            for annotation in annotations:
-                if self.task == TaskType.TEXT_RECOGNITION:
-                    texts = annotation.caption
-                    characters = set(texts)
-                    for char in characters:
-                        category_to_images[category_name_to_id[char]].append(image)
-                else:
-                    category_to_images[annotation.category_id].append(image)
+        for image_id, annotations in self.get_image_to_annotations().items():
+            image = self.get_images([image_id])[0]
+            if self.task == TaskType.TEXT_RECOGNITION:
+                texts = map(lambda a: a.caption, annotations)
+                character_count = Counter("".join(texts))
+                for k in character_count:
+                    category_to_images[category_name_to_id[k]].append(image)
+            else:
+                category_ids = map(lambda a: a.category_id, annotations)
+                category_count = Counter(category_ids)
+                category_to_images[category_count.most_common(1)[0][0]].append(image)
         return dict(category_to_images)
 
     def get_num_images_per_category(self) -> dict[int, int]:
@@ -315,9 +314,9 @@ class Dataset:
 
         Examples:
             >>> ds = Dataset.dummy("my_dataset", "CLASSIFICATION", image_num=100, category_num=10)
-            >>> len(ds.images)
+            >>> len(ds.get_images())
             100
-            >>> len(ds.categories)
+            >>> len(ds.get_categories())
             10
         """
         ds = Dataset.new(name, task, root_dir)
@@ -537,13 +536,13 @@ class Dataset:
                     for annotation in annotations:
                         new_annotation = copy.deepcopy(annotation)
                         new_annotation.category_id = categoryname2id[
-                            src_categories[annotation.category_id].name
+                            src_categories[annotation.category_id - 1].name
                         ]
 
                         # check if new annotation
                         is_new_annotation = True
                         if not is_new_image:
-                            for merged_ann in merged_ds.get_image_to_annotations(new_image_id):
+                            for merged_ann in merged_ds.get_annotations(new_image_id):
                                 if new_annotation == merged_ann:
                                     is_new_annotation = False
                                     break
@@ -588,13 +587,13 @@ class Dataset:
         Examples:
             # Import one coco json file.
             >>> ds = Dataset.from_coco("my_dataset", "object_detection", "path/to/coco.json", "path/to/coco_root")
-            >>> ds.images
-            {1: <Image: 1>, 2: <Image: 2>, 3: <Image: 3>, 4: <Image: 4>, 5: <Image: 5>}
-            >>> ds.annotations
-            {1: <Annotation: 1>, 2: <Annotation: 2>, 3: <Annotation: 3>, 4: <Annotation: 4>, 5: <Annotation: 5>}
-            >>> ds.categories
-            {1: <Category: 1>, 2: <Category: 2>, 3: <Category: 3>, 4: <Category: 4>, 5: <Category: 5>}
-            >>> ds.category_names
+            >>> ds.get_images()
+            {<Image: 1>, <Image: 2>, <Image: 3>, <Image: 4>, <Image: 5>}
+            >>> ds.get_annotations()
+            {<Annotation: 1>, <Annotation: 2>, <Annotation: 3>, <Annotation: 4>, <Annotation: 5>}
+            >>> ds.get_categories()
+            {<Category: 1>, <Category: 2>, <Category: 3>, <Category: 4>, <Category: 5>}
+            >>> ds.get_category_names()
             ['person', 'bicycle', 'car', 'motorcycle', 'airplane']
 
             # Import multiple coco json files.
@@ -742,15 +741,14 @@ class Dataset:
         Examples:
             # Import one coco json file.
             >>> ds = Dataset.from_coco("my_dataset", "object_detection", "path/to/coco.json", "path/to/coco_root")
-            >>> ds.images
-            {1: <Image: 1>, 2: <Image: 2>, 3: <Image: 3>, 4: <Image: 4>, 5: <Image: 5>}
-            >>> ds.annotations
-            {1: <Annotation: 1>, 2: <Annotation: 2>, 3: <Annotation: 3>, 4: <Annotation: 4>, 5: <Annotation: 5>}
-            >>> ds.categories
-            {1: <Category: 1>, 2: <Category: 2>, 3: <Category: 3>, 4: <Category: 4>, 5: <Category: 5>}
-            >>> ds.category_names
+            >>> ds.get_images()
+            {<Image: 1>, <Image: 2>, <Image: 3>, <Image: 4>, <Image: 5>}
+            >>> ds.get_annotations()
+            {<Annotation: 1>, <Annotation: 2>, <Annotation: 3>, <Annotation: 4>, <Annotation: 5>}
+            >>> ds.get_categories()
+            {<Category: 1>, <Category: 2>, <Category: 3>, <Category: 4>, <Category: 5>}
+            >>> ds.get_category_names()
             ['person', 'bicycle', 'car', 'motorcycle', 'airplane']
-
 
         Returns:
             Dataset: Dataset Class.
@@ -1238,9 +1236,8 @@ class Dataset:
                 trainable -> True
                 not trainable -> False
         """
-        category_to_images: dict[int, list[Image]] = self.get_category_to_images()
-        for _, images in category_to_images.items():
-            image_num = len(images)
+        num_images_per_category: dict[int, int] = self.get_num_images_per_category()
+        for category_id, image_num in num_images_per_category.items():
             if image_num < Dataset.MINIMUM_TRAINABLE_IMAGE_NUM_PER_CATEGORY:
                 return False
         return True
@@ -1259,8 +1256,8 @@ class Dataset:
                 + "Your dataset is consisted of\n"
                 + "\n".join(
                     [
-                        f"  - {category.name}: {self.get_num_images_per_category()[category_id]} images"
-                        for category_id, category in self.get_categories()
+                        f"  - {category.name}: {self.get_num_images_per_category()[category.category_id]} images"
+                        for category in self.get_categories()
                     ]
                 )
             )
@@ -1490,7 +1487,7 @@ class Dataset:
             create_directory=True,
         )
 
-        unlabeled_ids = list(self.get_images(labeled=False))
+        unlabeled_ids = [img.image_id for img in self.get_images(labeled=False)]
 
         io.save_json(
             unlabeled_ids,

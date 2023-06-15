@@ -5,7 +5,6 @@ from typing import Union
 from waffle_utils.file import io
 
 from waffle_hub import TaskType
-from waffle_hub.dataset import Dataset
 from waffle_hub.schema.fields.image import Image
 from waffle_hub.utils.conversion import merge_multi_segment
 
@@ -63,6 +62,7 @@ def _export_yolo_classification(
         split_dir = export_dir / split
         io.make_directory(split_dir)
 
+        category_names = {c.category_id: c.name for c in self.get_categories()}
         for image in self.get_images(image_ids):
             image_path = self.raw_image_dir / image.file_name
 
@@ -72,12 +72,12 @@ def _export_yolo_classification(
                 continue
             category_id = annotations[0].category_id
 
-            image_dst_path = split_dir / self.categories[category_id].name / image.file_name
+            image_dst_path = split_dir / category_names[category_id] / image.file_name
             io.copy_file(image_path, image_dst_path, create_directory=True)
 
 
 def _export_yolo_detection(
-    self: "Dataset",
+    self,
     export_dir: Path,
     train_ids: list,
     val_ids: list,
@@ -117,7 +117,7 @@ def _export_yolo_detection(
             W = image.width
             H = image.height
 
-            annotations = self.image_to_annotations[image.image_id]
+            annotations = self.get_annotations(image.image_id)
             label_txts = []
             for annotation in annotations:
                 x1, y1, w, h = annotation.bbox
@@ -135,7 +135,7 @@ def _export_yolo_detection(
 
 
 def _export_yolo_segmentation(
-    self: "Dataset",
+    self,
     export_dir: Path,
     train_ids: list,
     val_ids: list,
@@ -166,7 +166,7 @@ def _export_yolo_segmentation(
             W = image.width
             H = image.height
 
-            annotations = self.image_to_annotations[image.image_id]
+            annotations = self.get_annotations(image.image_id)
             label_txts = []
             for annotation in annotations:
                 x1, y1, w, h = annotation.bbox
@@ -217,9 +217,7 @@ def export_yolo(self, export_dir: Union[str, Path]) -> str:
             "train": "train",
             "val": "val",
             "test": "test",
-            "names": {
-                category_id - 1: category.name for category_id, category in self.categories.items()
-            },
+            "names": {category.category_id - 1: category.name for category in self.get_categories()},
         },
         export_dir / "data.yaml",
     )

@@ -474,9 +474,9 @@ def test_merge(coco_path, tmpdir):
     category_counts = Counter(cateids_of_ann)
 
     assert (ds.raw_image_dir).exists()
-    assert len(ds.images) == 100
-    assert len(ds.annotations) == 100
-    assert len(ds.categories) == 2
+    assert len(ds.get_images()) == 100
+    assert len(ds.get_annotations()) == 100
+    assert len(ds.get_categories()) == 2
     assert category_counts[1] == category_1_num
     assert category_counts[2] == category_2_num
 
