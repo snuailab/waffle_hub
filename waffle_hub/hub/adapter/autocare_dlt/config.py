@@ -4,12 +4,14 @@ from waffle_hub.schema.configs import TrainConfig
 MODEL_TYPES = {
     "object_detection": {"YOLOv5": list("sml")},
     "classification": {"Classifier": list("sml")},
+    "text_recognition": {"TextRecognition": list("sml"), "LicencePlateRecognition": list("sml")},
 }
 
 # Backend Specifics
 DATA_TYPE_MAP = {
     "object_detection": "COCODetectionDataset",
     "classification": "COCOClassificationDataset",
+    "text_recognition": "COCOTextRecognitionDataset",
 }
 
 WEIGHT_PATH = {

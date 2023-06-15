@@ -5,6 +5,7 @@ from typing import Union
 from waffle_utils.file import io
 
 from waffle_hub import TaskType
+from waffle_hub.dataset import Dataset
 from waffle_hub.schema.fields.image import Image
 from waffle_hub.utils.conversion import merge_multi_segment
 
@@ -19,7 +20,7 @@ def _check_valid_file_paths(images: list[Image]) -> bool:
     Returns:
         bool: True if valid
     """
-    for image in images.values():
+    for image in images:
         file_path = Path(image.file_name)
         if "images" in file_path.parts:
             raise ValueError(
@@ -62,11 +63,10 @@ def _export_yolo_classification(
         split_dir = export_dir / split
         io.make_directory(split_dir)
 
-        for image_id in image_ids:
-            image = self.images[image_id]
+        for image in self.get_images(image_ids):
             image_path = self.raw_image_dir / image.file_name
 
-            annotations = self.get_annotations(image_id)
+            annotations = self.get_annotations(image.image_id)
             if len(annotations) > 1:
                 warnings.warn(f"Multi label does not support yet. Skipping {image_path}.")
                 continue
@@ -77,7 +77,7 @@ def _export_yolo_classification(
 
 
 def _export_yolo_detection(
-    self,
+    self: "Dataset",
     export_dir: Path,
     train_ids: list,
     val_ids: list,
@@ -135,7 +135,7 @@ def _export_yolo_detection(
 
 
 def _export_yolo_segmentation(
-    self,
+    self: "Dataset",
     export_dir: Path,
     train_ids: list,
     val_ids: list,
@@ -196,7 +196,7 @@ def export_yolo(self, export_dir: Union[str, Path]) -> str:
     Returns:
         str: Path to export directory
     """
-    _check_valid_file_paths(self.images)
+    _check_valid_file_paths(self.get_images())
 
     export_dir = Path(export_dir)
 

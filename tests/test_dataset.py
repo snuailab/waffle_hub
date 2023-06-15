@@ -167,23 +167,23 @@ def _split(dataset_name, root_dir):
 
     dataset.split(0.8)
     train_ids, val_ids, test_ids, unlabeled_ids = dataset.get_split_ids()
-    assert len(train_ids) + len(val_ids) == len(dataset.images)
+    assert len(train_ids) + len(val_ids) == len(dataset.get_images())
 
     dataset.split(0.445446, 0.554554)
     train_ids, val_ids, test_ids, unlabeled_ids = dataset.get_split_ids()
-    assert len(train_ids) + len(val_ids) == len(dataset.images)
+    assert len(train_ids) + len(val_ids) == len(dataset.get_images())
 
     dataset.split(0.4, 0.4, 0.2)
     train_ids, val_ids, test_ids, unlabeled_ids = dataset.get_split_ids()
-    assert len(train_ids) + len(val_ids) + len(test_ids) == len(dataset.images)
+    assert len(train_ids) + len(val_ids) + len(test_ids) == len(dataset.get_images())
 
     dataset.split(0.99999999999999, 0.0)
     train_ids, val_ids, test_ids, unlabeled_ids = dataset.get_split_ids()
-    assert len(dataset.categories) == len(val_ids) == len(test_ids)
+    assert len(dataset.get_categories()) == len(val_ids) == len(test_ids)
 
     dataset.split(0.00000000000001, 0.0)
     train_ids, val_ids, test_ids, unlabeled_ids = dataset.get_split_ids()
-    assert len(dataset.categories) == len(train_ids)
+    assert len(dataset.get_categories()) == len(train_ids)
 
     with pytest.raises(ValueError):
         dataset.split(0.0, 0.2)
@@ -216,9 +216,9 @@ def _dummy(dataset_name, task: TaskType, image_num, category_num, unlabeled_imag
         unlabeled_image_num=unlabeled_image_num,
         root_dir=root_dir,
     )
-    assert len(dataset.images) == image_num
-    assert len(dataset.categories) == category_num
-    assert len(dataset.unlabeled_images) == unlabeled_image_num
+    assert len(dataset.get_images()) == image_num
+    assert len(dataset.get_categories()) == category_num
+    assert len(dataset.get_images(labeled=False)) == unlabeled_image_num
 
 
 def _total_dummy(
@@ -254,9 +254,9 @@ def _dummy(dataset_name, task: TaskType, image_num, category_num, unlabeled_imag
         unlabeled_image_num=unlabeled_image_num,
         root_dir=root_dir,
     )
-    assert len(dataset.images) == image_num
-    assert len(dataset.categories) == category_num
-    assert len(dataset.unlabeled_images) == unlabeled_image_num
+    assert len(dataset.get_images()) == image_num
+    assert len(dataset.get_categories()) == category_num
+    assert len(dataset.get_images(labeled=False)) == unlabeled_image_num
 
 
 def _total_dummy(
@@ -299,7 +299,7 @@ def _from_coco(dataset_name, task: TaskType, coco_path, root_dir):
     assert len(train_ids) == 60
     assert len(val_ids) == 20
     assert len(val_ids) == len(test_ids)
-    assert len(dataset.images) == 80
+    assert len(dataset.get_images()) == 80
 
     dataset = Dataset.from_coco(
         name=f"{task}_import_train_val_test",
@@ -312,7 +312,7 @@ def _from_coco(dataset_name, task: TaskType, coco_path, root_dir):
     assert len(train_ids) == 60
     assert len(val_ids) == 20
     assert len(test_ids) == 20
-    assert len(dataset.images) == 100
+    assert len(dataset.get_images()) == 100
 
 
 def _total_coco(dataset_name, task: TaskType, coco_path, root_dir):
@@ -369,7 +369,7 @@ def _from_transformers(dataset_name, task: TaskType, transformers_path, root_dir
 
     train_ids, val_ids, test_ids, unlabeled_ids = dataset.get_split_ids()
     assert len(train_ids) == 80
-    assert len(dataset.images) == 100
+    assert len(dataset.get_images()) == 100
 
 
 def _total_transformers(dataset_name, task: TaskType, transformers_path, root_dir):
@@ -456,7 +456,7 @@ def test_merge(coco_path, tmpdir):
         root_dir=tmpdir,
     )
 
-    cateids_of_ann = [annotation.category_id for annotation in ds1.annotations.values()]
+    cateids_of_ann = [annotation.category_id for annotation in ds1.get_annotations()]
     category_counts = Counter(cateids_of_ann)
 
     category_1_num = category_counts[1]
@@ -470,7 +470,7 @@ def test_merge(coco_path, tmpdir):
         task=TaskType.OBJECT_DETECTION,
     )
 
-    cateids_of_ann = [annotation.category_id for annotation in ds.annotations.values()]
+    cateids_of_ann = [annotation.category_id for annotation in ds.get_annotations()]
     category_counts = Counter(cateids_of_ann)
 
     assert (ds.raw_image_dir).exists()
@@ -493,56 +493,13 @@ def test_merge(coco_path, tmpdir):
         task=TaskType.OBJECT_DETECTION,
     )
 
-    cateids_of_ann = [annotation.category_id for annotation in ds.annotations.values()]
+    cateids_of_ann = [annotation.category_id for annotation in ds.get_annotations()]
     category_counts = Counter(cateids_of_ann)
 
-    assert len(ds.images) == 100
-    assert len(ds.annotations) == 100 + category_1_num
-    assert len(ds.categories) == 3
+    assert len(ds.get_images()) == 100
+    assert len(ds.get_annotations()) == 100 + category_1_num
+    assert len(ds.get_categories()) == 3
 
     assert category_counts[1] == category_1_num
     assert category_counts[2] == category_2_num
     assert category_counts[3] == category_1_num
-
-
-def test_cached_property(tmpdir):
-    ds = Dataset.dummy(
-        name="cached_property",
-        task=TaskType.CLASSIFICATION,
-        image_num=10,
-        category_num=1,
-        unlabeled_image_num=0,
-        root_dir=tmpdir,
-    )
-    before_img_to_anns = ds.image_to_annotations
-    before_cate_to_imgs = ds.category_to_images
-    before_cate_to_anns = ds.category_to_annotations
-    before_cate_names = ds.category_names
-    before_cates = ds.categories
-    before_imgs = ds.images
-    before_anns = ds.annotations
-
-    # image - unlabeled
-    new_img1 = Image.new(11, "11.png", 32, 32)
-    new_img2 = Image.new(12, "12.png", 32, 32)
-    ds.add_images([new_img1, new_img2])
-    assert len(ds.images) == len(before_imgs)
-    assert len(ds.image_to_annotations.keys()) == len(before_img_to_anns.keys())
-
-    # annotation / image - labeled
-    new_ann = Annotation.classification(11, 11, 1)
-    ds.add_annotations([new_ann])
-    assert len(ds.annotations) == len(before_anns) + 1
-    assert len(ds.images) == len(before_imgs) + 1
-    assert len(ds.image_to_annotations.keys()) == len(before_img_to_anns.keys()) + 1
-
-    # category
-    new_cate = Category.classification(2, "new")
-    ds.add_categories([new_cate])
-    assert len(ds.categories) == len(before_cates) + 1
-    assert len(ds.category_names) == len(before_cate_names) + 1
-
-    new_ann = Annotation.classification(11, 11, 2)
-    ds.add_annotations([new_ann])
-    assert len(ds.category_to_annotations.keys()) == len(before_cate_to_anns.keys()) + 1
-    assert len(ds.category_to_images.keys()) == len(before_cate_to_imgs.keys()) + 1

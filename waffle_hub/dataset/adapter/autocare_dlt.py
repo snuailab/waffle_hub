@@ -42,15 +42,13 @@ def _export_autocare_dlt(
                     "name": category.name,
                     "supercategory": category.supercategory,
                 }
-                for category in self.categories.values()
+                for category in self.get_categories()
             ],
             "images": [],
             "annotations": [],
         }
-        category_names = [category.name for category in self.categories.values()]
 
-        for image_id in image_ids:
-            image = self.images[image_id]
+        for image_id, image in enumerate(self.get_images([image_ids]), start=1):
             image_path = self.raw_image_dir / image.file_name
             image_dst_path = image_dir / image.file_name
             io.copy_file(image_path, image_dst_path, create_directory=True)
@@ -59,8 +57,7 @@ def _export_autocare_dlt(
             image_id = d.pop("image_id")
             coco["images"].append({"id": image_id, **d})
 
-            annotations = self.image_to_annotations[image_id]
-            for annotation in annotations:
+            for annotation in self.get_annotations(image_id):
                 d = annotation.to_dict()
                 if d.get("segmentation", None):
                     if isinstance(d["segmentation"], dict):
