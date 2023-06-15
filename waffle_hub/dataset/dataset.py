@@ -1074,14 +1074,15 @@ class Dataset:
 
         def _import(dataset: HFDataset, task: str, image_ids: list[int]):
             if task == "object_detection":
-                categories = dataset.features["objects"].feature["category"].names
-                for category_id, category_name in enumerate(categories):
-                    category = Category.object_detection(
-                        category_id=category_id + 1,
-                        supercategory="object",
-                        name=category_name,
-                    )
-                    ds.add_categories([category])
+                if not ds.get_categories():
+                    categories = dataset.features["objects"].feature["category"].names
+                    for category_id, category_name in enumerate(categories):
+                        category = Category.object_detection(
+                            category_id=category_id + 1,
+                            supercategory="object",
+                            name=category_name,
+                        )
+                        ds.add_categories([category])
 
                 for data in dataset:
                     data["image"].save(f"{ds.raw_image_dir}/{data['image_id']}.jpg")
@@ -1111,14 +1112,15 @@ class Dataset:
                         ds.add_annotations([annotation])
 
             elif task == "classification":
-                categories = dataset.features["label"].names
-                for category_id, category_name in enumerate(categories):
-                    category = Category.classification(
-                        category_id=category_id + 1,
-                        supercategory="object",
-                        name=category_name,
-                    )
-                    ds.add_categories([category])
+                if not ds.get_categories():
+                    categories = dataset.features["label"].names
+                    for category_id, category_name in enumerate(categories):
+                        category = Category.classification(
+                            category_id=category_id + 1,
+                            supercategory="object",
+                            name=category_name,
+                        )
+                        ds.add_categories([category])
 
                 for image_id, data in zip(image_ids, dataset):
                     image_save_path = f"{ds.raw_image_dir}/{image_id}.jpg"
@@ -1363,6 +1365,14 @@ class Dataset:
         Args:
             categories (list[Category]): list of "Category"s
         """
+        category_names_list = [category.name for category in categories]
+        category_names = set(category_names_list)
+        if (
+            len(category_names) != len(category_names_list)
+            or set(self.get_category_names()) & category_names
+        ):
+            raise ValueError("Category names should be unique")
+
         for item in categories:
             item_id = item.category_id
             item_path = self.category_dir / f"{item_id}.json"
