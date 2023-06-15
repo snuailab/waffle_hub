@@ -33,10 +33,11 @@ def _export_transformers_classification(
         test_ids (list): List of test ids
         unlabeled_ids (list): List of unlabeled ids
     """
+    category_names = self.get_category_names()
     features = Features(
         {
             "image": ImageFeature(),
-            "label": ClassLabel(names=self.category_names),
+            "label": ClassLabel(names=category_names),
         }
     )
 
@@ -46,7 +47,7 @@ def _export_transformers_classification(
             image_path = self.raw_image_dir / image.file_name
             yield {
                 "image": PIL.Image.open(image_path).convert("RGB"),
-                "label": self.category_names[annotation.category_id - 1],
+                "label": category_names[annotation.category_id - 1],
             }
 
     dataset = {}
@@ -82,6 +83,7 @@ def _export_transformers_detection(
         test_ids (list): List of test ids
         unlabeled_ids (list): List of unlabeled ids
     """
+    category_names = self.get_category_names()
     features = Features(
         {
             "image": ImageFeature(),
@@ -92,7 +94,7 @@ def _export_transformers_detection(
                 {
                     "id": Value("int32"),
                     "area": Value("int32"),
-                    "category": ClassLabel(names=self.category_names),
+                    "category": ClassLabel(names=category_names),
                     "bbox": Sequence(Value("float32")),
                 }
             ),
@@ -109,7 +111,7 @@ def _export_transformers_detection(
                     {
                         "id": annotation.annotation_id,
                         "area": annotation.area,
-                        "category": self.category_names[annotation.category_id - 1],
+                        "category": category_names[annotation.category_id - 1],
                         "bbox": annotation.bbox,
                     }
                 )
