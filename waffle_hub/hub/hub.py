@@ -371,15 +371,19 @@ class Hub:
 
     @classmethod
     def get_hub_list(cls, root_dir: str = None) -> list[str]:
-        """Get hub name list in root_dir.
+        """
+        Get hub name list in root_dir.
 
         Args:
             root_dir (str, optional): hub root directory. Defaults to None.
 
         Returns:
-            list[str]: hub list
+            list[str]: hub name list
         """
         root_dir = Path(root_dir if root_dir else Hub.DEFAULT_ROOT_DIR)
+
+        if not root_dir.exists():
+            return []
 
         hub_name_list = []
         for hub_dir in root_dir.iterdir():
@@ -542,6 +546,12 @@ class Hub:
         return self.hub_dir / Hub.EVALUATE_FILE
 
     # common functions
+    def delete_hub(self):
+        """Delete all artifacts of Hub. Hub name can be used again."""
+        io.remove_directory(self.hub_dir)
+        del self
+        return None
+
     def delete_artifact(self):
         """Delete Artifact Directory. It can be trained again."""
         io.remove_directory(self.artifact_dir)
