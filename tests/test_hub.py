@@ -161,7 +161,7 @@ def test_ultralytics_segmentation(instance_segmentation_dataset: Dataset, tmpdir
         task=TaskType.INSTANCE_SEGMENTATION,
         model_type="yolov8",
         model_size="n",
-        categories=dataset.category_names,
+        categories=dataset.get_category_names(),
         root_dir=tmpdir,
     )
     hub = Hub.load(name=name, root_dir=tmpdir)
@@ -186,7 +186,7 @@ def test_ultralytics_object_detection(object_detection_dataset: Dataset, tmpdir:
         task=TaskType.OBJECT_DETECTION,
         model_type="yolov8",
         model_size="n",
-        categories=dataset.category_names,
+        categories=dataset.get_category_names(),
         root_dir=tmpdir,
     )
     hub = Hub.load(name=name, root_dir=tmpdir)
@@ -211,7 +211,7 @@ def test_ultralytics_classification(classification_dataset: Dataset, tmpdir: Pat
         task=TaskType.CLASSIFICATION,
         model_type="yolov8",
         model_size="n",
-        categories=classification_dataset.category_names,
+        categories=classification_dataset.get_category_names(),
         root_dir=tmpdir,
     )
     hub = Hub.load(name=name, root_dir=tmpdir)
@@ -236,7 +236,7 @@ def test_transformers_object_detection(object_detection_dataset: Dataset, tmpdir
         task=TaskType.OBJECT_DETECTION,
         model_type="YOLOS",
         model_size="tiny",
-        categories=object_detection_dataset.category_names,
+        categories=object_detection_dataset.get_category_names(),
         root_dir=tmpdir,
     )
     hub = Hub.load(name=name, root_dir=tmpdir)
@@ -261,7 +261,7 @@ def test_transformers_classification(classification_dataset: Dataset, tmpdir: Pa
         task=TaskType.CLASSIFICATION,
         model_type="ViT",
         model_size="tiny",
-        categories=classification_dataset.category_names,
+        categories=classification_dataset.get_category_names(),
         root_dir=tmpdir,
     )
     hub = Hub.load(name=name, root_dir=tmpdir)
@@ -286,7 +286,7 @@ def test_non_hold(classification_dataset: Dataset, tmpdir: Path):
         task=TaskType.CLASSIFICATION,
         model_type="yolov8",
         model_size="n",
-        categories=classification_dataset.category_names,
+        categories=classification_dataset.get_category_names(),
         root_dir=tmpdir,
     )
     hub = Hub.load(name=name, root_dir=tmpdir)
@@ -311,7 +311,7 @@ def test_autocare_dlt_object_detection(object_detection_dataset: Dataset, tmpdir
         task=TaskType.OBJECT_DETECTION,
         model_type="YOLOv5",
         model_size="s",
-        categories=object_detection_dataset.category_names,
+        categories=object_detection_dataset.get_category_names(),
         root_dir=tmpdir,
     )
     hub = Hub.load(name=name, root_dir=tmpdir)
@@ -329,7 +329,7 @@ def test_autocare_dlt_classification(classification_dataset: Dataset, tmpdir: Pa
     dataset = classification_dataset
 
     # temporal solution
-    super_cat = [[c.supercategory, c.name] for c in dataset.categories.values()]
+    super_cat = [[c.supercategory, c.name] for c in dataset.get_categories()]
     super_cat_dict = {}
     for super_cat, cat in super_cat:
         if super_cat not in super_cat_dict:
@@ -373,7 +373,7 @@ def test_autocare_dlt_text_recognition(text_recognition_dataset: Dataset, tmpdir
         task=TaskType.TEXT_RECOGNITION,
         model_type="TextRecognition",
         model_size="s",
-        categories=dataset.category_names,
+        categories=dataset.get_category_names(),
         root_dir=tmpdir,
     )
     hub = Hub.load(name=name, root_dir=tmpdir)

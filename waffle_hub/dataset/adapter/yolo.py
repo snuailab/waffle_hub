@@ -19,7 +19,7 @@ def _check_valid_file_paths(images: list[Image]) -> bool:
     Returns:
         bool: True if valid
     """
-    for image in images.values():
+    for image in images:
         file_path = Path(image.file_name)
         if "images" in file_path.parts:
             raise ValueError(
@@ -62,17 +62,17 @@ def _export_yolo_classification(
         split_dir = export_dir / split
         io.make_directory(split_dir)
 
-        for image_id in image_ids:
-            image = self.images[image_id]
+        category_names = {c.category_id: c.name for c in self.get_categories()}
+        for image in self.get_images(image_ids):
             image_path = self.raw_image_dir / image.file_name
 
-            annotations = self.get_annotations(image_id)
+            annotations = self.get_annotations(image.image_id)
             if len(annotations) > 1:
                 warnings.warn(f"Multi label does not support yet. Skipping {image_path}.")
                 continue
             category_id = annotations[0].category_id
 
-            image_dst_path = split_dir / self.categories[category_id].name / image.file_name
+            image_dst_path = split_dir / category_names[category_id] / image.file_name
             io.copy_file(image_path, image_dst_path, create_directory=True)
 
 
@@ -117,7 +117,7 @@ def _export_yolo_detection(
             W = image.width
             H = image.height
 
-            annotations = self.image_to_annotations[image.image_id]
+            annotations = self.get_annotations(image.image_id)
             label_txts = []
             for annotation in annotations:
                 x1, y1, w, h = annotation.bbox
@@ -166,7 +166,7 @@ def _export_yolo_segmentation(
             W = image.width
             H = image.height
 
-            annotations = self.image_to_annotations[image.image_id]
+            annotations = self.get_annotations(image.image_id)
             label_txts = []
             for annotation in annotations:
                 x1, y1, w, h = annotation.bbox
@@ -196,7 +196,7 @@ def export_yolo(self, export_dir: Union[str, Path]) -> str:
     Returns:
         str: Path to export directory
     """
-    _check_valid_file_paths(self.images)
+    _check_valid_file_paths(self.get_images())
 
     export_dir = Path(export_dir)
 
@@ -217,9 +217,7 @@ def export_yolo(self, export_dir: Union[str, Path]) -> str:
             "train": "train",
             "val": "val",
             "test": "test",
-            "names": {
-                category_id - 1: category.name for category_id, category in self.categories.items()
-            },
+            "names": {category.category_id - 1: category.name for category in self.get_categories()},
         },
         export_dir / "data.yaml",
     )
