@@ -14,9 +14,9 @@ Experience the power of multiple deep learning frameworks at your fingertips wit
 We've tested Waffle on the following environments:
 | OS | Python | PyTorch | Device | Backend | Pass |
 |:---:|:---:|:---:|:---:|:---:|:---:|
-| Ubuntu 20.04 | 3.8, 3.9 | 1.13.1 | CPU, GPU | All | [![Waffle Hub cpu test](https://github.com/snuailab/waffle_hub/actions/workflows/ci.yaml/badge.svg)](https://github.com/snuailab/waffle_hub/actions/workflows/ci.yaml) |
-| Windows | 3.8, 3.9 | 1.13.1 | CPU, GPU | All | [![Waffle Hub cpu test](https://github.com/snuailab/waffle_hub/actions/workflows/ci.yaml/badge.svg)](https://github.com/snuailab/waffle_hub/actions/workflows/ci.yaml) |
-| Ubuntu 20.04 | 3.8, 3.9 | 1.13.1 | Multi GPU | Ultralytics |[![Waffle Hub multi-gpu(ddp) test on self-hosted runner](https://github.com/snuailab/waffle_hub/actions/workflows/ddp.yaml/badge.svg)](https://github.com/snuailab/waffle_hub/actions/workflows/ddp.yaml) |
+| Ubuntu 20.04 | 3.9, 3.10 | 1.13.1 | CPU, GPU | All | [![Waffle Hub cpu test](https://github.com/snuailab/waffle_hub/actions/workflows/ci.yaml/badge.svg)](https://github.com/snuailab/waffle_hub/actions/workflows/ci.yaml) |
+| Windows | 3.9, 3.10 | 1.13.1 | CPU, GPU | All | [![Waffle Hub cpu test](https://github.com/snuailab/waffle_hub/actions/workflows/ci.yaml/badge.svg)](https://github.com/snuailab/waffle_hub/actions/workflows/ci.yaml) |
+| Ubuntu 20.04 | 3.9 | 1.13.1 | Multi GPU | Ultralytics |[![Waffle Hub multi-gpu(ddp) test on self-hosted runner](https://github.com/snuailab/waffle_hub/actions/workflows/ddp.yaml/badge.svg)](https://github.com/snuailab/waffle_hub/actions/workflows/ddp.yaml) |
 
 
 We recommend using above environments for the best experience.
