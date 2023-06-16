@@ -783,7 +783,16 @@ class Dataset:
         else:
             raise ValueError("coco_file should have 1, 2, or 3 files.")
 
-        cocos = [COCO(coco_file) for coco_file in coco_files]
+        cocos = []
+        for coco_file in coco_files:
+            coco_dict = io.load_json(coco_file)
+            for ann in coco_dict["annotations"]:
+                if "category_id" not in ann:
+                    ann["category_id"] = -1  # dummy category_id to use COCO
+            coco = COCO()
+            coco.dataset = coco_dict
+            coco.createIndex()
+            cocos.append(coco)
 
         # categories should be same between coco files
         categories = cocos[0].loadCats(cocos[0].getCatIds())
