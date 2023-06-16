@@ -45,12 +45,12 @@ def test_ultralytics_segmentation(instance_segmentation_dataset: Dataset, tmpdir
         task=TaskType.INSTANCE_SEGMENTATION,
         model_type="yolov8",
         model_size="n",
-        categories=dataset.category_names,
+        categories=dataset.get_category_names(),
         root_dir=tmpdir,
     )
     hub = UltralyticsHub.load(name=name, root_dir=tmpdir)
     hub: UltralyticsHub = UltralyticsHub.from_model_config(
-        name=name,
+        name=name + "_from_model_config",
         model_config_file=tmpdir / name / UltralyticsHub.MODEL_CONFIG_FILE,
         root_dir=tmpdir,
     )
@@ -69,12 +69,12 @@ def test_ultralytics_object_detection(object_detection_dataset: Dataset, tmpdir:
         task=TaskType.OBJECT_DETECTION,
         model_type="yolov8",
         model_size="n",
-        categories=dataset.category_names,
+        categories=dataset.get_category_names(),
         root_dir=tmpdir,
     )
     hub = UltralyticsHub.load(name=name, root_dir=tmpdir)
     hub: UltralyticsHub = UltralyticsHub.from_model_config(
-        name=name,
+        name=name + "_from_model_config",
         model_config_file=tmpdir / name / UltralyticsHub.MODEL_CONFIG_FILE,
         root_dir=tmpdir,
     )
@@ -93,12 +93,12 @@ def test_ultralytics_classification(classification_dataset: Dataset, tmpdir: Pat
         task=TaskType.CLASSIFICATION,
         model_type="yolov8",
         model_size="n",
-        categories=classification_dataset.category_names,
+        categories=classification_dataset.get_category_names(),
         root_dir=tmpdir,
     )
     hub = UltralyticsHub.load(name=name, root_dir=tmpdir)
     hub: UltralyticsHub = UltralyticsHub.from_model_config(
-        name=name,
+        name=name + "_from_model_config",
         model_config_file=tmpdir / name / UltralyticsHub.MODEL_CONFIG_FILE,
         root_dir=tmpdir,
     )

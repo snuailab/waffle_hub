@@ -43,7 +43,7 @@ WEIGHT_PATH = {
     },
 }
 
-DEFAULT_PARAMAS = {
+DEFAULT_PARAMS = {
     "object_detection": {
         "YOLOv5": {
             "s": TrainConfig(
