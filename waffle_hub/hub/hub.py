@@ -7,6 +7,7 @@ Hub is a multi-backend compatible interface for model training, evaluation, infe
     Check out docstrings for more details.
 
 """
+import importlib
 import logging
 import os
 import threading
@@ -24,7 +25,7 @@ import tqdm
 from waffle_utils.file import io
 from waffle_utils.utils import type_validator
 
-from waffle_hub import TaskType
+from waffle_hub import BACKEND_MAP, TaskType
 from waffle_hub.dataset import Dataset
 from waffle_hub.hub.model.wrapper import get_parser
 from waffle_hub.schema.configs import (
@@ -54,12 +55,12 @@ from waffle_hub.utils.evaluate import evaluate_function
 logger = logging.getLogger(__name__)
 
 
-class BaseHub:
+class Hub:
     # Hub Spec. must have
     BACKEND_NAME = None
     MODEL_TYPES = None
     MULTI_GPU_TRAIN = None
-    DEFAULT_PARAMAS = None
+    DEFAULT_PARAMS = None
 
     # directory settings
     DEFAULT_ROOT_DIR = Path("./hubs")
@@ -110,8 +111,8 @@ class BaseHub:
         if self.MULTI_GPU_TRAIN is None:
             raise AttributeError("MULTI_GPU_TRAIN must be specified.")
 
-        if self.DEFAULT_PARAMAS is None:
-            raise AttributeError("DEFAULT_PARAMAS must be specified.")
+        if self.DEFAULT_PARAMS is None:
+            raise AttributeError("DEFAULT_PARAMS must be specified.")
 
         self.name: str = name
         self.task: str = task
@@ -143,27 +144,173 @@ class BaseHub:
         except Exception as e:
             raise e
 
+    def __repr__(self):
+        return self.get_model_config().__repr__()
+
+    @classmethod
+    def get_hub_class(cls, backend: str = None) -> "Hub":
+        """
+        Get hub class
+
+        Args:
+            backend (str): Backend name
+
+        Raises:
+            ModuleNotFoundError: If backend is not supported
+
+        Returns:
+            Hub: Backend hub Class
+        """
+        if backend not in BACKEND_MAP:
+            raise ModuleNotFoundError(f"Backend {backend} is not supported")
+
+        backend_info = BACKEND_MAP[backend]
+        module = importlib.import_module(backend_info["import_path"])
+        hub_class = getattr(module, backend_info["class_name"])
+        return hub_class
+
+    @classmethod
+    def get_available_backends(cls) -> list[str]:
+        """
+        Get available backends
+
+        Returns:
+            list[str]: Available backends
+        """
+        return list(BACKEND_MAP.keys())
+
+    @classmethod
+    def get_available_tasks(cls, backend: str = None) -> list[str]:
+        """
+        Get available tasks
+
+        Args:
+            backend (str): Backend name
+
+        Raises:
+            ModuleNotFoundError: If backend is not supported
+
+        Returns:
+            list[str]: Available tasks
+        """
+        backend = backend if backend else cls.BACKEND_NAME
+        hub = cls.get_hub_class(backend)
+        return list(hub.MODEL_TYPES.keys())
+
+    @classmethod
+    def get_available_model_types(cls, backend: str = None, task: str = None) -> list[str]:
+        """
+        Get available model types
+
+        Args:
+            backend (str): Backend name
+            task (str): Task name
+
+        Raises:
+            ModuleNotFoundError: If backend is not supported
+
+        Returns:
+            list[str]: Available model types
+        """
+        backend = backend if backend else cls.BACKEND_NAME
+        hub = cls.get_hub_class(backend)
+        if task not in hub.MODEL_TYPES:
+            raise ValueError(f"{task} is not supported with {backend}")
+        return list(hub.MODEL_TYPES[task].keys())
+
+    @classmethod
+    def get_available_model_sizes(
+        cls, backend: str = None, task: str = None, model_type: str = None
+    ) -> list[str]:
+        """
+        Get available model sizes
+
+        Args:
+            backend (str): Backend name
+            task (str): Task name
+            model_type (str): Model type
+
+        Raises:
+            ModuleNotFoundError: If backend is not supported
+
+        Returns:
+            list[str]: Available model sizes
+        """
+        backend = backend if backend else cls.BACKEND_NAME
+        hub = cls.get_hub_class(backend)
+        if task not in hub.MODEL_TYPES:
+            raise ValueError(f"{task} is not supported with {backend}")
+        if model_type not in hub.MODEL_TYPES[task]:
+            raise ValueError(f"{model_type} is not supported with {backend}")
+        return hub.MODEL_TYPES[task][model_type]
+
+    @classmethod
+    def get_default_train_params(
+        cls, backend: str = None, task: str = None, model_type: str = None, model_size: str = None
+    ) -> dict:
+        """
+        Get default train params
+
+        Args:
+            backend (str): Backend name
+            task (str): Task name
+            model_type (str): Model type
+            model_size (str): Model size
+
+        Raises:
+            ModuleNotFoundError: If backend is not supported
+
+        Returns:
+            dict: Default train params
+        """
+        backend = backend if backend else cls.BACKEND_NAME
+        hub = cls.get_hub_class(backend)
+        if task not in hub.MODEL_TYPES:
+            raise ValueError(f"{task} is not supported with {backend}")
+        if model_type not in hub.MODEL_TYPES[task]:
+            raise ValueError(f"{model_type} is not supported with {backend}")
+        if model_size not in hub.MODEL_TYPES[task][model_type]:
+            raise ValueError(f"{model_size} is not supported with {backend}")
+        return hub.DEFAULT_PARAMS[task][model_type][model_size]
+
     @classmethod
     def new(
         cls,
         name: str,
+        backend: str = None,
         task: str = None,
         model_type: str = None,
         model_size: str = None,
         categories: Union[list[dict], list] = None,
         root_dir: str = None,
-    ):
+        *args,
+        **kwargs,
+    ) -> "Hub":
         """Create Hub.
 
         Args:
             name (str): Hub name
+            backend (str, optional): Backend name. See Hub.BACKENDS. Defaults to None.
             task (str, optional): Task Name. See Hub.TASKS. Defaults to None.
             model_type (str, optional): Model Type. See Hub.MODEL_TYPES. Defaults to None.
             model_size (str, optional): Model Size. See Hub.MODEL_SIZES. Defaults to None.
             categories (Union[list[dict], list]): class dictionary or list. [{"supercategory": "name"}, ] or ["name",].
             root_dir (str, optional): Root directory of hub repository. Defaults to None.
+
+        Returns:
+            Hub: Hub instance
         """
-        return cls(
+        if name in cls.get_hub_list(root_dir):
+            raise ValueError(f"{name} already exists. Try another name.")
+
+        backend = backend if backend else cls.get_available_backends()[0]
+        task = task if task else cls.get_available_tasks(backend)[0]
+        model_type = model_type if model_type else cls.get_available_model_types(backend, task)[0]
+        model_size = (
+            model_size if model_size else cls.get_available_model_sizes(backend, task, model_type)[0]
+        )
+
+        return cls.get_hub_class(backend)(
             name=name,
             task=task,
             model_type=model_type,
@@ -173,7 +320,7 @@ class BaseHub:
         )
 
     @classmethod
-    def load(cls, name: str, root_dir: str = None) -> "BaseHub":
+    def load(cls, name: str, root_dir: str = None) -> "Hub":
         """Load Hub by name.
 
         Args:
@@ -186,20 +333,20 @@ class BaseHub:
         Returns:
             Hub: Hub instance
         """
-        root_dir = Path(root_dir if root_dir else BaseHub.DEFAULT_ROOT_DIR)
-        model_config_file = root_dir / name / BaseHub.MODEL_CONFIG_FILE
+        root_dir = Path(root_dir if root_dir else Hub.DEFAULT_ROOT_DIR)
+        model_config_file = root_dir / name / Hub.MODEL_CONFIG_FILE
         if not model_config_file.exists():
             raise FileNotFoundError(f"Model[{name}] does not exists. {model_config_file}")
-        model_config = io.load_yaml(model_config_file)
-        return cls(
+        model_config = ModelConfig.load(model_config_file)
+        return cls.get_hub_class(model_config.backend)(
             **{
-                **model_config,
+                **model_config.to_dict(),
                 "root_dir": root_dir,
             }
         )
 
     @classmethod
-    def from_model_config(cls, name: str, model_config_file: str, root_dir: str = None) -> "BaseHub":
+    def from_model_config(cls, name: str, model_config_file: str, root_dir: str = None) -> "Hub":
         """Create new Hub with model config.
 
         Args:
@@ -210,14 +357,41 @@ class BaseHub:
         Returns:
             Hub: New Hub instance
         """
+        if name in cls.get_hub_list(root_dir):
+            raise ValueError(f"{name} already exists. Try another name.")
+
         model_config = io.load_yaml(model_config_file)
-        return cls(
+        return cls.new(
             **{
                 **model_config,
                 "name": name,
                 "root_dir": root_dir,
             }
         )
+
+    @classmethod
+    def get_hub_list(cls, root_dir: str = None) -> list[str]:
+        """
+        Get hub name list in root_dir.
+
+        Args:
+            root_dir (str, optional): hub root directory. Defaults to None.
+
+        Returns:
+            list[str]: hub name list
+        """
+        root_dir = Path(root_dir if root_dir else Hub.DEFAULT_ROOT_DIR)
+
+        if not root_dir.exists():
+            return []
+
+        hub_name_list = []
+        for hub_dir in root_dir.iterdir():
+            if hub_dir.is_dir():
+                model_config_file = hub_dir / Hub.MODEL_CONFIG_FILE
+                if model_config_file.exists():
+                    hub_name_list.append(hub_dir.name)
+        return hub_name_list
 
     # properties
     @property
@@ -238,7 +412,7 @@ class BaseHub:
     @root_dir.setter
     @type_validator(Path, strict=False)
     def root_dir(self, v):
-        self.__root_dir = Path(v) if v else BaseHub.DEFAULT_ROOT_DIR
+        self.__root_dir = Path(v) if v else Hub.DEFAULT_ROOT_DIR
 
     @property
     def task(self) -> str:
@@ -307,18 +481,9 @@ class BaseHub:
     @categories.setter
     @type_validator(list)
     def categories(self, v):
-        if isinstance(v[0], str):
-            v = [{"supercategory": "object", "name": n} for n in v]
+        if not isinstance(v[0], dict):
+            v = [{"supercategory": "object", "name": str(n)} for n in v]
         self.__categories = v
-
-    @property
-    def default_params(self):
-        """Get default values from model.
-
-        Returns:
-            dict: default values
-        """
-        return self.DEFAULT_PARAMAS[self.task][self.model_type][self.model_size]
 
     @cached_property
     def hub_dir(self) -> Path:
@@ -328,59 +493,65 @@ class BaseHub:
     @cached_property
     def model_config_file(self) -> Path:
         """Model Config yaml File"""
-        return self.hub_dir / BaseHub.MODEL_CONFIG_FILE
+        return self.hub_dir / Hub.MODEL_CONFIG_FILE
 
     @cached_property
     def artifact_dir(self) -> Path:
         """Artifact Directory. This is raw output of each backend."""
-        return self.hub_dir / BaseHub.ARTIFACT_DIR
+        return self.hub_dir / Hub.ARTIFACT_DIR
 
     @cached_property
     def inference_dir(self) -> Path:
         """Inference Results Directory"""
-        return self.hub_dir / BaseHub.INFERENCE_DIR
+        return self.hub_dir / Hub.INFERENCE_DIR
 
     @cached_property
     def inference_file(self) -> Path:
         """Inference Results File"""
-        return self.inference_dir / BaseHub.INFERENCE_FILE
+        return self.inference_dir / Hub.INFERENCE_FILE
 
     @cached_property
     def draw_dir(self) -> Path:
         """Draw Results Directory"""
-        return self.inference_dir / BaseHub.DRAW_DIR
+        return self.inference_dir / Hub.DRAW_DIR
 
     @cached_property
     def train_config_file(self) -> Path:
         """Train Config yaml File"""
-        return self.hub_dir / BaseHub.TRAIN_CONFIG_FILE
+        return self.hub_dir / Hub.TRAIN_CONFIG_FILE
 
     @cached_property
     def best_ckpt_file(self) -> Path:
         """Best Checkpoint File"""
-        return self.hub_dir / BaseHub.BEST_CKPT_FILE
+        return self.hub_dir / Hub.BEST_CKPT_FILE
 
     @cached_property
     def onnx_file(self) -> Path:
         """Best Checkpoint File"""
-        return self.hub_dir / BaseHub.ONNX_FILE
+        return self.hub_dir / Hub.ONNX_FILE
 
     @cached_property
     def last_ckpt_file(self) -> Path:
         """Last Checkpoint File"""
-        return self.hub_dir / BaseHub.LAST_CKPT_FILE
+        return self.hub_dir / Hub.LAST_CKPT_FILE
 
     @cached_property
     def metric_file(self) -> Path:
         """Metric Csv File"""
-        return self.hub_dir / BaseHub.METRIC_FILE
+        return self.hub_dir / Hub.METRIC_FILE
 
     @cached_property
     def evaluate_file(self) -> Path:
         """Evaluate Json File"""
-        return self.hub_dir / BaseHub.EVALUATE_FILE
+        return self.hub_dir / Hub.EVALUATE_FILE
 
     # common functions
+    def delete_hub(self):
+        """Delete all artifacts of Hub. Hub name can be used again."""
+        io.remove_directory(self.hub_dir)
+        del self
+        return None
+
     def delete_artifact(self):
         """Delete Artifact Directory. It can be trained again."""
         io.remove_directory(self.artifact_dir)
@@ -673,7 +844,7 @@ class BaseHub:
         for k, v in cfg.to_dict().items():
             if v is None:
                 field_value = getattr(
-                    self.DEFAULT_PARAMAS[self.task][self.model_type][self.model_size], k
+                    self.DEFAULT_PARAMS[self.task][self.model_type][self.model_size], k
                 )
                 setattr(cfg, k, field_value)
 

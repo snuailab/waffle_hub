@@ -22,65 +22,59 @@ MODEL_TYPES = {
     },
 }
 
-DEFAULT_PARAMAS = {
+DEFAULT_PARAMS = {
     "object_detection": {
         "DETA": {
-            "base": 
-                TrainConfig(
-                    epochs=50, 
-                    image_size=[800, 800], 
-                    learning_rate=5e-05, # TODO: implement letter_box
-                    letter_box=True, 
-                    batch_size=1
-                )
+            "base": TrainConfig(
+                epochs=50,
+                image_size=[800, 800],
+                learning_rate=5e-05,  # TODO: implement letter_box
+                letter_box=True,
+                batch_size=1,
+            )
         },
         "DETR": {
-            "base": 
-                TrainConfig(
-                    epochs=50,
-                    image_size=[800, 800],
-                    learning_rate=5e-05,
-                    letter_box=True,  # TODO: implement letter_box
-                    batch_size=1,
-                ),
-            "large": 
-                TrainConfig(
-                    epochs=50,
-                    image_size=[800, 800],
-                    learning_rate=5e-05,
-                    letter_box=True,  # TODO: implement letter_box
-                    batch_size=1,
-                ),
+            "base": TrainConfig(
+                epochs=50,
+                image_size=[800, 800],
+                learning_rate=5e-05,
+                letter_box=True,  # TODO: implement letter_box
+                batch_size=1,
+            ),
+            "large": TrainConfig(
+                epochs=50,
+                image_size=[800, 800],
+                learning_rate=5e-05,
+                letter_box=True,  # TODO: implement letter_box
+                batch_size=1,
+            ),
         },
         "YOLOS": {
-            "tiny": 
-                TrainConfig(
-                    epochs=50,
-                    image_size=[800, 800],
-                    learning_rate=5e-05,
-                    letter_box=True,  # TODO: implement letter_box
-                    batch_size=16,
-                ),
+            "tiny": TrainConfig(
+                epochs=50,
+                image_size=[800, 800],
+                learning_rate=5e-05,
+                letter_box=True,  # TODO: implement letter_box
+                batch_size=16,
+            ),
         },
     },
     "classification": {
         "ViT": {
-            "tiny": 
-                TrainConfig(
-                    epochs=50,
-                    image_size=[224, 224],
-                    learning_rate=5e-05,
-                    letter_box=False,
-                    batch_size=128,
-                ),
-            "base":
-                TrainConfig(
-                    epochs=50,
-                    image_size=[224, 224],
-                    learning_rate=5e-05,
-                    letter_box=False,
-                    batch_size=128,
-                )
+            "tiny": TrainConfig(
+                epochs=50,
+                image_size=[224, 224],
+                learning_rate=5e-05,
+                letter_box=False,
+                batch_size=128,
+            ),
+            "base": TrainConfig(
+                epochs=50,
+                image_size=[224, 224],
+                learning_rate=5e-05,
+                letter_box=False,
+                batch_size=128,
+            ),
         },
     },
 }
