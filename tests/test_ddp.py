@@ -50,7 +50,7 @@ def test_ultralytics_segmentation(instance_segmentation_dataset: Dataset, tmpdir
     )
     hub = UltralyticsHub.load(name=name, root_dir=tmpdir)
     hub: UltralyticsHub = UltralyticsHub.from_model_config(
-        name=name,
+        name=name + "_from_model_config",
         model_config_file=tmpdir / name / UltralyticsHub.MODEL_CONFIG_FILE,
         root_dir=tmpdir,
     )
@@ -74,7 +74,7 @@ def test_ultralytics_object_detection(object_detection_dataset: Dataset, tmpdir:
     )
     hub = UltralyticsHub.load(name=name, root_dir=tmpdir)
     hub: UltralyticsHub = UltralyticsHub.from_model_config(
-        name=name,
+        name=name + "_from_model_config",
         model_config_file=tmpdir / name / UltralyticsHub.MODEL_CONFIG_FILE,
         root_dir=tmpdir,
     )
@@ -98,7 +98,7 @@ def test_ultralytics_classification(classification_dataset: Dataset, tmpdir: Pat
     )
     hub = UltralyticsHub.load(name=name, root_dir=tmpdir)
     hub: UltralyticsHub = UltralyticsHub.from_model_config(
-        name=name,
+        name=name + "_from_model_config",
         model_config_file=tmpdir / name / UltralyticsHub.MODEL_CONFIG_FILE,
         root_dir=tmpdir,
     )

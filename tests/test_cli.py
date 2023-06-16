@@ -17,7 +17,7 @@ def test_dir(tmpdir_factory):
 
 
 def test_dataset_new(test_dir: Path):
-    cmd = f"python -m waffle_hub.run dataset new \
+    cmd = f"python -m waffle_hub.dataset.cli new \
         --name new \
         --root-dir {test_dir / 'datasets'} \
         --task classification \
@@ -33,7 +33,7 @@ def test_dataset_from_coco(test_dir: Path):
     get_file_from_url(url, str(test_dir), True)
     unzip(str(test_dir / "mnist.zip"), coco_dir)
 
-    cmd = f"python -m waffle_hub.run dataset from_coco \
+    cmd = f"python -m waffle_hub.dataset.cli from_coco \
         --name from_coco \
         --root-dir {test_dir / 'datasets'} \
         --coco-file {coco_dir / 'coco.json'} \
@@ -52,7 +52,7 @@ def test_dataset_from_yolo(test_dir: Path):
     get_file_from_url(url, str(test_dir), True)
     unzip(str(test_dir / "mnist_yolo_object_detection_splited.zip"), yolo_dir)
 
-    cmd = f"python -m waffle_hub.run dataset from_yolo \
+    cmd = f"python -m waffle_hub.dataset.cli from_yolo \
         --name from_yolo \
         --root-dir {test_dir / 'datasets'} \
         --task object_detection \
@@ -70,7 +70,7 @@ def test_dataset_from_transformers(test_dir: Path):
     get_file_from_url(url, str(test_dir), True)
     unzip(str(test_dir / "mnist_huggingface_classification.zip"), hf_dir)
 
-    cmd = f"python -m waffle_hub.run dataset from_transformers \
+    cmd = f"python -m waffle_hub.dataset.cli from_transformers \
         --name from_hf \
         --root-dir {test_dir / 'datasets'} \
         --task classification \
@@ -82,7 +82,7 @@ def test_dataset_from_transformers(test_dir: Path):
 
 
 def test_dataset_split(test_dir: Path):
-    cmd = f"python -m waffle_hub.run dataset split \
+    cmd = f"python -m waffle_hub.dataset.cli split \
         --name from_coco \
         --root-dir {test_dir / 'datasets'} \
         --train-ratio 0.8 \
@@ -97,7 +97,7 @@ def test_dataset_split(test_dir: Path):
 
 
 def test_dataset_export(test_dir: Path):
-    cmd = f"python -m waffle_hub.run dataset export \
+    cmd = f"python -m waffle_hub.dataset.cli export \
         --data-type ultralytics \
         --name from_coco \
         --root-dir {test_dir / 'datasets'} \
@@ -108,7 +108,7 @@ def test_dataset_export(test_dir: Path):
 
 
 def test_dataset_clone(test_dir: Path):
-    cmd = f"python -m waffle_hub.run dataset clone \
+    cmd = f"python -m waffle_hub.dataset.cli clone \
         --src-name from_coco \
         --name clone \
         --src-root-dir {test_dir / 'datasets'} \
@@ -120,7 +120,7 @@ def test_dataset_clone(test_dir: Path):
 
 
 def test_dataset_delete(test_dir: Path):
-    cmd = f"python -m waffle_hub.run dataset delete \
+    cmd = f"python -m waffle_hub.dataset.cli delete \
         --name clone \
         --root-dir {test_dir / 'datasets'} \
     "
@@ -130,7 +130,7 @@ def test_dataset_delete(test_dir: Path):
 
 
 def test_dataset_get_split_ids(test_dir: Path):
-    cmd = f"python -m waffle_hub.run dataset get_split_ids \
+    cmd = f"python -m waffle_hub.dataset.cli get_split_ids \
         --name from_coco \
         --root-dir {test_dir / 'datasets'} \
     "
@@ -139,10 +139,10 @@ def test_dataset_get_split_ids(test_dir: Path):
 
 
 def test_dataset_merge(test_dir: Path):
-    cmd = f"python -m waffle_hub.run dataset merge \
+    cmd = f"python -m waffle_hub.dataset.cli merge \
         --name merge \
         --root-dir {test_dir / 'datasets'} \
-        --src-names from_coco --src-names from_hf \
+        --src-names [from_coco,from_hf] \
         --src-root-dirs {test_dir / 'datasets'} --src-root-dirs {test_dir / 'datasets'} \
         --task classification \
     "
@@ -152,7 +152,7 @@ def test_dataset_merge(test_dir: Path):
 
 
 def test_dataset_sample(test_dir: Path):
-    cmd = f"python -m waffle_hub.run dataset sample \
+    cmd = f"python -m waffle_hub.dataset.cli sample \
         --name sample \
         --root-dir {test_dir / 'datasets'} \
         --task object_detection \
@@ -164,7 +164,7 @@ def test_dataset_sample(test_dir: Path):
 
 def test_dataset_get_fields(test_dir: Path):
     # image
-    cmd = f"python -m waffle_hub.run dataset get_images \
+    cmd = f"python -m waffle_hub.dataset.cli get_images \
         --name sample \
         --root-dir {test_dir / 'datasets'} \
     "
@@ -172,7 +172,7 @@ def test_dataset_get_fields(test_dir: Path):
     assert ret.returncode == 0
 
     # annotation
-    cmd = f"python -m waffle_hub.run dataset get_annotations \
+    cmd = f"python -m waffle_hub.dataset.cli get_annotations \
         --name sample \
         --root-dir {test_dir / 'datasets'} \
     "
@@ -180,7 +180,7 @@ def test_dataset_get_fields(test_dir: Path):
     assert ret.returncode == 0
 
     # category
-    cmd = f"python -m waffle_hub.run dataset get_categories \
+    cmd = f"python -m waffle_hub.dataset.cli get_categories \
         --name sample \
         --root-dir {test_dir / 'datasets'} \
     "
@@ -189,15 +189,14 @@ def test_dataset_get_fields(test_dir: Path):
 
 
 def test_hub_new(test_dir: Path):
-    cmd = f'python -m waffle_hub.run hub new \
+    cmd = f'python -m waffle_hub.hub.cli new \
         --backend ultralytics \
         --root-dir {test_dir / "hubs"} \
         --name test \
         --task classification \
         --model-type yolov8 \
         --model-size n \
-        --categories 1 \
-        --categories 2 \
+        --categories [1,2] \
     '
     ret = run_cli(cmd)
     assert ret.returncode == 0
@@ -205,8 +204,7 @@ def test_hub_new(test_dir: Path):
 
 
 def test_hub_train(test_dir: Path):
-    cmd = f'python -m waffle_hub.run hub train \
-        --backend ultralytics \
+    cmd = f'python -m waffle_hub.hub.cli train \
         --root-dir {test_dir / "hubs"} \
         --name test \
         --dataset-path {test_dir / "datasets" / "from_coco" / "exports" / "YOLO" } \
@@ -226,8 +224,7 @@ def test_hub_train(test_dir: Path):
 
 
 def test_hub_inference(test_dir: Path):
-    cmd = f'python -m waffle_hub.run hub inference \
-        --backend ultralytics \
+    cmd = f'python -m waffle_hub.hub.cli inference \
         --root-dir {test_dir / "hubs"} \
         --name test \
         --source {test_dir / "datasets" / "mnist" / "exports" / "YOLO" / "test" / "images" } \
@@ -241,8 +238,7 @@ def test_hub_inference(test_dir: Path):
 
 
 def test_hub_evaluate(test_dir: Path):
-    cmd = f'python -m waffle_hub.run hub evaluate \
-        --backend ultralytics \
+    cmd = f'python -m waffle_hub.hub.cli evaluate \
         --name test \
         --root-dir {test_dir / "hubs"} \
         --dataset-name from_coco \
@@ -257,8 +253,7 @@ def test_hub_evaluate(test_dir: Path):
 
 
 def test_hub_export(test_dir: Path):
-    cmd = f'python -m waffle_hub.run hub export \
-        --backend ultralytics \
+    cmd = f'python -m waffle_hub.hub.cli export \
         --name test \
         --root-dir {test_dir / "hubs"} \
         --device cpu \

@@ -1,6 +1,23 @@
 __version__ = "0.2.3"
 
 import enum
+from collections import OrderedDict
+
+
+BACKEND_MAP = OrderedDict({
+    "ultralytics": {
+        "import_path": "waffle_hub.hub.adapter.ultralytics",
+        "class_name": "UltralyticsHub",
+    },
+    "autocare_dlt": {
+        "import_path": "waffle_hub.hub.adapter.autocare_dlt",
+        "class_name": "AutocareDLTHub",
+    },
+    "transformers": {
+        "import_path": "waffle_hub.hub.adapter.transformers",
+        "class_name": "TransformersHub",
+    },
+})
 
 
 class CustomEnumMeta(enum.EnumMeta):

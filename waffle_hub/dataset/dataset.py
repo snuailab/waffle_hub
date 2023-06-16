@@ -65,6 +65,9 @@ class Dataset:
 
         self.root_dir = Path(root_dir) if root_dir else Dataset.DEFAULT_DATASET_ROOT_DIR
 
+    def __repr__(self):
+        return self.get_dataset_info().__repr__()
+
     # properties
     @property
     def name(self):
@@ -1205,6 +1208,30 @@ class Dataset:
 
         return ds
 
+    @classmethod
+    def get_dataset_list(cls, root_dir: str = None) -> list[str]:
+        """
+        Get dataset name list in root_dir.
+
+        Args:
+            root_dir (str, optional): dataset root directory. Defaults to None.
+
+        Returns:
+            list[str]: dataset name list.
+        """
+        root_dir = Path(root_dir if root_dir else Dataset.DEFAULT_DATASET_ROOT_DIR)
+
+        if not root_dir.exists():
+            return []
+
+        dataset_name_list = []
+        for dataset_dir in root_dir.iterdir():
+            if dataset_dir.is_dir():
+                dataset_info_file = dataset_dir / Dataset.DATASET_INFO_FILE_NAME
+                if dataset_info_file.exists():
+                    dataset_name_list.append(dataset_dir.name)
+        return dataset_name_list
+
     def initialize(self):
         """Initialize Dataset.
         It creates necessary directories under {dataset_root_dir}/{dataset_name}.
@@ -1263,6 +1290,14 @@ class Dataset:
                     ]
                 )
             )
+
+    def get_dataset_info(self) -> DatasetInfo:
+        """Get DatasetInfo.
+
+        Returns:
+            DatasetInfo: DatasetInfo
+        """
+        return DatasetInfo.load(self.dataset_info_file)
 
     # get
     def get_images(self, image_ids: list[int] = None, labeled: bool = True) -> list[Image]:
