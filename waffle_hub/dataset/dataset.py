@@ -783,7 +783,18 @@ class Dataset:
         else:
             raise ValueError("coco_file should have 1, 2, or 3 files.")
 
-        cocos = [COCO(coco_file) for coco_file in coco_files]
+        if task == TaskType.TEXT_RECOGNITION:
+            cocos = []
+            temp_dir = Path(mkdtemp())
+            for coco_file in coco_files:
+                coco = io.load_json(coco_file)
+                for ann in coco["annotations"]:
+                    ann["category_id"] = 1
+                temp_path = temp_dir / Path(coco_file).name
+                io.save_json(coco, temp_path)
+                cocos.append(COCO(temp_path))
+        else:
+            cocos = [COCO(coco_file) for coco_file in coco_files]
 
         # categories should be same between coco files
         categories = cocos[0].loadCats(cocos[0].getCatIds())
