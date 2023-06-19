@@ -9,7 +9,7 @@ from waffle_hub.schema.result import TrainResult
 
 def _train(hub, dataset: Dataset, image_size: int, hold: bool = True):
     result: TrainResult = hub.train(
-        dataset_path=dataset.export(hub.backend),
+        dataset=dataset,
         epochs=1,
         image_size=image_size,
         batch_size=4,

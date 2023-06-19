@@ -429,7 +429,7 @@ class Hub:
     @property
     def model_type(self) -> str:
         """Model Type"""
-        return str(self.__model_type).lower()
+        return self.__model_type
 
     @model_type.setter
     @type_validator(str)
@@ -977,7 +977,7 @@ class Hub:
 
         Examples:
             >>> evaluate_result = hub.evaluate(
-                    dataset_name="detection_dataset",
+                    dataset="detection_dataset",
                     batch_size=4,
                     image_size=640,
                     letterbox=False,
@@ -1014,6 +1014,10 @@ class Hub:
                 callback.force_finish()
                 callback.set_failed()
                 raise e
+
+        if "," in device:
+            warnings.warn("multi-gpu is not supported in evaluation. use first gpu only.")
+            device = device.split(",")[0]
 
         cfg = EvaluateConfig(
             dataset_name=dataset.name,
