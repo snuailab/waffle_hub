@@ -14,7 +14,7 @@ ultralytics==8.0.112
 
 # huggingface
 datasets==2.12.0
-transformers==4.28.1
+transformers==4.30.2
 albumentations==1.3.0
 evaluate==0.4.0
 timm==0.6.13
