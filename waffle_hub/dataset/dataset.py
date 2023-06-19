@@ -21,7 +21,7 @@ from waffle_utils.utils import type_validator
 
 from datasets import Dataset as HFDataset
 from datasets import DatasetDict, load_from_disk
-from waffle_hub import DataType, SplitMethod, TaskType
+from waffle_hub import EXPORT_MAP, DataType, SplitMethod, TaskType
 from waffle_hub.dataset.adapter import (
     export_autocare_dlt,
     export_coco,
@@ -1594,17 +1594,14 @@ class Dataset:
 
         self.check_trainable()
 
+        export_dir: Path = self.export_dir / EXPORT_MAP[data_type.upper()]
         if data_type in [DataType.YOLO, DataType.ULTRALYTICS]:
-            export_dir: Path = self.export_dir / str(DataType.YOLO)
             export_function = export_yolo
         elif data_type in [DataType.COCO]:
-            export_dir: Path = self.export_dir / str(DataType.COCO)
             export_function = export_coco
         elif data_type in [DataType.AUTOCARE_DLT]:
-            export_dir: Path = self.export_dir / str(DataType.AUTOCARE_DLT)
             export_function = export_autocare_dlt
         elif data_type in [DataType.TRANSFORMERS]:
-            export_dir: Path = self.export_dir / str(DataType.TRANSFORMERS)
             export_function = export_transformers
 
         else:

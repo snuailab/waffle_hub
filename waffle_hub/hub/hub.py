@@ -25,7 +25,7 @@ import tqdm
 from waffle_utils.file import io
 from waffle_utils.utils import type_validator
 
-from waffle_hub import BACKEND_MAP, TaskType
+from waffle_hub import BACKEND_MAP, EXPORT_MAP, TaskType
 from waffle_hub.dataset import Dataset
 from waffle_hub.hub.model.wrapper import get_parser
 from waffle_hub.schema.configs import (
@@ -831,7 +831,9 @@ class Hub:
                 f"Dataset task is not matched with hub task. Dataset task: {dataset.task}, Hub task: {self.task}"
             )
 
-        export_dir = dataset.export(self.backend)
+        export_dir = dataset.export_dir / EXPORT_MAP[self.backend.upper()]
+        if not export_dir.exists():
+            export_dir = dataset.export(self.backend)
         cfg = TrainConfig(
             dataset_path=export_dir,
             epochs=epochs,
@@ -1007,7 +1009,7 @@ class Hub:
                 raise e
 
         cfg = EvaluateConfig(
-            dataset=dataset,
+            dataset_name=dataset.name,
             set_name=set_name,
             batch_size=batch_size,
             image_size=image_size,
@@ -1018,7 +1020,7 @@ class Hub:
             workers=workers,
             device="cpu" if device == "cpu" else f"cuda:{device}",
             draw=draw,
-            dataset_root_dir=dataset_root_dir,
+            dataset_root_dir=dataset.root_dir,
         )
 
         callback = EvaluateCallback(100)  # dummy step
