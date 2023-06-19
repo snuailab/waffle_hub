@@ -417,7 +417,7 @@ class Hub:
     @property
     def task(self) -> str:
         """Task Name"""
-        return self.__task
+        return str(self.__task).lower()
 
     @task.setter
     def task(self, v):
@@ -429,7 +429,7 @@ class Hub:
     @property
     def model_type(self) -> str:
         """Model Type"""
-        return self.__model_type
+        return str(self.__model_type).lower()
 
     @model_type.setter
     @type_validator(str)
@@ -751,7 +751,7 @@ class Hub:
 
     def train(
         self,
-        dataset_path: str,
+        dataset: Dataset,
         epochs: int = None,
         batch_size: int = None,
         image_size: Union[int, list[int]] = None,
@@ -767,7 +767,7 @@ class Hub:
         """Start Train
 
         Args:
-            dataset_path (str): dataset path
+            dataset (Dataset): dataset
             epochs (int, optional): number of epochs. None to use default. Defaults to None.
             batch_size (int, optional): batch size. None to use default. Defaults to None.
             image_size (Union[int, list[int]], optional): image size. None to use default. Defaults to None.
@@ -789,7 +789,7 @@ class Hub:
 
         Example:
             >>> train_result = hub.train(
-                    dataset_path=dataset_path,
+                    dataset=dataset,
                     epochs=100,
                     batch_size=16,
                     image_size=640,
@@ -826,8 +826,14 @@ class Hub:
                 callback.set_failed()
                 raise e
 
+        if dataset.task.lower() != self.task.lower():
+            raise ValueError(
+                f"Dataset task is not matched with hub task. Dataset task: {dataset.task}, Hub task: {self.task}"
+            )
+
+        export_dir = dataset.export(self.backend)
         cfg = TrainConfig(
-            dataset_path=dataset_path,
+            dataset_path=export_dir,
             epochs=epochs,
             batch_size=batch_size,
             image_size=image_size,
@@ -926,7 +932,7 @@ class Hub:
 
     def evaluate(
         self,
-        dataset_name: str,
+        dataset: Dataset,
         set_name: str = "test",
         batch_size: int = 4,
         image_size: Union[int, list[int]] = None,
@@ -943,7 +949,7 @@ class Hub:
         """Start Evaluate
 
         Args:
-            dataset_name (str): waffle dataset name.
+            dataset (Dataset): waffle dataset name.
             batch_size (int, optional): batch size. Defaults to 4.
             image_size (Union[int, list[int]], optional): image size. Defaults to None.
             letter_box (bool, optional): letter box. Defaults to None.
@@ -1001,7 +1007,7 @@ class Hub:
                 raise e
 
         cfg = EvaluateConfig(
-            dataset_name=dataset_name,
+            dataset=dataset,
             set_name=set_name,
             batch_size=batch_size,
             image_size=image_size,
