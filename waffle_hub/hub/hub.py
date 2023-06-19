@@ -818,6 +818,15 @@ class Hub:
                 self.training(cfg, callback)
                 self.on_train_end(cfg)
                 self.after_train(cfg, result)
+                self.evaluate(
+                    dataset=dataset,
+                    batch_size=batch_size,
+                    image_size=image_size,
+                    letter_box=letter_box,
+                    device=device,
+                    workers=workers,
+                    hold=hold,
+                )
                 callback.force_finish()
             except Exception as e:
                 if self.artifact_dir.exists():
@@ -945,13 +954,12 @@ class Hub:
         workers: int = 2,
         device: str = "0",
         draw: bool = False,
-        dataset_root_dir: str = None,
         hold: bool = True,
     ) -> EvaluateResult:
         """Start Evaluate
 
         Args:
-            dataset (Dataset): waffle dataset name.
+            dataset (Dataset): waffle dataset.
             batch_size (int, optional): batch size. Defaults to 4.
             image_size (Union[int, list[int]], optional): image size. Defaults to None.
             letter_box (bool, optional): letter box. Defaults to None.
@@ -961,7 +969,6 @@ class Hub:
             workers (int, optional): workers. Defaults to 2.
             device (str, optional): device. Defaults to "0".
             draw (bool, optional): draw. Defaults to False.
-            dataset_root_dir (str, optional): dataset root dir. Defaults to None.
             hold (bool, optional): hold. Defaults to True.
 
         Raises:
