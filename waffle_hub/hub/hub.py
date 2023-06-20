@@ -751,7 +751,7 @@ class Hub:
 
     def train(
         self,
-        dataset: Dataset,
+        dataset: Union[Dataset, str],
         epochs: int = None,
         batch_size: int = None,
         image_size: Union[int, list[int]] = None,
@@ -767,7 +767,7 @@ class Hub:
         """Start Train
 
         Args:
-            dataset (Dataset): dataset
+            dataset (Dataset): dataset object or dataset path.
             epochs (int, optional): number of epochs. None to use default. Defaults to None.
             batch_size (int, optional): batch size. None to use default. Defaults to None.
             image_size (Union[int, list[int]], optional): image size. None to use default. Defaults to None.
@@ -818,15 +818,15 @@ class Hub:
                 self.training(cfg, callback)
                 self.on_train_end(cfg)
                 self.after_train(cfg, result)
-                self.evaluate(
-                    dataset=dataset,
-                    batch_size=batch_size,
-                    image_size=image_size,
-                    letter_box=letter_box,
-                    device=device,
-                    workers=workers,
-                    hold=hold,
-                )
+                # self.evaluate(
+                #     dataset=dataset,
+                #     batch_size=batch_size,
+                #     image_size=image_size,
+                #     letter_box=letter_box,
+                #     device=device,
+                #     workers=workers,
+                #     hold=hold,
+                # )
                 callback.force_finish()
             except Exception as e:
                 if self.artifact_dir.exists():
@@ -834,6 +834,10 @@ class Hub:
                 callback.force_finish()
                 callback.set_failed()
                 raise e
+
+        if isinstance(dataset, (str, Path)):
+            dataset = Path(dataset)
+            dataset = Dataset.load(name=dataset.parts[-1], root_dir=dataset.parents[0].absolute())
 
         if dataset.task.lower() != self.task.lower():
             raise ValueError(
@@ -843,6 +847,8 @@ class Hub:
         export_dir = dataset.export_dir / EXPORT_MAP[self.backend.upper()]
         if not export_dir.exists():
             export_dir = dataset.export(self.backend)
+            logger.info(f"Dataset exported to {export_dir}")
+
         cfg = TrainConfig(
             dataset_path=export_dir,
             epochs=epochs,
@@ -943,7 +949,7 @@ class Hub:
 
     def evaluate(
         self,
-        dataset: Dataset,
+        dataset: Union[Dataset, str],
         set_name: str = "test",
         batch_size: int = 4,
         image_size: Union[int, list[int]] = None,
@@ -959,7 +965,7 @@ class Hub:
         """Start Evaluate
 
         Args:
-            dataset (Dataset): waffle dataset.
+            dataset (Dataset): waffle dataset or waffle dataset path.
             batch_size (int, optional): batch size. Defaults to 4.
             image_size (Union[int, list[int]], optional): image size. Defaults to None.
             letter_box (bool, optional): letter box. Defaults to None.
@@ -1018,6 +1024,9 @@ class Hub:
         if "," in device:
             warnings.warn("multi-gpu is not supported in evaluation. use first gpu only.")
             device = device.split(",")[0]
+        if isinstance(dataset, (str, Path)):
+            dataset = Path(dataset)
+            dataset = Dataset.load(name=dataset.parts[-1], root_dir=dataset.parents[0].absolute())
 
         cfg = EvaluateConfig(
             dataset_name=dataset.name,
