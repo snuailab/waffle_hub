@@ -818,15 +818,15 @@ class Hub:
                 self.training(cfg, callback)
                 self.on_train_end(cfg)
                 self.after_train(cfg, result)
-                # self.evaluate(
-                #     dataset=dataset,
-                #     batch_size=batch_size,
-                #     image_size=image_size,
-                #     letter_box=letter_box,
-                #     device=device,
-                #     workers=workers,
-                #     hold=hold,
-                # )
+                self.evaluate(
+                    dataset=dataset,
+                    batch_size=batch_size,
+                    image_size=image_size,
+                    letter_box=letter_box,
+                    device=device,
+                    workers=workers,
+                    hold=hold,
+                )
                 callback.force_finish()
             except Exception as e:
                 if self.artifact_dir.exists():
