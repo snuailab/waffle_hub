@@ -172,6 +172,8 @@ class TransformersHub(Hub):
         if cfg.device == "cpu":
             os.environ["CUDA_VISIBLE_DEVICES"] = "-1"
             cfg.train_input.model = cfg.train_input.model.to("cpu")
+        elif "," in cfg.device:
+            os.environ["CUDA_VISIBLE_DEVICES"] = cfg.device
 
         transforms = helper.get_transforms()
         dataset["train"] = dataset["train"].with_transform(transforms)

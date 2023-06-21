@@ -748,6 +748,21 @@ class Hub:
         pass
 
     def after_train(self, cfg: TrainConfig, result: TrainResult):
+        if not self.metric_file.exists():
+            warnings.warn("Metric file is not exist. Train first!")
+            metrics = []
+        else:
+            metrics = io.load_json(self.metric_file)
+
+        if not self.evaluate_file.exists():
+            warnings.warn("Evaluate file is not exist. Train first!")
+            evaluate = []
+        else:
+            evaluate = io.load_json(self.evaluate_file)
+
+        metrics.append(evaluate)
+        io.save_json(metrics, self.metric_file)
+
         result.best_ckpt_file = self.best_ckpt_file
         result.last_ckpt_file = self.last_ckpt_file
         result.metrics = self.get_metrics()
@@ -884,11 +899,6 @@ class Hub:
             thread = threading.Thread(target=inner, args=(callback, result), daemon=True)
             callback.register_thread(thread)
             callback.start()
-
-        metrics = io.load_json(self.metric_file)
-        evaluate = io.load_json(self.evaluate_file)
-        metrics.append(evaluate)
-        io.save_json(metrics, self.metric_file)
 
         return result
 
