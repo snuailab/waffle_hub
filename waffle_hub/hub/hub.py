@@ -612,8 +612,11 @@ class Hub:
             list[dict]: metrics per epoch
         """
         if not self.metric_file.exists():
-            warnings.warn("Metric file is not exist. Train first!")
-            return []
+            raise FileNotFoundError("Metric file is not exist. Train first!")
+
+        if not self.evaluate_file.exists():
+            raise FileNotFoundError("Evaluate file is not exist. Train first!")
+
         return io.load_json(self.metric_file)
 
     def get_evaluate_result(self) -> list[dict]:
@@ -767,7 +770,7 @@ class Hub:
         """Start Train
 
         Args:
-            dataset (Dataset): dataset object or dataset path.
+            dataset (Union[Dataset, str]): waffle Dataset object or waffle dataset path.
             epochs (int, optional): number of epochs. None to use default. Defaults to None.
             batch_size (int, optional): batch size. None to use default. Defaults to None.
             image_size (Union[int, list[int]], optional): image size. None to use default. Defaults to None.
@@ -817,7 +820,6 @@ class Hub:
                 self.save_train_config(cfg)
                 self.training(cfg, callback)
                 self.on_train_end(cfg)
-                self.after_train(cfg, result)
                 self.evaluate(
                     dataset=dataset,
                     batch_size=batch_size,
@@ -827,6 +829,7 @@ class Hub:
                     workers=workers,
                     hold=hold,
                 )
+                self.after_train(cfg, result)
                 callback.force_finish()
             except Exception as e:
                 if self.artifact_dir.exists():
@@ -881,6 +884,11 @@ class Hub:
             thread = threading.Thread(target=inner, args=(callback, result), daemon=True)
             callback.register_thread(thread)
             callback.start()
+
+        metrics = io.load_json(self.metric_file)
+        evaluate = io.load_json(self.evaluate_file)
+        metrics.append(evaluate)
+        io.save_json(metrics, self.metric_file)
 
         return result
 
@@ -965,7 +973,7 @@ class Hub:
         """Start Evaluate
 
         Args:
-            dataset (Dataset): waffle dataset or waffle dataset path.
+            dataset (Union[Dataset, str]): waffle Dataset object or waffle dataset path.
             batch_size (int, optional): batch size. Defaults to 4.
             image_size (Union[int, list[int]], optional): image size. Defaults to None.
             letter_box (bool, optional): letter box. Defaults to None.
@@ -983,7 +991,7 @@ class Hub:
 
         Examples:
             >>> evaluate_result = hub.evaluate(
-                    dataset="detection_dataset",
+                    dataset=detection_dataset,
                     batch_size=4,
                     image_size=640,
                     letterbox=False,
