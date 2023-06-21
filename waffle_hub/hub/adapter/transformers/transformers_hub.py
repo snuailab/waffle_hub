@@ -60,7 +60,7 @@ class CustomCallback(TrainerCallback):
 class TransformersHub(Hub):
     BACKEND_NAME = "transformers"
     MODEL_TYPES = MODEL_TYPES
-    MULTI_GPU_TRAIN = False
+    MULTI_GPU_TRAIN = True
     DEFAULT_PARAMS = DEFAULT_PARAMS
 
     # Override
