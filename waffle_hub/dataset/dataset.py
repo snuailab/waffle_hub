@@ -1,10 +1,10 @@
 import copy
 import logging
+import os
 import random
 import shutil
-import sys
 import warnings
-from collections import Counter, OrderedDict, defaultdict
+from collections import Counter, defaultdict
 from functools import cached_property
 from pathlib import Path
 from tempfile import mkdtemp
@@ -63,7 +63,7 @@ class Dataset:
         self.task = task
         self.created = created
 
-        self.root_dir = Path(root_dir) if root_dir else Dataset.DEFAULT_DATASET_ROOT_DIR
+        self.root_dir = root_dir
 
     def __repr__(self):
         return self.get_dataset_info().__repr__()
@@ -97,13 +97,23 @@ class Dataset:
         self.__created = v or datetime_now()
 
     @property
-    def root_dir(self):
+    def root_dir(self) -> Path:
         return self.__root_dir
 
     @root_dir.setter
-    @type_validator(Path)
+    @type_validator(Path, strict=False)
     def root_dir(self, v):
-        self.__root_dir = v
+        self.__root_dir = Dataset.parse_root_dir(v)
+        logger.info(f"Dataset root directory: {self.__root_dir}")
+
+    @classmethod
+    def parse_root_dir(cls, v):
+        if v:
+            return Path(v)
+        elif os.getenv("WAFFLE_DATASET_ROOT_DIR", None):
+            return Path(os.getenv("WAFFLE_DATASET_ROOT_DIR"))
+        else:
+            return Dataset.DEFAULT_DATASET_ROOT_DIR
 
     # cached properties
     @cached_property
@@ -445,7 +455,7 @@ class Dataset:
         Returns:
             Dataset: Dataset Class
         """
-        root_dir = Path(root_dir) if root_dir else Dataset.DEFAULT_DATASET_ROOT_DIR
+        root_dir = Dataset.parse_root_dir(root_dir)
         dataset_info_file = root_dir / name / Dataset.DATASET_INFO_FILE_NAME
         if not dataset_info_file.exists():
             raise FileNotFoundError(f"{dataset_info_file} has not been created.")
@@ -1228,7 +1238,7 @@ class Dataset:
         Returns:
             list[str]: dataset name list.
         """
-        root_dir = Path(root_dir if root_dir else Dataset.DEFAULT_DATASET_ROOT_DIR)
+        root_dir = Dataset.parse_root_dir(root_dir)
 
         if not root_dir.exists():
             return []
