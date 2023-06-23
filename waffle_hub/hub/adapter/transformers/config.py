@@ -1,8 +1,9 @@
+from waffle_hub import TaskType
 from waffle_hub.schema.configs import TrainConfig
 
 # Common
 MODEL_TYPES = {
-    "object_detection": {
+    TaskType.OBJECT_DETECTION: {
         "DETA": {
             "base": "jozhang97/deta-resnet-50",
         },
@@ -14,7 +15,7 @@ MODEL_TYPES = {
             "tiny": "hustvl/yolos-tiny",
         },
     },
-    "classification": {
+    TaskType.CLASSIFICATION: {
         "ViT": {
             "tiny": "WinKawaks/vit-tiny-patch16-224",
             "base": "google/vit-base-patch16-224",
@@ -23,7 +24,7 @@ MODEL_TYPES = {
 }
 
 DEFAULT_PARAMS = {
-    "object_detection": {
+    TaskType.OBJECT_DETECTION: {
         "DETA": {
             "base": TrainConfig(
                 epochs=50,
@@ -59,7 +60,7 @@ DEFAULT_PARAMS = {
             ),
         },
     },
-    "classification": {
+    TaskType.CLASSIFICATION: {
         "ViT": {
             "tiny": TrainConfig(
                 epochs=50,

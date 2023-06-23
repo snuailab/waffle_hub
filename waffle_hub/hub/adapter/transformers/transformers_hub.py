@@ -143,7 +143,7 @@ class TransformersHub(Hub):
 
         dataset = load_from_disk(cfg.dataset_path)
 
-        if self.task == "classification":
+        if self.task == TaskType.CLASSIFICATION:
             helper = ClassifierInputHelper(cfg.pretrained_model, cfg.image_size)
             cfg.train_input = helper.get_train_input()
             categories = dataset["train"].features["label"].names
@@ -154,7 +154,7 @@ class TransformersHub(Hub):
                 ignore_mismatched_sizes=True,
             )
 
-        elif self.task == "object_detection":
+        elif self.task == TaskType.OBJECT_DETECTION:
             helper = ObjectDetectionInputHelper(cfg.pretrained_model, cfg.image_size)
             cfg.train_input = helper.get_train_input()
             categories = dataset["train"].features["objects"].feature["category"].names

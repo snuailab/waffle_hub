@@ -1,35 +1,39 @@
+from waffle_hub import TaskType
 from waffle_hub.schema.configs import TrainConfig
 
 # Common
 MODEL_TYPES = {
-    "object_detection": {"YOLOv5": list("sml")},
-    "classification": {"Classifier": list("sml")},
-    "text_recognition": {"TextRecognition": list("sml"), "LicencePlateRecognition": list("sml")},
+    TaskType.OBJECT_DETECTION: {"YOLOv5": list("sml")},
+    TaskType.CLASSIFICATION: {"Classifier": list("sml")},
+    TaskType.TEXT_RECOGNITION: {
+        "TextRecognition": list("sml"),
+        "LicencePlateRecognition": list("sml"),
+    },
 }
 
 # Backend Specifics
 DATA_TYPE_MAP = {
-    "object_detection": "COCODetectionDataset",
-    "classification": "COCOClassificationDataset",
-    "text_recognition": "COCOTextRecognitionDataset",
+    TaskType.OBJECT_DETECTION: "COCODetectionDataset",
+    TaskType.CLASSIFICATION: "COCOClassificationDataset",
+    TaskType.TEXT_RECOGNITION: "COCOTextRecognitionDataset",
 }
 
 WEIGHT_PATH = {
-    "object_detection": {
+    TaskType.OBJECT_DETECTION: {
         "YOLOv5": {
             "s": "temp/autocare_dlt/detectors/small/model.pth",
             "m": "temp/autocare_dlt/detectors/medium/model.pth",
             "l": "temp/autocare_dlt/detectors/large/model.pth",
         }
     },
-    "classification": {
+    TaskType.CLASSIFICATION: {
         "Classifier": {
             "s": "temp/autocare_dlt/classifiers/small/model.pth",
             "m": "temp/autocare_dlt/classifiers/medium/model.pth",
             "l": "temp/autocare_dlt/classifiers/large/model.pth",
         }
     },
-    "text_recognition": {
+    TaskType.TEXT_RECOGNITION: {
         "TextRecognition": {
             "s": "temp/autocare_dlt/text_recognizers/small/model.pth",
             "m": "temp/autocare_dlt/text_recognizers/small/model.pth",
@@ -44,7 +48,7 @@ WEIGHT_PATH = {
 }
 
 DEFAULT_PARAMS = {
-    "object_detection": {
+    TaskType.OBJECT_DETECTION: {
         "YOLOv5": {
             "s": TrainConfig(
                 epochs=50,
@@ -69,7 +73,7 @@ DEFAULT_PARAMS = {
             ),
         }
     },
-    "classification": {
+    TaskType.CLASSIFICATION: {
         "Classifier": {
             "s": TrainConfig(
                 epochs=50,
@@ -94,7 +98,7 @@ DEFAULT_PARAMS = {
             ),
         }
     },
-    "text_recognition": {
+    TaskType.TEXT_RECOGNITION: {
         "TextRecognition": {
             "s": TrainConfig(
                 epochs=50,

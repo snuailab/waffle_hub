@@ -1,18 +1,19 @@
+from waffle_hub import TaskType
 from waffle_hub.schema.configs import TrainConfig
 
 # Common
 MODEL_TYPES = {
-    "object_detection": {"yolov8": list("nsmlx")},
-    "classification": {"yolov8": list("nsmlx")},
-    "instance_segmentation": {"yolov8": list("nsmlx")},
+    TaskType.OBJECT_DETECTION: {"yolov8": list("nsmlx")},
+    TaskType.CLASSIFICATION: {"yolov8": list("nsmlx")},
+    TaskType.INSTANCE_SEGMENTATION: {"yolov8": list("nsmlx")},
     # "keypoint_detection": {"yolov8": list("nsmlx")},
 }
 
 # Backend Specifics
 TASK_MAP = {
-    "object_detection": "detect",
-    "classification": "classify",
-    "instance_segmentation": "segment"
+    TaskType.OBJECT_DETECTION: "detect",
+    TaskType.CLASSIFICATION: "classify",
+    TaskType.INSTANCE_SEGMENTATION: "segment"
     # "keypoint_detection": "pose"
 }
 TASK_SUFFIX = {
@@ -22,7 +23,7 @@ TASK_SUFFIX = {
 }
 
 DEFAULT_PARAMS = {
-    "object_detection": {
+    TaskType.OBJECT_DETECTION: {
         "yolov8": {
             "n": TrainConfig(
                 epochs=50,
@@ -61,7 +62,7 @@ DEFAULT_PARAMS = {
             ),
         }
     },
-    "classification": {
+    TaskType.CLASSIFICATION: {
         "yolov8": {
             "n": TrainConfig(
                 epochs=50,
@@ -100,7 +101,7 @@ DEFAULT_PARAMS = {
             ),
         }
     },
-    "instance_segmentation": {
+    TaskType.INSTANCE_SEGMENTATION: {
         "yolov8": {
             "n": TrainConfig(
                 epochs=50,

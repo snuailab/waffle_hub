@@ -417,11 +417,11 @@ class Hub:
     @property
     def task(self) -> str:
         """Task Name"""
-        return str(self.__task).lower()
+        return str(self.__task).upper()
 
     @task.setter
     def task(self, v):
-        v = str(v).lower()  # TODO: MODEL_TYPES should be enum
+        v = str(v).upper()
         if v not in self.MODEL_TYPES:
             raise ValueError(f"Task {v} is not supported. Choose one of {self.MODEL_TYPES}")
         self.__task = v
@@ -857,7 +857,7 @@ class Hub:
             dataset = Path(dataset)
             dataset = Dataset.load(name=dataset.parts[-1], root_dir=dataset.parents[0].absolute())
 
-        if dataset.task.lower() != self.task.lower():
+        if dataset.task.upper() != self.task.upper():
             raise ValueError(
                 f"Dataset task is not matched with hub task. Dataset task: {dataset.task}, Hub task: {self.task}"
             )
@@ -1258,13 +1258,13 @@ class Hub:
         model = model.to(cfg.device)
 
         input_name = ["inputs"]
-        if self.task == "object_detection":
+        if self.task == TaskType.OBJECT_DETECTION:
             output_names = ["bbox", "conf", "class_id"]
-        elif self.task == "classification":
+        elif self.task == TaskType.CLASSIFICATION:
             output_names = ["predictions"]
-        elif self.task == "instance_segmentation":
+        elif self.task == TaskType.INSTANCE_SEGMENTATION:
             output_names = ["bbox", "conf", "class_id", "masks"]
-        elif self.task == "text_recognition":
+        elif self.task == TaskType.TEXT_RECOGNITION:
             output_names = ["class_ids", "confs"]
         else:
             raise NotImplementedError(f"{self.task} does not support export yet.")

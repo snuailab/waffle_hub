@@ -1013,9 +1013,9 @@ class Dataset:
                 dst = ds.raw_image_dir / f"{image_id}{image_path.suffix}"
                 io.copy_file(image_path, dst)
 
-        if task == "object_detection":
+        if task == TaskType.OBJECT_DETECTION:
             _import = _import_object_detection
-        elif task == "classification":
+        elif task == TaskType.CLASSIFICATION:
             _import = _import_classification
         else:
             raise ValueError(f"Unsupported task: {task}")
@@ -1085,7 +1085,7 @@ class Dataset:
             raise ValueError("dataset should be Dataset or DatasetDict")
 
         def _import(dataset: HFDataset, task: str, image_ids: list[int]):
-            if task == "object_detection":
+            if task == TaskType.OBJECT_DETECTION:
                 if not ds.get_categories():
                     categories = dataset.features["objects"].feature["category"].names
                     for category_id, category_name in enumerate(categories):
@@ -1123,7 +1123,7 @@ class Dataset:
                         )
                         ds.add_annotations([annotation])
 
-            elif task == "classification":
+            elif task == TaskType.CLASSIFICATION:
                 if not ds.get_categories():
                     categories = dataset.features["label"].names
                     for category_id, category_name in enumerate(categories):

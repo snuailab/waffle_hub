@@ -15,6 +15,7 @@ import torch
 import torch.nn.functional as F
 from torchvision.ops import batched_nms
 
+from waffle_hub import TaskType
 from waffle_hub.schema.data import ImageInfo
 from waffle_hub.schema.fields import Annotation
 from waffle_hub.utils.conversion import convert_mask_to_polygon
@@ -220,13 +221,13 @@ class TextRecognitionResultParser(ResultParser):
 
 
 def get_parser(task: str):
-    if task == "classification":
+    if task == TaskType.CLASSIFICATION:
         return ClassificationResultParser
-    elif task == "object_detection":
+    elif task == TaskType.OBJECT_DETECTION:
         return ObjectDetectionResultParser
-    elif task == "instance_segmentation":
+    elif task == TaskType.INSTANCE_SEGMENTATION:
         return InstanceSegmentationResultParser
-    elif task == "text_recognition":
+    elif task == TaskType.TEXT_RECOGNITION:
         return TextRecognitionResultParser
 
 
