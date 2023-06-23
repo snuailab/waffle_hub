@@ -63,7 +63,7 @@ class Hub:
     DEFAULT_PARAMS = None
 
     # directory settings
-    DEFAULT_ROOT_DIR = Path("./hubs")
+    DEFAULT_HUB_ROOT_DIR = Path("./hubs")
 
     ARTIFACT_DIR = Path("artifacts")
 
@@ -119,7 +119,7 @@ class Hub:
         self.model_type: str = model_type
         self.model_size: str = model_size
         self.categories: list[dict] = categories
-        self.root_dir: Path = Path(root_dir) if root_dir else None
+        self.root_dir: Path = root_dir
 
         self.backend: str = backend
         self.version: str = version
@@ -333,7 +333,7 @@ class Hub:
         Returns:
             Hub: Hub instance
         """
-        root_dir = Path(root_dir if root_dir else Hub.DEFAULT_ROOT_DIR)
+        root_dir = Hub.parse_root_dir(root_dir)
         model_config_file = root_dir / name / Hub.MODEL_CONFIG_FILE
         if not model_config_file.exists():
             raise FileNotFoundError(f"Model[{name}] does not exists. {model_config_file}")
@@ -380,7 +380,7 @@ class Hub:
         Returns:
             list[str]: hub name list
         """
-        root_dir = Path(root_dir if root_dir else Hub.DEFAULT_ROOT_DIR)
+        root_dir = Hub.parse_root_dir(root_dir)
 
         if not root_dir.exists():
             return []
@@ -412,7 +412,17 @@ class Hub:
     @root_dir.setter
     @type_validator(Path, strict=False)
     def root_dir(self, v):
-        self.__root_dir = Path(v) if v else Hub.DEFAULT_ROOT_DIR
+        self.__root_dir = Hub.parse_root_dir(v)
+        logger.info(f"Hub root directory: {self.root_dir}")
+
+    @classmethod
+    def parse_root_dir(cls, v):
+        if v:
+            return Path(v)
+        elif os.getenv("WAFFLE_HUB_ROOT_DIR", None):
+            return Path(os.getenv("WAFFLE_HUB_ROOT_DIR"))
+        else:
+            return Hub.DEFAULT_HUB_ROOT_DIR
 
     @property
     def task(self) -> str:
