@@ -417,7 +417,7 @@ class Hub:
     @property
     def task(self) -> str:
         """Task Name"""
-        return str(self.__task).upper()
+        return self.__task
 
     @task.setter
     def task(self, v):

@@ -84,9 +84,10 @@ class Dataset:
 
     @task.setter
     def task(self, v):
+        v = str(v).upper()
         if v not in TaskType:
             raise ValueError(f"Invalid task type: {v}" f"Available task types: {list(TaskType)}")
-        self.__task = str(v).upper()
+        self.__task = v
 
     @property
     def created(self):
