@@ -16,7 +16,7 @@ from waffle_hub.schema.result import (
 
 def _train(hub, dataset: Dataset, image_size: int, hold: bool = True):
     result: TrainResult = hub.train(
-        dataset_path=dataset.export(hub.backend),
+        dataset=dataset,
         epochs=1,
         image_size=image_size,
         batch_size=4,
@@ -44,8 +44,7 @@ def _train(hub, dataset: Dataset, image_size: int, hold: bool = True):
 def _evaluate(hub, dataset: Dataset, hold: bool = True):
 
     result: EvaluateResult = hub.evaluate(
-        dataset_name=dataset.name,
-        dataset_root_dir=dataset.root_dir,
+        dataset=dataset,
         device="cpu",
         workers=0,
         hold=hold,

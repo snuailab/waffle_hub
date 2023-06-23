@@ -25,7 +25,7 @@ import tqdm
 from waffle_utils.file import io
 from waffle_utils.utils import type_validator
 
-from waffle_hub import BACKEND_MAP, TaskType
+from waffle_hub import BACKEND_MAP, EXPORT_MAP, TaskType
 from waffle_hub.dataset import Dataset
 from waffle_hub.hub.model.wrapper import get_parser
 from waffle_hub.schema.configs import (
@@ -431,7 +431,7 @@ class Hub:
 
     @task.setter
     def task(self, v):
-        v = str(v).lower()  # TODO: MODEL_TYPES should be enum
+        v = str(v).upper()
         if v not in self.MODEL_TYPES:
             raise ValueError(f"Task {v} is not supported. Choose one of {self.MODEL_TYPES}")
         self.__task = v
@@ -622,8 +622,11 @@ class Hub:
             list[dict]: metrics per epoch
         """
         if not self.metric_file.exists():
-            warnings.warn("Metric file is not exist. Train first!")
-            return []
+            raise FileNotFoundError("Metric file is not exist. Train first!")
+
+        if not self.evaluate_file.exists():
+            raise FileNotFoundError("Evaluate file is not exist. Train first!")
+
         return io.load_json(self.metric_file)
 
     def get_evaluate_result(self) -> list[dict]:
@@ -755,13 +758,28 @@ class Hub:
         pass
 
     def after_train(self, cfg: TrainConfig, result: TrainResult):
+        if not self.metric_file.exists():
+            warnings.warn("Metric file is not exist. Train first!")
+            metrics = []
+        else:
+            metrics = io.load_json(self.metric_file)
+
+        if not self.evaluate_file.exists():
+            warnings.warn("Evaluate file is not exist. Train first!")
+            evaluate = []
+        else:
+            evaluate = io.load_json(self.evaluate_file)
+
+        metrics.append(evaluate)
+        io.save_json(metrics, self.metric_file)
+
         result.best_ckpt_file = self.best_ckpt_file
         result.last_ckpt_file = self.last_ckpt_file
         result.metrics = self.get_metrics()
 
     def train(
         self,
-        dataset_path: str,
+        dataset: Union[Dataset, str],
         epochs: int = None,
         batch_size: int = None,
         image_size: Union[int, list[int]] = None,
@@ -777,7 +795,7 @@ class Hub:
         """Start Train
 
         Args:
-            dataset_path (str): dataset path
+            dataset (Union[Dataset, str]): waffle Dataset object or waffle dataset path.
             epochs (int, optional): number of epochs. None to use default. Defaults to None.
             batch_size (int, optional): batch size. None to use default. Defaults to None.
             image_size (Union[int, list[int]], optional): image size. None to use default. Defaults to None.
@@ -799,7 +817,7 @@ class Hub:
 
         Example:
             >>> train_result = hub.train(
-                    dataset_path=dataset_path,
+                    dataset=dataset,
                     epochs=100,
                     batch_size=16,
                     image_size=640,
@@ -827,6 +845,15 @@ class Hub:
                 self.save_train_config(cfg)
                 self.training(cfg, callback)
                 self.on_train_end(cfg)
+                self.evaluate(
+                    dataset=dataset,
+                    batch_size=batch_size,
+                    image_size=image_size,
+                    letter_box=letter_box,
+                    device=device,
+                    workers=workers,
+                    hold=hold,
+                )
                 self.after_train(cfg, result)
                 callback.force_finish()
             except Exception as e:
@@ -836,8 +863,22 @@ class Hub:
                 callback.set_failed()
                 raise e
 
+        if isinstance(dataset, (str, Path)):
+            dataset = Path(dataset)
+            dataset = Dataset.load(name=dataset.parts[-1], root_dir=dataset.parents[0].absolute())
+
+        if dataset.task.upper() != self.task.upper():
+            raise ValueError(
+                f"Dataset task is not matched with hub task. Dataset task: {dataset.task}, Hub task: {self.task}"
+            )
+
+        export_dir = dataset.export_dir / EXPORT_MAP[self.backend.upper()]
+        if not export_dir.exists():
+            export_dir = dataset.export(self.backend)
+            logger.info(f"Dataset exported to {export_dir}")
+
         cfg = TrainConfig(
-            dataset_path=dataset_path,
+            dataset_path=export_dir,
             epochs=epochs,
             batch_size=batch_size,
             image_size=image_size,
@@ -936,7 +977,7 @@ class Hub:
 
     def evaluate(
         self,
-        dataset_name: str,
+        dataset: Union[Dataset, str],
         set_name: str = "test",
         batch_size: int = 4,
         image_size: Union[int, list[int]] = None,
@@ -947,13 +988,12 @@ class Hub:
         workers: int = 2,
         device: str = "0",
         draw: bool = False,
-        dataset_root_dir: str = None,
         hold: bool = True,
     ) -> EvaluateResult:
         """Start Evaluate
 
         Args:
-            dataset_name (str): waffle dataset name.
+            dataset (Union[Dataset, str]): waffle Dataset object or waffle dataset path.
             batch_size (int, optional): batch size. Defaults to 4.
             image_size (Union[int, list[int]], optional): image size. Defaults to None.
             letter_box (bool, optional): letter box. Defaults to None.
@@ -963,7 +1003,6 @@ class Hub:
             workers (int, optional): workers. Defaults to 2.
             device (str, optional): device. Defaults to "0".
             draw (bool, optional): draw. Defaults to False.
-            dataset_root_dir (str, optional): dataset root dir. Defaults to None.
             hold (bool, optional): hold. Defaults to True.
 
         Raises:
@@ -972,7 +1011,7 @@ class Hub:
 
         Examples:
             >>> evaluate_result = hub.evaluate(
-                    dataset_name="detection_dataset",
+                    dataset=detection_dataset,
                     batch_size=4,
                     image_size=640,
                     letterbox=False,
@@ -1010,8 +1049,15 @@ class Hub:
                 callback.set_failed()
                 raise e
 
+        if "," in device:
+            warnings.warn("multi-gpu is not supported in evaluation. use first gpu only.")
+            device = device.split(",")[0]
+        if isinstance(dataset, (str, Path)):
+            dataset = Path(dataset)
+            dataset = Dataset.load(name=dataset.parts[-1], root_dir=dataset.parents[0].absolute())
+
         cfg = EvaluateConfig(
-            dataset_name=dataset_name,
+            dataset_name=dataset.name,
             set_name=set_name,
             batch_size=batch_size,
             image_size=image_size,
@@ -1022,7 +1068,7 @@ class Hub:
             workers=workers,
             device="cpu" if device == "cpu" else f"cuda:{device}",
             draw=draw,
-            dataset_root_dir=dataset_root_dir,
+            dataset_root_dir=dataset.root_dir,
         )
 
         callback = EvaluateCallback(100)  # dummy step
@@ -1222,13 +1268,13 @@ class Hub:
         model = model.to(cfg.device)
 
         input_name = ["inputs"]
-        if self.task == "object_detection":
+        if self.task == TaskType.OBJECT_DETECTION:
             output_names = ["bbox", "conf", "class_id"]
-        elif self.task == "classification":
+        elif self.task == TaskType.CLASSIFICATION:
             output_names = ["predictions"]
-        elif self.task == "instance_segmentation":
+        elif self.task == TaskType.INSTANCE_SEGMENTATION:
             output_names = ["bbox", "conf", "class_id", "masks"]
-        elif self.task == "text_recognition":
+        elif self.task == TaskType.TEXT_RECOGNITION:
             output_names = ["class_ids", "confs"]
         else:
             raise NotImplementedError(f"{self.task} does not support export yet.")

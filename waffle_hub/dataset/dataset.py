@@ -21,7 +21,7 @@ from waffle_utils.utils import type_validator
 
 from datasets import Dataset as HFDataset
 from datasets import DatasetDict, load_from_disk
-from waffle_hub import DataType, SplitMethod, TaskType
+from waffle_hub import EXPORT_MAP, DataType, SplitMethod, TaskType
 from waffle_hub.dataset.adapter import (
     export_autocare_dlt,
     export_coco,
@@ -84,9 +84,10 @@ class Dataset:
 
     @task.setter
     def task(self, v):
+        v = str(v).upper()
         if v not in TaskType:
             raise ValueError(f"Invalid task type: {v}" f"Available task types: {list(TaskType)}")
-        self.__task = str(v).upper()
+        self.__task = v
 
     @property
     def created(self):
@@ -1023,9 +1024,9 @@ class Dataset:
                 dst = ds.raw_image_dir / f"{image_id}{image_path.suffix}"
                 io.copy_file(image_path, dst)
 
-        if task == "object_detection":
+        if task == TaskType.OBJECT_DETECTION:
             _import = _import_object_detection
-        elif task == "classification":
+        elif task == TaskType.CLASSIFICATION:
             _import = _import_classification
         else:
             raise ValueError(f"Unsupported task: {task}")
@@ -1095,7 +1096,7 @@ class Dataset:
             raise ValueError("dataset should be Dataset or DatasetDict")
 
         def _import(dataset: HFDataset, task: str, image_ids: list[int]):
-            if task == "object_detection":
+            if task == TaskType.OBJECT_DETECTION:
                 if not ds.get_categories():
                     categories = dataset.features["objects"].feature["category"].names
                     for category_id, category_name in enumerate(categories):
@@ -1133,7 +1134,7 @@ class Dataset:
                         )
                         ds.add_annotations([annotation])
 
-            elif task == "classification":
+            elif task == TaskType.CLASSIFICATION:
                 if not ds.get_categories():
                     categories = dataset.features["label"].names
                     for category_id, category_name in enumerate(categories):
@@ -1604,17 +1605,14 @@ class Dataset:
 
         self.check_trainable()
 
+        export_dir: Path = self.export_dir / EXPORT_MAP[data_type.upper()]
         if data_type in [DataType.YOLO, DataType.ULTRALYTICS]:
-            export_dir: Path = self.export_dir / str(DataType.YOLO)
             export_function = export_yolo
         elif data_type in [DataType.COCO]:
-            export_dir: Path = self.export_dir / str(DataType.COCO)
             export_function = export_coco
         elif data_type in [DataType.AUTOCARE_DLT]:
-            export_dir: Path = self.export_dir / str(DataType.AUTOCARE_DLT)
             export_function = export_autocare_dlt
         elif data_type in [DataType.TRANSFORMERS]:
-            export_dir: Path = self.export_dir / str(DataType.TRANSFORMERS)
             export_function = export_transformers
 
         else:
