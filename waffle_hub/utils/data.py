@@ -14,14 +14,15 @@ from waffle_hub.schema.fields import Annotation, Category, Image
 
 def get_images(d, recursive: bool = True) -> list[str]:
     exp = "**/*" if recursive else "*"
+    image_paths = []
+    for ext in ["png", "jpg", "jpeg", "bmp", "tif", "tiff"]:
+        image_paths += list(Path(d).glob(exp.lower() + "." + ext))
+        image_paths += list(Path(d).glob(exp.upper() + "." + ext))
     return list(
         set(
             map(
                 str,
-                list(Path(d).glob(exp + ".png"))
-                + list(Path(d).glob(exp + ".jpg"))
-                + list(Path(d).glob(exp + ".PNG"))
-                + list(Path(d).glob(exp + ".JPG")),
+                image_paths,
             )
         )
     )
@@ -66,9 +67,7 @@ def resize_image(
             top, bottom = 0, 0
 
         image = cv2.resize(image, (w_, h_), interpolation=cv2.INTER_CUBIC)
-        image = cv2.copyMakeBorder(
-            image, top, bottom, left, right, None, value=(114, 114, 114)
-        )
+        image = cv2.copyMakeBorder(image, top, bottom, left, right, None, value=(114, 114, 114))
 
     else:
         w_, h_ = W, H
@@ -83,16 +82,12 @@ def resize_image(
     )
 
 
-def get_image_transform(
-    image_size: Union[int, list[int]], letter_box: bool = False
-):
+def get_image_transform(image_size: Union[int, list[int]], letter_box: bool = False):
 
     if isinstance(image_size, int):
         image_size = [image_size, image_size]
 
-    def transform(
-        image: Union[np.ndarray, str]
-    ) -> tuple[torch.Tensor, ImageInfo]:
+    def transform(image: Union[np.ndarray, str]) -> tuple[torch.Tensor, ImageInfo]:
         if isinstance(image, str):
             image = cv2.imread(image)
         image = cv2.cvtColor(image, cv2.COLOR_BGR2RGB)
@@ -168,8 +163,7 @@ class LabeledDataset:
             io.load_json(set_file) if set_file else None
         )
         self.image_to_annotations: dict[int, list[Annotation]] = {
-            image.image_id: self.dataset.get_annotations(image.image_id)
-            for image in self.images
+            image.image_id: self.dataset.get_annotations(image.image_id) for image in self.images
         }
 
         self.transform = get_image_transform(image_size, letter_box)
@@ -180,9 +174,7 @@ class LabeledDataset:
     def __getitem__(self, idx):
         image = self.images[idx]
         image_path = str(self.image_dir / image.file_name)
-        annotations: list[Annotation] = self.image_to_annotations[
-            image.image_id
-        ]
+        annotations: list[Annotation] = self.image_to_annotations[image.image_id]
 
         image, image_info = self.transform(image_path)
         image_info.image_path = image_path
