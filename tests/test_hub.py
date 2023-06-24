@@ -33,8 +33,8 @@ def _train(hub, dataset: Dataset, image_size: int, hold: bool = True):
         assert result.callback.is_finished()
         assert not result.callback.is_failed()
 
-    print(hub.metric_file, result.metrics)
     assert len(result.metrics) >= 1
+    assert len(result.eval_metrics) >= 1
     assert Path(result.best_ckpt_file).exists()
     # assert Path(result.last_ckpt_file).exists()
 
@@ -57,7 +57,7 @@ def _evaluate(hub, dataset: Dataset, hold: bool = True):
         assert result.callback.is_finished()
         assert not result.callback.is_failed()
 
-    assert len(result.metrics) >= 1
+    assert len(result.eval_metrics) >= 1
 
     return result
 

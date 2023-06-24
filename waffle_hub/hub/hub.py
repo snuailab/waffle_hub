@@ -758,24 +758,10 @@ class Hub:
         pass
 
     def after_train(self, cfg: TrainConfig, result: TrainResult):
-        if not self.metric_file.exists():
-            warnings.warn("Metric file is not exist. Train first!")
-            metrics = []
-        else:
-            metrics = io.load_json(self.metric_file)
-
-        if not self.evaluate_file.exists():
-            warnings.warn("Evaluate file is not exist. Train first!")
-            evaluate = []
-        else:
-            evaluate = io.load_json(self.evaluate_file)
-
-        metrics.append(evaluate)
-        io.save_json(metrics, self.metric_file)
-
         result.best_ckpt_file = self.best_ckpt_file
         result.last_ckpt_file = self.last_ckpt_file
         result.metrics = self.get_metrics()
+        result.eval_metrics = self.get_evaluate_result()
 
     def train(
         self,
@@ -847,12 +833,11 @@ class Hub:
                 self.on_train_end(cfg)
                 self.evaluate(
                     dataset=dataset,
-                    batch_size=batch_size,
-                    image_size=image_size,
-                    letter_box=letter_box,
-                    device=device,
-                    workers=workers,
-                    hold=hold,
+                    batch_size=cfg.batch_size,
+                    image_size=cfg.image_size,
+                    letter_box=cfg.letter_box,
+                    device=cfg.device,
+                    workers=cfg.workers,
                 )
                 self.after_train(cfg, result)
                 callback.force_finish()
@@ -973,7 +958,7 @@ class Hub:
         pass
 
     def after_evaluate(self, cfg: EvaluateConfig, result: EvaluateResult):
-        result.metrics = self.get_evaluate_result()
+        result.eval_metrics = self.get_evaluate_result()
 
     def evaluate(
         self,

@@ -8,11 +8,12 @@ class TrainResult(BaseSchema):
     best_ckpt_file: str = None
     last_ckpt_file: str = None
     metrics: list[list[dict]] = None
+    eval_metrics: list[dict] = None
 
 
 @dataclass
 class EvaluateResult(BaseSchema):
-    metrics: list[dict] = None
+    eval_metrics: list[dict] = None
 
 
 @dataclass
