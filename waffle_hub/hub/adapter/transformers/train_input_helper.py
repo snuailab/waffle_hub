@@ -33,6 +33,30 @@ class TrainInput:
     compute_metrics: Callable = None
 
 
+class customTrainingArguments(TrainingArguments):
+    def __init__(self, *args, **kwargs):
+        self._device = kwargs.pop("device")
+        super().__init__(*args, **kwargs)
+
+    @property
+    def device(self) -> "torch.device":
+        if self._device == "cpu":
+            return torch.device("cpu")
+        elif "," in self._device:
+            return torch.device("cuda")
+        else:
+            return torch.device(f"cuda:{self._device}")
+
+    @property
+    def n_gpu(self) -> int:
+        if self._device == "cpu":
+            return 0
+        elif "," in self._device:
+            return len(self._device.split(","))
+        else:
+            return 1
+
+
 class TrainInputHelper(ABC):
     """
     This class is designed to assist with passing arguments to the Transformers's Trainer function.

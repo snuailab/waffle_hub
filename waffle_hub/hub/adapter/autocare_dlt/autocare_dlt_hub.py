@@ -231,7 +231,7 @@ class AutocareDLTHub(Hub):
         io.save_json(data_config, cfg.data_config, create_directory=True)
         categories = (
             self.categories
-            if self._Hub__task == "classification"
+            if self._Hub__task == TaskType.CLASSIFICATION
             else [x["name"] for x in self.categories]
         )
 

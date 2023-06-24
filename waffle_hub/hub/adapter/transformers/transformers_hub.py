@@ -19,7 +19,6 @@ from transformers import (
     AutoModelForObjectDetection,
     Trainer,
     TrainerCallback,
-    TrainingArguments,
 )
 from transformers.utils import ModelOutput
 from waffle_utils.file import io
@@ -30,6 +29,7 @@ from waffle_hub.hub import Hub
 from waffle_hub.hub.adapter.transformers.train_input_helper import (
     ClassifierInputHelper,
     ObjectDetectionInputHelper,
+    customTrainingArguments,
 )
 from waffle_hub.hub.model.wrapper import ModelWrapper
 from waffle_hub.schema.configs import TrainConfig
@@ -141,15 +141,9 @@ class TransformersHub(Hub):
         # overwrite train config with default config
         cfg.pretrained_model = self.MODEL_TYPES[self.task][self.model_type][self.model_size]
 
-        # setting
-        if cfg.device != "cpu":
-            os.environ["CUDA_VISIBLE_DEVICES"] = cfg.device
-        else:
-            os.environ["CUDA_VISIBLE_DEVICES"] = "-1"
-
         dataset = load_from_disk(cfg.dataset_path)
 
-        if self.task == "classification":
+        if self.task == TaskType.CLASSIFICATION:
             helper = ClassifierInputHelper(cfg.pretrained_model, cfg.image_size)
             cfg.train_input = helper.get_train_input()
             categories = dataset["train"].features["label"].names
@@ -160,7 +154,7 @@ class TransformersHub(Hub):
                 ignore_mismatched_sizes=True,
             )
 
-        elif self.task == "object_detection":
+        elif self.task == TaskType.OBJECT_DETECTION:
             helper = ObjectDetectionInputHelper(cfg.pretrained_model, cfg.image_size)
             cfg.train_input = helper.get_train_input()
             categories = dataset["train"].features["objects"].feature["category"].names
@@ -175,12 +169,18 @@ class TransformersHub(Hub):
         else:
             raise NotImplementedError
 
+        if cfg.device == "cpu":
+            os.environ["CUDA_VISIBLE_DEVICES"] = "-1"
+            cfg.train_input.model = cfg.train_input.model.to("cpu")
+        elif "," in cfg.device:
+            os.environ["CUDA_VISIBLE_DEVICES"] = cfg.device
+
         transforms = helper.get_transforms()
         dataset["train"] = dataset["train"].with_transform(transforms)
         dataset["val"] = dataset["val"].with_transform(transforms)
         cfg.train_input.dataset = dataset
 
-        cfg.train_input.training_args = TrainingArguments(
+        cfg.train_input.training_args = customTrainingArguments(
             output_dir=str(self.artifact_dir),
             per_device_train_batch_size=cfg.batch_size,
             num_train_epochs=cfg.epochs,
@@ -196,10 +196,10 @@ class TransformersHub(Hub):
             greater_is_better=False,
             save_total_limit=1,
             load_best_model_at_end=False,
+            device=cfg.device,
         )
 
     def training(self, cfg: TrainConfig, callback: TrainCallback):
-
         trainer = Trainer(
             model=cfg.train_input.model,
             args=cfg.train_input.training_args,

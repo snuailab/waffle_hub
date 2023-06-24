@@ -1,10 +1,10 @@
 import copy
 import logging
+import os
 import random
 import shutil
-import sys
 import warnings
-from collections import Counter, OrderedDict, defaultdict
+from collections import Counter, defaultdict
 from functools import cached_property
 from pathlib import Path
 from tempfile import mkdtemp
@@ -21,7 +21,7 @@ from waffle_utils.utils import type_validator
 
 from datasets import Dataset as HFDataset
 from datasets import DatasetDict, load_from_disk
-from waffle_hub import DataType, SplitMethod, TaskType
+from waffle_hub import EXPORT_MAP, DataType, SplitMethod, TaskType
 from waffle_hub.dataset.adapter import (
     export_autocare_dlt,
     export_coco,
@@ -63,7 +63,7 @@ class Dataset:
         self.task = task
         self.created = created
 
-        self.root_dir = Path(root_dir) if root_dir else Dataset.DEFAULT_DATASET_ROOT_DIR
+        self.root_dir = root_dir
 
     def __repr__(self):
         return self.get_dataset_info().__repr__()
@@ -84,9 +84,10 @@ class Dataset:
 
     @task.setter
     def task(self, v):
+        v = str(v).upper()
         if v not in TaskType:
             raise ValueError(f"Invalid task type: {v}" f"Available task types: {list(TaskType)}")
-        self.__task = str(v).upper()
+        self.__task = v
 
     @property
     def created(self):
@@ -97,13 +98,23 @@ class Dataset:
         self.__created = v or datetime_now()
 
     @property
-    def root_dir(self):
+    def root_dir(self) -> Path:
         return self.__root_dir
 
     @root_dir.setter
-    @type_validator(Path)
+    @type_validator(Path, strict=False)
     def root_dir(self, v):
-        self.__root_dir = v
+        self.__root_dir = Dataset.parse_root_dir(v)
+        logger.info(f"Dataset root directory: {self.__root_dir}")
+
+    @classmethod
+    def parse_root_dir(cls, v):
+        if v:
+            return Path(v)
+        elif os.getenv("WAFFLE_DATASET_ROOT_DIR", None):
+            return Path(os.getenv("WAFFLE_DATASET_ROOT_DIR"))
+        else:
+            return Dataset.DEFAULT_DATASET_ROOT_DIR
 
     # cached properties
     @cached_property
@@ -445,7 +456,7 @@ class Dataset:
         Returns:
             Dataset: Dataset Class
         """
-        root_dir = Path(root_dir) if root_dir else Dataset.DEFAULT_DATASET_ROOT_DIR
+        root_dir = Dataset.parse_root_dir(root_dir)
         dataset_info_file = root_dir / name / Dataset.DATASET_INFO_FILE_NAME
         if not dataset_info_file.exists():
             raise FileNotFoundError(f"{dataset_info_file} has not been created.")
@@ -1013,9 +1024,9 @@ class Dataset:
                 dst = ds.raw_image_dir / f"{image_id}{image_path.suffix}"
                 io.copy_file(image_path, dst)
 
-        if task == "object_detection":
+        if task == TaskType.OBJECT_DETECTION:
             _import = _import_object_detection
-        elif task == "classification":
+        elif task == TaskType.CLASSIFICATION:
             _import = _import_classification
         else:
             raise ValueError(f"Unsupported task: {task}")
@@ -1085,7 +1096,7 @@ class Dataset:
             raise ValueError("dataset should be Dataset or DatasetDict")
 
         def _import(dataset: HFDataset, task: str, image_ids: list[int]):
-            if task == "object_detection":
+            if task == TaskType.OBJECT_DETECTION:
                 if not ds.get_categories():
                     categories = dataset.features["objects"].feature["category"].names
                     for category_id, category_name in enumerate(categories):
@@ -1123,7 +1134,7 @@ class Dataset:
                         )
                         ds.add_annotations([annotation])
 
-            elif task == "classification":
+            elif task == TaskType.CLASSIFICATION:
                 if not ds.get_categories():
                     categories = dataset.features["label"].names
                     for category_id, category_name in enumerate(categories):
@@ -1228,7 +1239,7 @@ class Dataset:
         Returns:
             list[str]: dataset name list.
         """
-        root_dir = Path(root_dir if root_dir else Dataset.DEFAULT_DATASET_ROOT_DIR)
+        root_dir = Dataset.parse_root_dir(root_dir)
 
         if not root_dir.exists():
             return []
@@ -1594,17 +1605,14 @@ class Dataset:
 
         self.check_trainable()
 
+        export_dir: Path = self.export_dir / EXPORT_MAP[data_type.upper()]
         if data_type in [DataType.YOLO, DataType.ULTRALYTICS]:
-            export_dir: Path = self.export_dir / str(DataType.YOLO)
             export_function = export_yolo
         elif data_type in [DataType.COCO]:
-            export_dir: Path = self.export_dir / str(DataType.COCO)
             export_function = export_coco
         elif data_type in [DataType.AUTOCARE_DLT]:
-            export_dir: Path = self.export_dir / str(DataType.AUTOCARE_DLT)
             export_function = export_autocare_dlt
         elif data_type in [DataType.TRANSFORMERS]:
-            export_dir: Path = self.export_dir / str(DataType.TRANSFORMERS)
             export_function = export_transformers
 
         else:

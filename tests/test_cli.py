@@ -207,7 +207,7 @@ def test_hub_train(test_dir: Path):
     cmd = f'python -m waffle_hub.hub.cli train \
         --root-dir {test_dir / "hubs"} \
         --name test \
-        --dataset-path {test_dir / "datasets" / "from_coco" / "exports" / "YOLO" } \
+        --dataset {test_dir / "datasets" / "from_coco"} \
         --epochs 1 \
         --batch-size 4 \
         --image-size 16 \
@@ -241,8 +241,7 @@ def test_hub_evaluate(test_dir: Path):
     cmd = f'python -m waffle_hub.hub.cli evaluate \
         --name test \
         --root-dir {test_dir / "hubs"} \
-        --dataset-name from_coco \
-        --dataset-root-dir {test_dir / "datasets"} \
+        --dataset {test_dir / "datasets" / "from_coco"} \
         --set-name test \
         --device cpu \
         --workers 0 \

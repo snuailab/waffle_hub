@@ -1,23 +1,24 @@
-__version__ = "0.2.4"
+__version__ = "0.2.5"
 
 import enum
 from collections import OrderedDict
 
-
-BACKEND_MAP = OrderedDict({
-    "ultralytics": {
-        "import_path": "waffle_hub.hub.adapter.ultralytics",
-        "class_name": "UltralyticsHub",
-    },
-    "autocare_dlt": {
-        "import_path": "waffle_hub.hub.adapter.autocare_dlt",
-        "class_name": "AutocareDLTHub",
-    },
-    "transformers": {
-        "import_path": "waffle_hub.hub.adapter.transformers",
-        "class_name": "TransformersHub",
-    },
-})
+BACKEND_MAP = OrderedDict(
+    {
+        "ultralytics": {
+            "import_path": "waffle_hub.hub.adapter.ultralytics",
+            "class_name": "UltralyticsHub",
+        },
+        "autocare_dlt": {
+            "import_path": "waffle_hub.hub.adapter.autocare_dlt",
+            "class_name": "AutocareDLTHub",
+        },
+        "transformers": {
+            "import_path": "waffle_hub.hub.adapter.transformers",
+            "class_name": "TransformersHub",
+        },
+    }
+)
 
 
 class CustomEnumMeta(enum.EnumMeta):
@@ -89,3 +90,12 @@ class TaskType(BaseEnum):
 class SplitMethod(BaseEnum):
     RANDOM = enum.auto()
     STRATIFIED = enum.auto()
+
+
+EXPORT_MAP = {
+    DataType.YOLO: "YOLO",
+    DataType.ULTRALYTICS: "YOLO",
+    DataType.COCO: "COCO",
+    DataType.AUTOCARE_DLT: "AUTOCARE_DLT",
+    DataType.TRANSFORMERS: "TRANSFORMERS",
+}
