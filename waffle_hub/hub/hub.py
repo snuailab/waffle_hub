@@ -304,7 +304,7 @@ class Hub:
             raise ValueError(f"{name} already exists. Try another name.")
 
         backend = backend if backend else cls.get_available_backends()[0]
-        task = task if task else cls.get_available_tasks(backend)[0]
+        task = str(task).upper() if task else cls.get_available_tasks(backend)[0]
         model_type = model_type if model_type else cls.get_available_model_types(backend, task)[0]
         model_size = (
             model_size if model_size else cls.get_available_model_sizes(backend, task, model_type)[0]
@@ -491,6 +491,8 @@ class Hub:
     @categories.setter
     @type_validator(list)
     def categories(self, v):
+        if v is None:
+            raise ValueError("Categories must be specified.")
         if not isinstance(v[0], dict):
             v = [{"supercategory": "object", "name": str(n)} for n in v]
         self.__categories = v
@@ -758,28 +760,15 @@ class Hub:
         pass
 
     def after_train(self, cfg: TrainConfig, result: TrainResult):
-        if not self.metric_file.exists():
-            warnings.warn("Metric file is not exist. Train first!")
-            metrics = []
-        else:
-            metrics = io.load_json(self.metric_file)
-
-        if not self.evaluate_file.exists():
-            warnings.warn("Evaluate file is not exist. Train first!")
-            evaluate = []
-        else:
-            evaluate = io.load_json(self.evaluate_file)
-
-        metrics.append(evaluate)
-        io.save_json(metrics, self.metric_file)
-
         result.best_ckpt_file = self.best_ckpt_file
         result.last_ckpt_file = self.last_ckpt_file
         result.metrics = self.get_metrics()
+        result.eval_metrics = self.get_evaluate_result()
 
     def train(
         self,
         dataset: Union[Dataset, str],
+        dataset_root_dir: str = None,
         epochs: int = None,
         batch_size: int = None,
         image_size: Union[int, list[int]] = None,
@@ -795,7 +784,8 @@ class Hub:
         """Start Train
 
         Args:
-            dataset (Union[Dataset, str]): waffle Dataset object or waffle dataset path.
+            dataset (Union[Dataset, str]): Waffle Dataset object or path or name.
+            dataset_root_dir (str, optional): Waffle Dataset root directory. Defaults to None.
             epochs (int, optional): number of epochs. None to use default. Defaults to None.
             batch_size (int, optional): batch size. None to use default. Defaults to None.
             image_size (Union[int, list[int]], optional): image size. None to use default. Defaults to None.
@@ -847,12 +837,11 @@ class Hub:
                 self.on_train_end(cfg)
                 self.evaluate(
                     dataset=dataset,
-                    batch_size=batch_size,
-                    image_size=image_size,
-                    letter_box=letter_box,
-                    device=device,
-                    workers=workers,
-                    hold=hold,
+                    batch_size=cfg.batch_size,
+                    image_size=cfg.image_size,
+                    letter_box=cfg.letter_box,
+                    device=cfg.device,
+                    workers=cfg.workers,
                 )
                 self.after_train(cfg, result)
                 callback.force_finish()
@@ -864,8 +853,15 @@ class Hub:
                 raise e
 
         if isinstance(dataset, (str, Path)):
-            dataset = Path(dataset)
-            dataset = Dataset.load(name=dataset.parts[-1], root_dir=dataset.parents[0].absolute())
+            if Path(dataset).exists():
+                dataset = Path(dataset)
+                dataset = Dataset.load(
+                    name=dataset.parts[-1], root_dir=dataset.parents[0].absolute()
+                )
+            elif dataset in Dataset.get_dataset_list(dataset_root_dir):
+                dataset = Dataset.load(name=dataset, root_dir=dataset_root_dir)
+            else:
+                raise FileNotFoundError(f"Dataset {dataset} is not exist.")
 
         if dataset.task.upper() != self.task.upper():
             raise ValueError(
@@ -973,11 +969,12 @@ class Hub:
         pass
 
     def after_evaluate(self, cfg: EvaluateConfig, result: EvaluateResult):
-        result.metrics = self.get_evaluate_result()
+        result.eval_metrics = self.get_evaluate_result()
 
     def evaluate(
         self,
         dataset: Union[Dataset, str],
+        dataset_root_dir: str = None,
         set_name: str = "test",
         batch_size: int = 4,
         image_size: Union[int, list[int]] = None,
@@ -993,7 +990,8 @@ class Hub:
         """Start Evaluate
 
         Args:
-            dataset (Union[Dataset, str]): waffle Dataset object or waffle dataset path.
+            dataset (Union[Dataset, str]): Waffle Dataset object or path or name.
+            dataset_root_dir (str, optional): Waffle Dataset root directory. Defaults to None.
             batch_size (int, optional): batch size. Defaults to 4.
             image_size (Union[int, list[int]], optional): image size. Defaults to None.
             letter_box (bool, optional): letter box. Defaults to None.
@@ -1052,9 +1050,17 @@ class Hub:
         if "," in device:
             warnings.warn("multi-gpu is not supported in evaluation. use first gpu only.")
             device = device.split(",")[0]
+
         if isinstance(dataset, (str, Path)):
-            dataset = Path(dataset)
-            dataset = Dataset.load(name=dataset.parts[-1], root_dir=dataset.parents[0].absolute())
+            if Path(dataset).exists():
+                dataset = Path(dataset)
+                dataset = Dataset.load(
+                    name=dataset.parts[-1], root_dir=dataset.parents[0].absolute()
+                )
+            elif dataset in Dataset.get_dataset_list(dataset_root_dir):
+                dataset = Dataset.load(name=dataset, root_dir=dataset_root_dir)
+            else:
+                raise FileNotFoundError(f"Dataset {dataset} is not exist.")
 
         cfg = EvaluateConfig(
             dataset_name=dataset.name,
