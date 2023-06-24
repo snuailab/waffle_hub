@@ -304,7 +304,7 @@ class Hub:
             raise ValueError(f"{name} already exists. Try another name.")
 
         backend = backend if backend else cls.get_available_backends()[0]
-        task = task if task else cls.get_available_tasks(backend)[0]
+        task = task.upper() if task else cls.get_available_tasks(backend)[0]
         model_type = model_type if model_type else cls.get_available_model_types(backend, task)[0]
         model_size = (
             model_size if model_size else cls.get_available_model_sizes(backend, task, model_type)[0]
@@ -491,6 +491,8 @@ class Hub:
     @categories.setter
     @type_validator(list)
     def categories(self, v):
+        if v is None:
+            raise ValueError("Categories must be specified.")
         if not isinstance(v[0], dict):
             v = [{"supercategory": "object", "name": str(n)} for n in v]
         self.__categories = v
