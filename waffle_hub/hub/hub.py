@@ -766,6 +766,7 @@ class Hub:
     def train(
         self,
         dataset: Union[Dataset, str],
+        dataset_root_dir: str = None,
         epochs: int = None,
         batch_size: int = None,
         image_size: Union[int, list[int]] = None,
@@ -781,7 +782,8 @@ class Hub:
         """Start Train
 
         Args:
-            dataset (Union[Dataset, str]): waffle Dataset object or waffle dataset path.
+            dataset (Union[Dataset, str]): Waffle Dataset object or path or name.
+            dataset_root_dir (str, optional): Waffle Dataset root directory. Defaults to None.
             epochs (int, optional): number of epochs. None to use default. Defaults to None.
             batch_size (int, optional): batch size. None to use default. Defaults to None.
             image_size (Union[int, list[int]], optional): image size. None to use default. Defaults to None.
@@ -849,8 +851,15 @@ class Hub:
                 raise e
 
         if isinstance(dataset, (str, Path)):
-            dataset = Path(dataset)
-            dataset = Dataset.load(name=dataset.parts[-1], root_dir=dataset.parents[0].absolute())
+            if Path(dataset).exists():
+                dataset = Path(dataset)
+                dataset = Dataset.load(
+                    name=dataset.parts[-1], root_dir=dataset.parents[0].absolute()
+                )
+            elif dataset in Dataset.get_dataset_list(dataset_root_dir):
+                dataset = Dataset.load(name=dataset, root_dir=dataset_root_dir)
+            else:
+                raise FileNotFoundError(f"Dataset {dataset} is not exist.")
 
         if dataset.task.upper() != self.task.upper():
             raise ValueError(
@@ -963,6 +972,7 @@ class Hub:
     def evaluate(
         self,
         dataset: Union[Dataset, str],
+        dataset_root_dir: str = None,
         set_name: str = "test",
         batch_size: int = 4,
         image_size: Union[int, list[int]] = None,
@@ -978,7 +988,8 @@ class Hub:
         """Start Evaluate
 
         Args:
-            dataset (Union[Dataset, str]): waffle Dataset object or waffle dataset path.
+            dataset (Union[Dataset, str]): Waffle Dataset object or path or name.
+            dataset_root_dir (str, optional): Waffle Dataset root directory. Defaults to None.
             batch_size (int, optional): batch size. Defaults to 4.
             image_size (Union[int, list[int]], optional): image size. Defaults to None.
             letter_box (bool, optional): letter box. Defaults to None.
@@ -1037,9 +1048,17 @@ class Hub:
         if "," in device:
             warnings.warn("multi-gpu is not supported in evaluation. use first gpu only.")
             device = device.split(",")[0]
+
         if isinstance(dataset, (str, Path)):
-            dataset = Path(dataset)
-            dataset = Dataset.load(name=dataset.parts[-1], root_dir=dataset.parents[0].absolute())
+            if Path(dataset).exists():
+                dataset = Path(dataset)
+                dataset = Dataset.load(
+                    name=dataset.parts[-1], root_dir=dataset.parents[0].absolute()
+                )
+            elif dataset in Dataset.get_dataset_list(dataset_root_dir):
+                dataset = Dataset.load(name=dataset, root_dir=dataset_root_dir)
+            else:
+                raise FileNotFoundError(f"Dataset {dataset} is not exist.")
 
         cfg = EvaluateConfig(
             dataset_name=dataset.name,
