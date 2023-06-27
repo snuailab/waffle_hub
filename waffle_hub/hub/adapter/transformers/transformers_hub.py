@@ -62,6 +62,7 @@ class TransformersHub(Hub):
     MODEL_TYPES = MODEL_TYPES
     MULTI_GPU_TRAIN = False
     DEFAULT_PARAMS = DEFAULT_PARAMS
+    DEFAULT_ADVANCE_PARAMS = {}
 
     # Override
     LAST_CKPT_FILE = "weights/last_ckpt"

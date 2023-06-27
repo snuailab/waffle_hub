@@ -27,6 +27,7 @@ class TrainConfig(BaseSchema):
     device: str = None
     workers: int = None
     seed: int = None
+    advance_params: dict = None
     verbose: bool = None
 
 
