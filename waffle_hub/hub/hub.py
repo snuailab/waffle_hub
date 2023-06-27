@@ -892,8 +892,9 @@ class Hub:
 
         export_dir = dataset.export_dir / EXPORT_MAP[self.backend.upper()]
         if not export_dir.exists():
+            logger.info(f"[Dataset] Exporting dataset to {self.backend} format...")
             export_dir = dataset.export(self.backend)
-            logger.info(f"Dataset exported to {export_dir}")
+            logger.info("[Dataset] Exporting done.")
 
         # parse train config
         cfg = TrainConfig(
