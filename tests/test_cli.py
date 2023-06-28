@@ -223,6 +223,42 @@ def test_hub_train(test_dir: Path):
     assert (test_dir / "hubs" / "test" / "artifacts").exists()
 
 
+def test_hub_train_advance_params(test_dir: Path):
+    cmd = f'python -m waffle_hub.hub.cli new \
+        --backend ultralytics \
+        --root-dir {test_dir / "hubs"} \
+        --name test_adv \
+        --task classification \
+        --model-type yolov8 \
+        --model-size n \
+        --categories [1,2] \
+    '
+    ret = run_cli(cmd)
+    assert ret.returncode == 0
+    assert (test_dir / "hubs" / "test").exists()
+
+    cmd = (
+        f'python -m waffle_hub.hub.cli train \
+        --root-dir {test_dir / "hubs"} \
+        --name test_adv \
+        --dataset {test_dir / "datasets" / "from_coco"} \
+        --epochs 1 \
+        --batch-size 4 \
+        --image-size 16 \
+        --learning-rate 0.001 \
+        --letter-box \
+        --device cpu \
+        --workers 0 \
+        --seed 0 \
+        --verbose \
+    '
+        + ' --advance_params "{box: 3}"'
+    )
+    ret = run_cli(cmd)
+    assert ret.returncode == 0
+    assert (test_dir / "hubs" / "test" / "artifacts").exists()
+
+
 def test_hub_inference(test_dir: Path):
     cmd = f'python -m waffle_hub.hub.cli inference \
         --root-dir {test_dir / "hubs"} \

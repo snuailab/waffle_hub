@@ -11,6 +11,7 @@ import torch
 import ultralytics
 from torchvision import transforms as T
 from ultralytics import YOLO
+from ultralytics.yolo.utils import DEFAULT_CFG as YOLO_DEFAULT_ADVANCE_PARAMS
 from waffle_utils.file import io
 
 from waffle_hub import TaskType
@@ -28,6 +29,7 @@ class UltralyticsHub(Hub):
     MODEL_TYPES = MODEL_TYPES
     MULTI_GPU_TRAIN = True
     DEFAULT_PARAMS = DEFAULT_PARAMS
+    DEFAULT_ADVANCE_PARAMS = dict(YOLO_DEFAULT_ADVANCE_PARAMS)
 
     TASK_MAP = TASK_MAP
     TASK_SUFFIX = TASK_SUFFIX
@@ -68,6 +70,11 @@ class UltralyticsHub(Hub):
         )
 
         self.backend_task_name = self.TASK_MAP[self.task]
+
+    def get_default_advance_train_params(
+        cls, task: str = None, model_type: str = None, model_size: str = None
+    ) -> dict:
+        return cls.DEFAULT_ADVANCE_PARAMS
 
     @classmethod
     def new(
@@ -271,22 +278,28 @@ class UltralyticsHub(Hub):
 
         code = f"""if __name__ == "__main__":
         from ultralytics import YOLO
-        model = YOLO("{cfg.pretrained_model}", task="{self.backend_task_name}")
-        model.train(
-            data="{cfg.dataset_path}",
-            epochs={cfg.epochs},
-            batch={cfg.batch_size},
-            imgsz={cfg.image_size},
-            lr0={cfg.learning_rate},
-            lrf={cfg.learning_rate},
-            rect={cfg.letter_box},
-            device="{cfg.device}",
-            workers={cfg.workers},
-            seed={cfg.seed},
-            verbose={cfg.verbose},
-            project="{self.hub_dir}",
-            name="{self.ARTIFACT_DIR}",
-        )"""
+        try:
+            model = YOLO("{cfg.pretrained_model}", task="{self.backend_task_name}")
+            model.train(
+                data="{cfg.dataset_path}",
+                epochs={cfg.epochs},
+                batch={cfg.batch_size},
+                imgsz={cfg.image_size},
+                lr0={cfg.learning_rate},
+                lrf={cfg.learning_rate},
+                rect={cfg.letter_box},
+                device="{cfg.device}",
+                workers={cfg.workers},
+                seed={cfg.seed},
+                verbose={cfg.verbose},
+                project="{self.hub_dir}",
+                name="{self.ARTIFACT_DIR}",
+                **{cfg.advance_params}
+            )
+        except Exception as e:
+            print(e)
+            raise e
+        """
 
         script_file = str((self.hub_dir / "train.py").absolute())
         with open(script_file, "w") as f:

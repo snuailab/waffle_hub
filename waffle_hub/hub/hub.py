@@ -14,7 +14,7 @@ import threading
 import time
 import warnings
 from functools import cached_property
-from pathlib import Path
+from pathlib import Path, PurePath
 from typing import Union
 
 import cpuinfo
@@ -601,6 +601,25 @@ class Hub:
         """
         return ModelConfig.load(self.model_config_file)
 
+    def get_default_advance_train_params(
+        self, task: str = None, model_type: str = None, model_size: str = None
+    ) -> dict:
+        """
+        Get default train advance params
+
+        Args:
+            task (str): Task name
+            model_type (str): Model type
+            model_size (str): Model size
+
+        Raises:
+            ModuleNotFoundError: If backend is not supported
+
+        Returns:
+            dict: Default train advance params
+        """
+        raise NotImplementedError(f"{self.backend} does not support advance_params argument.")
+
     # get results
     def get_metrics(self) -> list[list[dict]]:
         """Get metrics per epoch from metric file.
@@ -778,6 +797,7 @@ class Hub:
         device: str = "0",
         workers: int = 2,
         seed: int = 0,
+        advance_params: Union[dict, str] = None,
         verbose: bool = True,
         hold: bool = True,
     ) -> TrainResult:
@@ -796,6 +816,7 @@ class Hub:
                 "cpu" or "gpu_id" or comma seperated "gpu_ids". Defaults to "0".
             workers (int, optional): number of workers. Defaults to 2.
             seed (int, optional): random seed. Defaults to 0.
+            advance_params (Union[dict, str], optional): advance params dictionary or file (yaml, json) path. Defaults to None.
             verbose (bool, optional): verbose. Defaults to True.
             hold (bool, optional): hold process. Defaults to True.
 
@@ -852,6 +873,7 @@ class Hub:
                 callback.set_failed()
                 raise e
 
+        # parse dataset
         if isinstance(dataset, (str, Path)):
             if Path(dataset).exists():
                 dataset = Path(dataset)
@@ -870,9 +892,11 @@ class Hub:
 
         export_dir = dataset.export_dir / EXPORT_MAP[self.backend.upper()]
         if not export_dir.exists():
+            logger.info(f"[Dataset] Exporting dataset to {self.backend} format...")
             export_dir = dataset.export(self.backend)
-            logger.info(f"Dataset exported to {export_dir}")
+            logger.info("[Dataset] Exporting done.")
 
+        # parse train config
         cfg = TrainConfig(
             dataset_path=export_dir,
             epochs=epochs,
@@ -884,10 +908,11 @@ class Hub:
             device=device,
             workers=workers,
             seed=seed,
+            advance_params=advance_params if advance_params else {},
             verbose=verbose,
         )
 
-        # overwrite train config with default config
+        ## overwrite train config with default config
         for k, v in cfg.to_dict().items():
             if v is None:
                 field_value = getattr(
@@ -895,10 +920,39 @@ class Hub:
                 )
                 setattr(cfg, k, field_value)
 
+        ## overwrite train advance config
+        if cfg.advance_params:
+            if isinstance(cfg.advance_params, (str, PurePath)):
+                # check if it is yaml or json
+                if Path(cfg.advance_params).exists():
+                    if Path(cfg.advance_params).suffix in [".yaml", ".yml"]:
+                        cfg.advance_params = io.load_yaml(cfg.advance_params)
+                    elif Path(cfg.advance_params).suffix in [".json"]:
+                        cfg.advance_params = io.load_json(cfg.advance_params)
+                    else:
+                        raise ValueError(
+                            f"Advance parameter file should be yaml or json. {cfg.advance_params}"
+                        )
+                else:
+                    raise FileNotFoundError(f"Advance parameter file is not exist.")
+            elif not isinstance(cfg.advance_params, dict):
+                raise ValueError(
+                    f"Advance parameter should be dictionary or file path. {cfg.advance_params}"
+                )
+
+            default_advance_param = self.get_default_advance_train_params()
+            for key in cfg.advance_params.keys():
+                if key not in default_advance_param:
+                    raise ValueError(
+                        f"Advance parameter {key} is not supported.\n"
+                        + f"Supported parameters: {list(default_advance_param.keys())}"
+                    )
+
         callback = TrainCallback(cfg.epochs + 1, self.get_metrics)
         result = TrainResult()
         result.callback = callback
 
+        # TODO: hold arguemnt will be deprecated
         if hold:
             inner(callback, result)
         else:
