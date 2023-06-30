@@ -23,15 +23,15 @@ mkdir autolabel_tmp
 === "Download Small Model"
 
     ```bash
-    wget https://huggingface.co/ShilongLiu/GroundingDINO/resolve/main/groundingdino_swint_ogc.pth -O autolabel_tmp/groundingdino_swint_ogc.pth
-    wget https://raw.githubusercontent.com/IDEA-Research/GroundingDINO/main/groundingdino/config/GroundingDINO_SwinT_OGC.py -O autolabel_tmp/GroundingDINO_SwinT_OGC.py
+    wget https://huggingface.co/ShilongLiu/GroundingDINO/blob/main/GroundingDINO_SwinT_OGC.cfg.py -O autolabel_tmp/groundingdino_swint_ogc.pth
+    wget https://huggingface.co/ShilongLiu/GroundingDINO/blob/main/GroundingDINO_SwinT_OGC.cfg.py -O autolabel_tmp/GroundingDINO_SwinT_OGC.py
     ```
 
 === "Download Large Model"
 
     ```bash
-    wget https://huggingface.co/ShilongLiu/GroundingDINO/resolve/main/groundingdino_swinb_cogcoor.pth -O autolabel_tmp/groundingdino_swinb_cogcoor.pth
-    wget https://raw.githubusercontent.com/IDEA-Research/GroundingDINO/main/groundingdino/config/GroundingDINO_SwinB.cfg.py -O autolabel_tmp/GroundingDINO_SwinB.cfg.py
+    wget https://huggingface.co/ShilongLiu/GroundingDINO/blob/main/groundingdino_swinb_cogcoor.pth -O autolabel_tmp/groundingdino_swinb_cogcoor.pth
+    wget https://huggingface.co/ShilongLiu/GroundingDINO/blob/main/GroundingDINO_SwinB.cfg.py -O autolabel_tmp/GroundingDINO_SwinB.cfg.py
     ```
 
 ### Sample
