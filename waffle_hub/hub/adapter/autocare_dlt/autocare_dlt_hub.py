@@ -214,7 +214,7 @@ class AutocareDLTHub(Hub):
         io.save_json(data_config, cfg.data_config, create_directory=True)
 
         if self.task == TaskType.CLASSIFICATION:
-            super_cat = [[c["supercategory"], c["name"]] for c in self.categories]
+            super_cat = [[c.supercategory, c.name] for c in self.categories]
             super_cat_dict = {}
             for super_cat, cat in super_cat:
                 if super_cat not in super_cat_dict:
@@ -226,7 +226,7 @@ class AutocareDLTHub(Hub):
                 categories.append({super_cat: cat})
 
         else:
-            categories = self.categories
+            categories = self.get_category_names()
 
         model_config = get_model_config(
             self.model_type,

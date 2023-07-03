@@ -51,3 +51,6 @@ class BaseField(ABC):
         """
         d: dict = io.load_json(f)
         return cls.from_dict(d, task)
+
+    def __getitem__(self, key):
+        return getattr(self, key)

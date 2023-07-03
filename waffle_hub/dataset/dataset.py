@@ -68,7 +68,8 @@ class Dataset:
 
         if not self.initialized():
             self.initialize()
-        self.set_categories(categories)
+            self.set_categories(categories)
+            self.save_dataset_info()
 
     def __repr__(self):
         return self.get_dataset_info().__repr__()
@@ -99,7 +100,7 @@ class Dataset:
         return self.get_categories()
 
     def set_categories(self, v):
-        if v is None:
+        if v is None or len(v) == 0:
             v = []
         elif isinstance(v[0], dict):
             v = [
@@ -206,7 +207,7 @@ class Dataset:
         return self.set_dir / Dataset.UNLABELED_SET_FILE_NAME
 
     def get_category_names(self) -> list[str]:
-        return [c.name for c in sorted(self.get_categories(), key=lambda c: c.category_id)]
+        return [category.name for category in self.categories]
 
     def get_image_to_annotations(self) -> dict[int, list[Annotation]]:
         image_to_annotations = defaultdict(list)
@@ -333,6 +334,7 @@ class Dataset:
 
         ds = Dataset.new(name=name, task=src_ds.task, root_dir=root_dir)
         io.copy_files_to_directory(src_ds.dataset_dir, ds.dataset_dir, create_directory=True)
+        ds.save_dataset_info()
 
         return ds
 
@@ -1294,14 +1296,6 @@ class Dataset:
         io.make_directory(self.image_dir)
         io.make_directory(self.annotation_dir)
         io.make_directory(self.category_dir)
-
-        # create dataset_info.yaml
-        io.save_yaml(
-            DatasetInfo(
-                name=self.name, task=self.task, categories=self.categories, created=self.created
-            ).to_dict(),
-            self.dataset_info_file,
-        )
 
     def initialized(self) -> bool:
         """Check if Dataset has been initialized or not.
