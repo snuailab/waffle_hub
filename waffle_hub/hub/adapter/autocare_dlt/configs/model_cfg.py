@@ -96,8 +96,8 @@ def get_model_config(
             "use_model_ema": True,
             "max_epoch": epochs,
             "seed": seed,
-            "classes": get_multi_task_categories(categories),
-            "num_classes": len(categories),
+            "classes": categories,
+            "num_classes": sum([len(list(category.values())[0]) for category in categories]),
         }
 
     elif model_type == "TextRecognition":
@@ -154,18 +154,3 @@ def get_model_config(
         }
     else:
         raise NotImplementedError(f"Model type {model_type} not implemented.")
-
-
-def get_multi_task_categories(categories: list[dict]):
-    multi_task_categories = []
-    cat_dict = {}
-    for category in categories:
-        sup = category["supercategory"]
-        name = category["name"]
-        if sup not in cat_dict:
-            cat_dict[sup] = [name]
-        else:
-            cat_dict[sup].append(name)
-    for k, v in cat_dict.items():
-        multi_task_categories.append({k: v})
-    return multi_task_categories

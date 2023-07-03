@@ -56,6 +56,7 @@ class Dataset:
         self,
         name: str,
         task: Union[str, TaskType],
+        categories: list[Union[str, int, float, dict, Category]] = None,
         created: str = None,
         root_dir: str = None,
     ):
@@ -64,6 +65,13 @@ class Dataset:
         self.created = created
 
         self.root_dir = root_dir
+
+        if not self.initialized():
+            self.initialize()
+            self.set_categories(categories)
+            self.save_dataset_info()
+        else:  # for backward compatibility
+            self.save_dataset_info()
 
     def __repr__(self):
         return self.get_dataset_info().__repr__()
@@ -88,6 +96,37 @@ class Dataset:
         if v not in TaskType:
             raise ValueError(f"Invalid task type: {v}" f"Available task types: {list(TaskType)}")
         self.__task = v
+
+    @property
+    def categories(self) -> list[Category]:
+        return self.get_categories()
+
+    def set_categories(self, v):
+        if v is None or len(v) == 0:
+            v = []
+        elif isinstance(v[0], dict):
+            v = [
+                getattr(Category, self.task.lower())(
+                    **{
+                        **category,
+                        "category_id": category.get("category_id", i),
+                    }
+                )
+                for i, category in enumerate(v, start=1)
+            ]
+        elif isinstance(v[0], (str, int, float)):
+            v = [
+                getattr(Category, self.task.lower())(
+                    category_id=i,
+                    supercategory="object",
+                    name=str(category),
+                )
+                for i, category in enumerate(v, start=1)
+            ]
+        elif isinstance(v[0], Category):
+            pass
+
+        self.add_categories(v)
 
     @property
     def created(self):
@@ -170,7 +209,7 @@ class Dataset:
         return self.set_dir / Dataset.UNLABELED_SET_FILE_NAME
 
     def get_category_names(self) -> list[str]:
-        return [c.name for c in sorted(self.get_categories(), key=lambda c: c.category_id)]
+        return [category.name for category in self.categories]
 
     def get_image_to_annotations(self) -> dict[int, list[Annotation]]:
         image_to_annotations = defaultdict(list)
@@ -226,7 +265,13 @@ class Dataset:
 
     # factories
     @classmethod
-    def new(cls, name: str, task: str, root_dir: str = None) -> "Dataset":
+    def new(
+        cls,
+        name: str,
+        task: str,
+        categories: list[Union[str, int, float, dict, Category]] = None,
+        root_dir: str = None,
+    ) -> "Dataset":
         """
         Create New Dataset.
         This method creates a new dataset directory and initialize dataset info file.
@@ -235,6 +280,7 @@ class Dataset:
         Args:
             name (str): Dataset name
             task (str): Dataset task
+            categories (list[Union[str, int, float, dict, Category]]): Dataset categories
             root_dir (str, optional): Dataset root directory. Defaults to None.
 
         Raises:
@@ -250,13 +296,13 @@ class Dataset:
         Returns:
             Dataset: Dataset Class
         """
-        ds = cls(name=name, task=task, root_dir=root_dir)
-        if ds.initialized():
-            raise FileExistsError(
-                f'{ds.dataset_dir} already exists. try another name or Dataset.load("{name}")'
-            )
-        ds.initialize()
-        return ds
+        root_dir = Dataset.parse_root_dir(root_dir)
+        try:
+            return cls(name=name, task=task, categories=categories, root_dir=root_dir)
+        except Exception as e:
+            if (root_dir / name).exists():
+                io.remove_directory(root_dir / name)
+            raise e
 
     @classmethod
     def clone(
@@ -292,15 +338,20 @@ class Dataset:
         Returns:
             Dataset: Dataset Class
         """
-        src_ds = Dataset.load(src_name, src_root_dir)
-        if not src_ds.initialized():
-            raise FileNotFoundError(f"{src_ds.dataset_dir} has not been created by Waffle.")
+        root_dir = Dataset.parse_root_dir(root_dir)
 
-        ds = Dataset.new(name, src_ds.task, root_dir)
-        io.copy_files_to_directory(src_ds.dataset_dir, ds.dataset_dir, create_directory=True)
-        ds.initialize()
+        try:
+            src_ds = Dataset.load(src_name, src_root_dir)
 
-        return ds
+            ds = Dataset.new(name=name, task=src_ds.task, root_dir=root_dir)
+            io.copy_files_to_directory(src_ds.dataset_dir, ds.dataset_dir, create_directory=True)
+            ds.save_dataset_info()
+
+            return ds
+        except Exception as e:
+            if (root_dir / name).exists():
+                io.remove_directory(root_dir / name)
+            raise e
 
     @classmethod
     def dummy(
@@ -333,7 +384,7 @@ class Dataset:
             >>> len(ds.get_categories())
             10
         """
-        ds = Dataset.new(name, task, root_dir)
+        ds = Dataset.new(name=name, task=task, root_dir=root_dir)
 
         try:
             for category_id in range(1, category_num + 1):
@@ -618,8 +669,7 @@ class Dataset:
         Returns:
             Dataset: Dataset Class
         """
-        ds = Dataset.new(name, task, root_dir)
-        ds.initialize()
+        ds = Dataset.new(name=name, task=task, root_dir=root_dir)
 
         if isinstance(coco_file, list) and isinstance(coco_root_dir, list):
             if len(coco_file) != len(coco_root_dir):
@@ -767,8 +817,7 @@ class Dataset:
         Returns:
             Dataset: Dataset Class.
         """
-        ds = Dataset.new(name, task, root_dir)
-        ds.initialize()
+        ds = Dataset.new(name=name, task=task, root_dir=root_dir)
 
         if isinstance(coco_file, list) and isinstance(coco_root_dir, list):
             if len(coco_file) != len(coco_root_dir):
@@ -912,8 +961,7 @@ class Dataset:
             Dataset: Imported dataset.
         """
 
-        ds = Dataset.new(name, task, root_dir)
-        ds.initialize()
+        ds = Dataset(name=name, task=task, root_dir=root_dir)
 
         def _import_classification(set_dir: Path, image_ids: list[int]):
             # categories
@@ -1083,8 +1131,7 @@ class Dataset:
         Returns:
             Dataset: Dataset Class
         """
-        ds = Dataset.new(name, task, root_dir)
-        ds.initialize()
+        ds = Dataset.new(name=name, task=task, root_dir=root_dir)
 
         dataset = load_from_disk(dataset_dir)
 
@@ -1256,16 +1303,14 @@ class Dataset:
         """Initialize Dataset.
         It creates necessary directories under {dataset_root_dir}/{dataset_name}.
         """
+
+        if self.initialized():
+            raise FileExistsError(f"{self.name} is already initialized.")
+
         io.make_directory(self.raw_image_dir)
         io.make_directory(self.image_dir)
         io.make_directory(self.annotation_dir)
         io.make_directory(self.category_dir)
-
-        # create dataset_info.yaml
-        io.save_yaml(
-            DatasetInfo(name=self.name, task=self.task, created=self.created).to_dict(),
-            self.dataset_info_file,
-        )
 
     def initialized(self) -> bool:
         """Check if Dataset has been initialized or not.
@@ -1276,6 +1321,15 @@ class Dataset:
                 not initialized -> False
         """
         return self.dataset_info_file.exists()
+
+    def save_dataset_info(self):
+        """Save DatasetInfo."""
+        DatasetInfo(
+            name=self.name,
+            task=self.task,
+            categories=list(map(lambda x: x.to_dict(), self.categories)),
+            created=self.created,
+        ).save_yaml(self.dataset_info_file)
 
     def trainable(self) -> bool:
         """Check if Dataset is trainable or not.
@@ -1317,7 +1371,11 @@ class Dataset:
         Returns:
             DatasetInfo: DatasetInfo
         """
-        return DatasetInfo.load(self.dataset_info_file)
+        dataset_info = DatasetInfo.load(self.dataset_info_file)
+        if not hasattr(dataset_info, "categories"):
+            dataset_info.categories = self.get_categories()
+            self.save_dataset_info()
+        return dataset_info
 
     # get
     def get_images(self, image_ids: list[int] = None, labeled: bool = True) -> list[Image]:
@@ -1435,6 +1493,8 @@ class Dataset:
             item_id = item.category_id
             item_path = self.category_dir / f"{item_id}.json"
             io.save_json(item.to_dict(), item_path)
+
+        self.save_dataset_info()
 
     def add_annotations(self, annotations: list[Annotation]):
         """Add "Annotation"s to dataset.
