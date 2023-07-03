@@ -225,7 +225,8 @@ class Hub:
             raise ValueError(f"{task} is not supported with {backend}")
         if model_type not in hub.MODEL_TYPES[task]:
             raise ValueError(f"{model_type} is not supported with {backend}")
-        return hub.MODEL_TYPES[task][model_type]
+        model_sizes = hub.MODEL_TYPES[task][model_type]
+        return model_sizes if isinstance(model_sizes, list) else list(model_sizes.keys())
 
     @classmethod
     def get_default_train_params(
