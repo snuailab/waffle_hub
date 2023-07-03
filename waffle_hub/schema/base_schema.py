@@ -44,3 +44,6 @@ class BaseSchema:
         elif load_path.suffix == ".yaml":
             config = io.load_yaml(load_path)
         return cls(**config)
+
+    def __getitem__(self, key):
+        return getattr(self, key)

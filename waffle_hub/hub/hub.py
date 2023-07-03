@@ -36,6 +36,7 @@ from waffle_hub.schema.configs import (
     TrainConfig,
 )
 from waffle_hub.schema.data import ImageInfo
+from waffle_hub.schema.fields import Category
 from waffle_hub.schema.result import (
     EvaluateResult,
     ExportResult,
@@ -99,7 +100,7 @@ class Hub:
         task: Union[str, TaskType] = None,
         model_type: str = None,
         model_size: str = None,
-        categories: Union[list[dict], list] = None,
+        categories: list[Union[str, int, float, dict, Category]] = None,
         root_dir: str = None,
     ):
         if self.BACKEND_NAME is None:
@@ -118,31 +119,13 @@ class Hub:
         self.task: str = task
         self.model_type: str = model_type
         self.model_size: str = model_size
-        self.categories: list[dict] = categories
+        self.categories: list[Category] = categories
         self.root_dir: Path = root_dir
 
         self.backend: str = backend
         self.version: str = version
 
-        # check task supports
-        if self.task not in self.MODEL_TYPES:
-            io.remove_directory()
-            raise ValueError(f"{self.task} is not supported with {self.backend}")
-
-        try:
-            # save model config
-            model_config = ModelConfig(
-                name=self.name,
-                backend=self.backend,
-                version=self.version,
-                task=self.task,
-                model_type=self.model_type,
-                model_size=self.model_size,
-                categories=self.categories,
-            )
-            model_config.save_yaml(self.model_config_file)
-        except Exception as e:
-            raise e
+        self.save_model_config()
 
     def __repr__(self):
         return self.get_model_config().__repr__()
@@ -300,24 +283,34 @@ class Hub:
         Returns:
             Hub: Hub instance
         """
-        if name in cls.get_hub_list(root_dir):
-            raise ValueError(f"{name} already exists. Try another name.")
+        root_dir = Hub.parse_root_dir(root_dir)
+        try:
+            if name in cls.get_hub_list(root_dir):
+                raise ValueError(f"{name} already exists. Try another name.")
 
-        backend = backend if backend else cls.get_available_backends()[0]
-        task = str(task).upper() if task else cls.get_available_tasks(backend)[0]
-        model_type = model_type if model_type else cls.get_available_model_types(backend, task)[0]
-        model_size = (
-            model_size if model_size else cls.get_available_model_sizes(backend, task, model_type)[0]
-        )
+            backend = backend if backend else cls.get_available_backends()[0]
+            task = str(task).upper() if task else cls.get_available_tasks(backend)[0]
+            model_type = (
+                model_type if model_type else cls.get_available_model_types(backend, task)[0]
+            )
+            model_size = (
+                model_size
+                if model_size
+                else cls.get_available_model_sizes(backend, task, model_type)[0]
+            )
 
-        return cls.get_hub_class(backend)(
-            name=name,
-            task=task,
-            model_type=model_type,
-            model_size=model_size,
-            categories=categories,
-            root_dir=root_dir,
-        )
+            return cls.get_hub_class(backend)(
+                name=name,
+                task=task,
+                model_type=model_type,
+                model_size=model_size,
+                categories=categories,
+                root_dir=root_dir,
+            )
+        except Exception as e:
+            if (root_dir / name).exists():
+                io.remove_directory(root_dir / name)
+            raise e
 
     @classmethod
     def load(cls, name: str, root_dir: str = None) -> "Hub":
@@ -357,17 +350,23 @@ class Hub:
         Returns:
             Hub: New Hub instance
         """
-        if name in cls.get_hub_list(root_dir):
-            raise ValueError(f"{name} already exists. Try another name.")
+        root_dir = Hub.parse_root_dir(root_dir)
+        try:
+            if name in cls.get_hub_list(root_dir):
+                raise ValueError(f"{name} already exists. Try another name.")
 
-        model_config = io.load_yaml(model_config_file)
-        return cls.new(
-            **{
-                **model_config,
-                "name": name,
-                "root_dir": root_dir,
-            }
-        )
+            model_config = io.load_yaml(model_config_file)
+            return cls.new(
+                **{
+                    **model_config,
+                    "name": name,
+                    "root_dir": root_dir,
+                }
+            )
+        except Exception as e:
+            if (root_dir / name).exists():
+                io.remove_directory(root_dir / name)
+            raise e
 
     @classmethod
     def get_hub_list(cls, root_dir: str = None) -> list[str]:
@@ -485,16 +484,44 @@ class Hub:
         self.__version = v
 
     @property
-    def categories(self) -> list[dict]:
+    def categories(self) -> list[Category]:
         return self.__categories
 
     @categories.setter
     @type_validator(list)
     def categories(self, v):
-        if v is None:
-            raise ValueError("Categories must be specified.")
-        if not isinstance(v[0], dict):
-            v = [{"supercategory": "object", "name": str(n)} for n in v]
+        if v is None or len(v) == 0:
+            warnings.warn(
+                "Categories is not specified.\n"
+                + "It follows the categories of Dataset when the training starts."
+            )
+            v = []
+        elif isinstance(v[0], dict):
+            v = [
+                getattr(Category, self.task.lower())(
+                    **{
+                        **category,
+                        "category_id": category.get("category_id", i),
+                    }
+                )
+                for i, category in enumerate(v, start=1)
+            ]
+        elif isinstance(v[0], (str, int, float)):
+            v = [
+                getattr(Category, self.task.lower())(
+                    category_id=i,
+                    supercategory="object",
+                    name=str(category),
+                )
+                for i, category in enumerate(v, start=1)
+            ]
+            warnings.warn(
+                "Super category is not specified. It may cause unexpected errors in some backends.\n"
+                + "To avoid this warning, please specify category as a list of dictionary or Category"
+            )
+        elif isinstance(v[0], Category):
+            pass
+
         self.__categories = v
 
     @cached_property
@@ -601,6 +628,18 @@ class Hub:
         """
         return ModelConfig.load(self.model_config_file)
 
+    def save_model_config(self):
+        """Save ModelConfig."""
+        ModelConfig(
+            name=self.name,
+            backend=self.backend,
+            version=self.version,
+            task=self.task,
+            model_type=self.model_type,
+            model_size=self.model_size,
+            categories=list(map(lambda x: x.to_dict(), self.categories)),
+        ).save_yaml(self.model_config_file)
+
     def get_default_advance_train_params(
         self, task: str = None, model_type: str = None, model_size: str = None
     ) -> dict:
@@ -619,6 +658,12 @@ class Hub:
             dict: Default train advance params
         """
         raise NotImplementedError(f"{self.backend} does not support advance_params argument.")
+
+    def get_categories(self) -> list[Category]:
+        return self.categories
+
+    def get_category_names(self) -> list[str]:
+        return [category.name for category in self.categories]
 
     # get results
     def get_metrics(self) -> list[list[dict]]:
@@ -885,11 +930,23 @@ class Hub:
             else:
                 raise FileNotFoundError(f"Dataset {dataset} is not exist.")
 
+        ## check task match
         if dataset.task.upper() != self.task.upper():
             raise ValueError(
                 f"Dataset task is not matched with hub task. Dataset task: {dataset.task}, Hub task: {self.task}"
             )
 
+        ## check category match
+        if not self.categories:
+            self.categories = dataset.get_categories()
+            self.save_model_config()
+        elif set(dataset.get_category_names()) != set(self.get_category_names()):
+            raise ValueError(
+                "Dataset categories are not matched with hub categories. \n"
+                + f"Dataset categories: {dataset.get_category_names()}, Hub categories: {self.get_category_names()}"
+            )
+
+        ## convert dataset to backend format if not exist
         export_dir = dataset.export_dir / EXPORT_MAP[self.backend.upper()]
         if not export_dir.exists():
             logger.info(f"[Dataset] Exporting dataset to {self.backend} format...")

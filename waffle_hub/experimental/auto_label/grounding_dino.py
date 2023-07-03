@@ -4,26 +4,30 @@ from pathlib import Path
 import cv2
 import torch
 import torchvision.transforms as T
-
 import tqdm
-
 from groundingdino.models import build_model
 from groundingdino.util.slconfig import SLConfig
 from groundingdino.util.utils import clean_state_dict, get_phrases_from_posmap
-
-from waffle_utils.dataset import Dataset
 from waffle_utils.file import io
 from waffle_utils.log import initialize_logger
 
+from waffle_hub.dataset import Dataset
+
 initialize_logger("logs/auto_label.log")
 
-from waffle_hub.utils.data import ImageDataset
-from waffle_hub.utils.draw import draw_results
 from waffle_hub.schema.data import ImageInfo
 from waffle_hub.schema.fields import Annotation
+from waffle_hub.utils.data import ImageDataset
+from waffle_hub.utils.draw import draw_results
 
 
-def parse_results(bboxes: torch.Tensor, confs: list[float], labels: list[str], image_info: ImageInfo, class2id: dict):
+def parse_results(
+    bboxes: torch.Tensor,
+    confs: list[float],
+    labels: list[str],
+    image_info: ImageInfo,
+    class2id: dict,
+):
 
     W, H = image_info.input_shape
     left_pad, top_pad = image_info.pad
@@ -39,9 +43,7 @@ def parse_results(bboxes: torch.Tensor, confs: list[float], labels: list[str], i
     bboxes = torch.stack([x1, y1, x2, y2], dim=-1)
 
     parsed = []
-    for (x1, y1, x2, y2), conf, label in zip(
-        bboxes, confs, labels
-    ):
+    for (x1, y1, x2, y2), conf, label in zip(bboxes, confs, labels):
 
         x1 = max(float((x1 * W - left_pad) / new_w * ori_w), 0)
         y1 = max(float((y1 * H - top_pad) / new_h * ori_h), 0)
@@ -69,7 +71,10 @@ def load_model(model_config_path, model_checkpoint_path, device):
     _ = model.eval()
     return model
 
-def get_grounding_output(model, image, caption, box_threshold, text_threshold, device, with_logits=True):
+
+def get_grounding_output(
+    model, image, caption, box_threshold, text_threshold, device, with_logits=True
+):
     caption = caption.lower()
     caption = caption.strip()
     if not caption.endswith("."):
@@ -109,16 +114,26 @@ def get_grounding_output(model, image, caption, box_threshold, text_threshold, d
 if __name__ == "__main__":
 
     parser = argparse.ArgumentParser("Grounding DINO example", add_help=True)
-    parser.add_argument("--config_file", "-c", type=str, default="autolabel_tmp/GroundingDINO_SwinT_OGC.py", help="path to config file")
     parser.add_argument(
-        "--checkpoint_path", "-p", type=str, default="autolabel_tmp/groundingdino_swint_ogc.pth", help="path to checkpoint file"
+        "--config_file",
+        "-c",
+        type=str,
+        default="autolabel_tmp/GroundingDINO_SwinT_OGC.py",
+        help="path to config file",
     )
-    parser.add_argument("--source", "-s", type=str, required=True, help="path to image file or directory")
+    parser.add_argument(
+        "--checkpoint_path",
+        "-p",
+        type=str,
+        default="autolabel_tmp/groundingdino_swint_ogc.pth",
+        help="path to checkpoint file",
+    )
+    parser.add_argument(
+        "--source", "-s", type=str, required=True, help="path to image file or directory"
+    )
     parser.add_argument("--image_size", "-i", type=int, default=640, help="image size")
     parser.add_argument("--text_prompt", "-t", type=str, required=True, help="text prompt")
-    parser.add_argument(
-        "--output_dir", "-o", type=str, default="outputs", help="output directory"
-    )
+    parser.add_argument("--output_dir", "-o", type=str, default="outputs", help="output directory")
 
     parser.add_argument("--box_threshold", type=float, default=0.3, help="box threshold")
     parser.add_argument("--text_threshold", type=float, default=0.25, help="text threshold")
@@ -127,9 +142,7 @@ if __name__ == "__main__":
 
     parser.add_argument("--waffle_dataset_name", default=None, type=str, help="waffle dataset name")
 
-    parser.add_argument(
-        "--device", default="0", type=str, help="cuda device id or cpu"
-    )
+    parser.add_argument("--device", default="0", type=str, help="cuda device id or cpu")
     args = parser.parse_args()
 
     # cfg
@@ -156,12 +169,16 @@ if __name__ == "__main__":
     model = load_model(config_file, checkpoint_path, device)
 
     # get dataloader
-    dl = ImageDataset(image_dir=source_dir, image_size=args.image_size, letter_box=True).get_dataloader(1, 1)
+    dl = ImageDataset(
+        image_dir=source_dir, image_size=args.image_size, letter_box=True
+    ).get_dataloader(1, 1)
     preprocess = T.Normalize([0.485, 0.456, 0.406], [0.229, 0.224, 0.225])
 
     # coco format
     coco = {
-        "categories": [{"id": i+1, "name": c, "supercategory": "object"} for i, c in id2class.items()],
+        "categories": [
+            {"id": i + 1, "name": c, "supercategory": "object"} for i, c in id2class.items()
+        ],
         "images": [],
         "annotations": [],
     }
@@ -171,7 +188,7 @@ if __name__ == "__main__":
     for images, image_infos in tqdm.tqdm(dl, total=len(dl)):
 
         images = preprocess(images)
-        
+
         # run model
         boxes, confs, labels = get_grounding_output(
             model, images, text_prompt, box_threshold, text_threshold, device
@@ -181,7 +198,7 @@ if __name__ == "__main__":
             results = parse_results(boxes, confs, labels, image_info, class2id)
         else:
             results = []
-        
+
         # save result as coco format
         file_name = Path(image_info.image_path).relative_to(source_dir)
         coco["images"].append(
@@ -197,7 +214,7 @@ if __name__ == "__main__":
                 {
                     "id": annotation_id,
                     "image_id": image_id,
-                    "category_id": result.category_id+1,
+                    "category_id": result.category_id + 1,
                     "bbox": result.bbox,
                     "score": result.score,
                 }
