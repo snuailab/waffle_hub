@@ -2,10 +2,11 @@ import warnings
 from pathlib import Path
 from typing import Union
 
-from waffle_utils.file import io
+import cv2
+from waffle_utils.file import io, search
 
 from waffle_hub import TaskType
-from waffle_hub.schema.fields.image import Image
+from waffle_hub.schema.fields import Annotation, Category, Image
 from waffle_hub.utils.conversion import merge_multi_segment
 
 
@@ -223,3 +224,153 @@ def export_yolo(self, export_dir: Union[str, Path]) -> str:
     )
 
     return str(export_dir)
+
+
+def _import_yolo_classification(self, set_dir: Path, image_ids: list[int], info: dict):
+    # categories
+    if not self.get_category_names():
+        for category_id, category_name in info["names"].items():
+            self.add_categories(
+                [
+                    Category.classification(
+                        category_id=category_id + 1,
+                        name=category_name,
+                    )
+                ]
+            )
+    name2id = {v: k for k, v in info["names"].items()}
+
+    for image_id, image_path in zip(image_ids, search.get_image_files(set_dir)):
+        category_name_index = image_path.parts.index(set_dir.stem) + 1
+        category_name = image_path.parts[category_name_index]
+        category_id = name2id[category_name] + 1
+
+        # image
+        img = cv2.imread(str(image_path))
+        height, width, _ = img.shape
+        image = Image.new(
+            image_id=image_id,
+            file_name=f"{image_id}{image_path.suffix}",
+            width=width,
+            height=height,
+        )
+        self.add_images([image])
+
+        # annotation
+        annotation = Annotation.classification(
+            annotation_id=image_id,
+            image_id=image_id,
+            category_id=category_id,
+        )
+        self.add_annotations([annotation])
+
+        # raw
+        dst = self.raw_image_dir / f"{image_id}{image_path.suffix}"
+        io.copy_file(image_path, dst)
+
+
+def _import_yolo_object_detection(self, set_dir: Path, image_ids: list[int], info: dict):
+    image_dir = set_dir / "images"
+    label_dir = set_dir / "labels"
+
+    if not image_dir.exists():
+        warnings.warn(f"{image_dir} does not exist.")
+        return
+    if not label_dir.exists():
+        warnings.warn(f"{label_dir} does not exist.")
+        return
+
+    # categories
+    if not self.get_category_names():
+        for category_id, category_name in info["names"].items():
+            self.add_categories(
+                [
+                    Category.object_detection(
+                        category_id=category_id + 1,
+                        name=category_name,
+                    )
+                ]
+            )
+
+    for image_id, image_path, label_path in zip(
+        image_ids,
+        search.get_image_files(image_dir),
+        search.get_files(label_dir, "txt"),
+    ):
+        # image
+        img = cv2.imread(str(image_path))
+        height, width, _ = img.shape
+        image = Image.new(
+            image_id=image_id,
+            file_name=f"{image_id}{image_path.suffix}",
+            width=width,
+            height=height,
+        )
+        self.add_images([image])
+
+        # annotation
+        with open(label_path) as f:  # TODO: use load_txt of waffle_utils after implementing
+            txt = f.readlines()
+
+        current_annotation_id = len(self.get_annotations())
+        for i, t in enumerate(txt, start=1):
+            category_id, x, y, w, h = list(map(float, t.split()))
+            category_id = int(category_id) + 1
+            x *= width
+            y *= height
+            w *= width
+            h *= height
+
+            x -= w / 2
+            y -= h / 2
+
+            x, y, w, h = int(x), int(y), int(w), int(h)
+            annotation = Annotation.object_detection(
+                annotation_id=current_annotation_id + i,
+                image_id=image_id,
+                category_id=category_id,
+                bbox=[x, y, w, h],
+                area=w * h,
+            )
+            self.add_annotations([annotation])
+
+        # raw
+        dst = self.raw_image_dir / f"{image_id}{image_path.suffix}"
+        io.copy_file(image_path, dst)
+
+
+def import_yolo(self, yaml_path: str):
+    """
+    Import YOLO dataset.
+
+    Args:
+        yaml_path (str): Path to the yaml file.
+    """
+    if self.task == TaskType.OBJECT_DETECTION:
+        _import = _import_yolo_object_detection
+    elif self.task == TaskType.CLASSIFICATION:
+        _import = _import_yolo_classification
+    else:
+        raise ValueError(f"Unsupported task: {self.task}")
+
+    info = io.load_yaml(yaml_path)
+    yolo_root_dir = Path(info["path"])
+
+    current_image_id = 1
+    for set_type in ["train", "val", "test"]:
+        if set_type not in info.keys():
+            continue
+
+        # sets
+        set_dir = Path(yolo_root_dir) / set_type
+        image_num = len(search.get_image_files(set_dir))
+        image_ids = list(range(current_image_id, image_num + current_image_id))
+
+        io.save_json(image_ids, self.set_dir / f"{set_type}.json", True)
+        current_image_id += image_num
+
+        # import other field
+        _import(self, set_dir, image_ids, info)
+
+    # TODO: add unlabeled set
+    io.save_json([], self.unlabeled_set_file, create_directory=True)
