@@ -372,6 +372,90 @@ def _import_yolo_object_detection(self, yolo_root_dir: Path, yaml_path: str):
         io.save_json(image_ids, self.set_dir / f"{set_type}.json", True)
 
 
+def _import_yolo_instance_segmentation(self, yolo_root_dir: Path, yaml_path: str):
+    # categories
+    info = io.load_yaml(yaml_path)
+    names = info["names"]
+    if isinstance(names, list):
+        names = {category_id: category_name for category_id, category_name in enumerate(names)}
+    for category_id, category_name in names.items():
+        self.add_categories(
+            [
+                Category.object_detection(
+                    category_id=category_id + 1,
+                    name=category_name,
+                )
+            ]
+        )
+
+    image_paths = set()
+    for set_type in ["train", "val", "test"]:
+        set_dir = yolo_root_dir / set_type / "images"
+        image_paths |= {
+            _remove_root_dir(set_dir, image_path) for image_path in search.get_image_files(set_dir)
+        }
+    image_path2id = {image_path: i for i, image_path in enumerate(image_paths, start=1)}
+
+    for set_type in ["train", "val", "test"]:
+        set_dir = yolo_root_dir / set_type
+        image_dir = set_dir / "images"
+        label_dir = set_dir / "labels"
+
+        if not image_dir.exists():
+            raise FileNotFoundError(f"{image_dir} does not exist.")
+        if not label_dir.exists():
+            raise FileNotFoundError(f"{label_dir} does not exist.")
+
+        image_ids = []
+        for image_path in search.get_image_files(image_dir):
+            # image
+            file_name = _remove_root_dir(image_dir, image_path)
+            image_id = image_path2id[file_name]
+            image_ids.append(image_id)
+            img = cv2.imread(str(image_path))
+            height, width, _ = img.shape
+            image = Image.new(
+                image_id=image_id,
+                file_name=str(file_name),
+                width=width,
+                height=height,
+            )
+            self.add_images([image])
+
+            # annotation
+            label_path = label_dir / file_name.with_suffix(".txt")
+            with open(label_path) as f:  # TODO: use load_txt of waffle_utils after implementing
+                txt = f.readlines()
+
+            current_annotation_id = len(self.get_annotations())
+            for i, t in enumerate(txt, start=1):
+                category_id, x, y, w, h = list(map(float, t.split()))
+                category_id = int(category_id) + 1
+                x *= width
+                y *= height
+                w *= width
+                h *= height
+
+                x -= w / 2
+                y -= h / 2
+
+                x, y, w, h = int(x), int(y), int(w), int(h)
+                annotation = Annotation.instance_segmentation(
+                    annotation_id=current_annotation_id + i,
+                    image_id=image_id,
+                    category_id=category_id,
+                    segmentation=[],
+                    bbox=[x, y, w, h],
+                    area=w * h,
+                )
+                self.add_annotations([annotation])
+
+            # raw
+            dst = self.raw_image_dir / file_name
+            io.copy_file(image_path, dst, True)
+        io.save_json(image_ids, self.set_dir / f"{set_type}.json", True)
+
+
 def import_yolo(self, yolo_root_dir: str, yaml_path: str):
     """
     Import YOLO dataset.
@@ -384,7 +468,7 @@ def import_yolo(self, yolo_root_dir: str, yaml_path: str):
     elif self.task == TaskType.CLASSIFICATION:
         _import = _import_yolo_classification
     elif self.task == TaskType.INSTANCE_SEGMENTATION:
-        _import = _import_yolo_object_detection
+        _import = _import_yolo_instance_segmentation
     else:
         raise ValueError(f"Unsupported task: {self.task}")
 
