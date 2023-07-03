@@ -70,6 +70,8 @@ class Dataset:
             self.initialize()
             self.set_categories(categories)
             self.save_dataset_info()
+        else:  # for backward compatibility
+            self.save_dataset_info()
 
     def __repr__(self):
         return self.get_dataset_info().__repr__()
