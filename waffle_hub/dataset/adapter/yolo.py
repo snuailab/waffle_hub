@@ -226,120 +226,140 @@ def export_yolo(self, export_dir: Union[str, Path]) -> str:
     return str(export_dir)
 
 
-def _import_yolo_classification(self, set_dir: Path, image_ids: list[int], info: dict):
+def _import_yolo_classification(self, image_dir: Path, image_path2id: dict, *args):
     # categories
-    if not self.get_category_names():
-        for category_id, category_name in info["names"].items():
-            self.add_categories(
-                [
-                    Category.classification(
-                        category_id=category_id + 1,
-                        name=category_name,
-                    )
-                ]
+    category_names = set()
+    for set_type in ["train", "val", "test"]:
+        set_dir = image_dir / set_type
+        for category_name in [path for path in set_dir.glob("*") if path.is_dir()]:
+            category_name = _remove_root_dir(set_dir, category_name)
+            category_names.add(category_name.parts[0])
+
+    category_name2id = {}
+    for category_id, category_name in enumerate(sorted(list(category_names)), start=1):
+        category_name2id[category_name] = category_id
+        self.add_categories(
+            [
+                Category.classification(
+                    category_id=category_id,
+                    name=category_name,
+                )
+            ]
+        )
+
+    for set_type in ["train", "val", "test"]:
+        set_dir = image_dir / set_type
+        image_ids = []
+        for image_path in search.get_image_files(set_dir):
+            file_name = _remove_root_dir(set_dir, image_path)
+            image_id = image_path2id[file_name]
+            image_ids.append(image_id)
+
+            category_name = file_name.parts[0]
+            category_id = category_name2id[category_name]
+
+            # image
+            img = cv2.imread(str(image_path))
+            height, width, _ = img.shape
+            image = Image.new(
+                image_id=image_id,
+                file_name=str(file_name),
+                width=width,
+                height=height,
             )
-    name2id = {v: k for k, v in info["names"].items()}
+            self.add_images([image])
 
-    for image_id, image_path in zip(image_ids, search.get_image_files(set_dir)):
-        category_name_index = image_path.parts.index(set_dir.stem) + 1
-        category_name = image_path.parts[category_name_index]
-        category_id = name2id[category_name] + 1
-
-        # image
-        img = cv2.imread(str(image_path))
-        height, width, _ = img.shape
-        image = Image.new(
-            image_id=image_id,
-            file_name=f"{image_id}{image_path.suffix}",
-            width=width,
-            height=height,
-        )
-        self.add_images([image])
-
-        # annotation
-        annotation = Annotation.classification(
-            annotation_id=image_id,
-            image_id=image_id,
-            category_id=category_id,
-        )
-        self.add_annotations([annotation])
-
-        # raw
-        dst = self.raw_image_dir / f"{image_id}{image_path.suffix}"
-        io.copy_file(image_path, dst)
-
-
-def _import_yolo_object_detection(self, set_dir: Path, image_ids: list[int], info: dict):
-    image_dir = set_dir / "images"
-    label_dir = set_dir / "labels"
-
-    if not image_dir.exists():
-        warnings.warn(f"{image_dir} does not exist.")
-        return
-    if not label_dir.exists():
-        warnings.warn(f"{label_dir} does not exist.")
-        return
-
-    # categories
-    if not self.get_category_names():
-        for category_id, category_name in info["names"].items():
-            self.add_categories(
-                [
-                    Category.object_detection(
-                        category_id=category_id + 1,
-                        name=category_name,
-                    )
-                ]
-            )
-
-    for image_id, image_path, label_path in zip(
-        image_ids,
-        search.get_image_files(image_dir),
-        search.get_files(label_dir, "txt"),
-    ):
-        # image
-        img = cv2.imread(str(image_path))
-        height, width, _ = img.shape
-        image = Image.new(
-            image_id=image_id,
-            file_name=f"{image_id}{image_path.suffix}",
-            width=width,
-            height=height,
-        )
-        self.add_images([image])
-
-        # annotation
-        with open(label_path) as f:  # TODO: use load_txt of waffle_utils after implementing
-            txt = f.readlines()
-
-        current_annotation_id = len(self.get_annotations())
-        for i, t in enumerate(txt, start=1):
-            category_id, x, y, w, h = list(map(float, t.split()))
-            category_id = int(category_id) + 1
-            x *= width
-            y *= height
-            w *= width
-            h *= height
-
-            x -= w / 2
-            y -= h / 2
-
-            x, y, w, h = int(x), int(y), int(w), int(h)
-            annotation = Annotation.object_detection(
-                annotation_id=current_annotation_id + i,
+            # annotation
+            annotation = Annotation.classification(
+                annotation_id=image_id,
                 image_id=image_id,
                 category_id=category_id,
-                bbox=[x, y, w, h],
-                area=w * h,
             )
             self.add_annotations([annotation])
 
-        # raw
-        dst = self.raw_image_dir / f"{image_id}{image_path.suffix}"
-        io.copy_file(image_path, dst)
+            # raw
+            dst = self.raw_image_dir / file_name
+            io.copy_file(image_path, dst, True)
+
+        io.save_json(image_ids, self.set_dir / f"{set_type}.json", True)
 
 
-def import_yolo(self, yaml_path: str):
+def _import_yolo_object_detection(self, image_dir: Path, image_path2id: list[int], yaml_path: str):
+    # categories
+    info = io.load_yaml(yaml_path)
+    names = info["names"]
+    if isinstance(names, list):
+        names = {category_id: category_name for category_id, category_name in enumerate(names)}
+    for category_id, category_name in names.items():
+        self.add_categories(
+            [
+                Category.object_detection(
+                    category_id=category_id + 1,
+                    name=category_name,
+                )
+            ]
+        )
+
+    for set_type in ["train", "val", "test"]:
+        set_dir = image_dir / set_type
+        image_dir = set_dir / "images"
+        label_dir = set_dir / "labels"
+
+        if not image_dir.exists():
+            raise FileNotFoundError(f"{image_dir} does not exist.")
+        if not label_dir.exists():
+            raise FileNotFoundError(f"{label_dir} does not exist.")
+
+        image_ids = []
+        for image_path, label_path in zip(
+            search.get_image_files(image_dir), search.get_files(label_dir, "txt")
+        ):
+            # image
+            file_name = _remove_root_dir(set_dir, image_path)
+            image_id = image_path2id[file_name]
+            image_ids.append(image_id)
+            img = cv2.imread(str(image_path))
+            height, width, _ = img.shape
+            image = Image.new(
+                image_id=image_id,
+                file_name=f"{image_id}{image_path.suffix}",
+                width=width,
+                height=height,
+            )
+            self.add_images([image])
+
+            # annotation
+            with open(label_path) as f:  # TODO: use load_txt of waffle_utils after implementing
+                txt = f.readlines()
+
+            current_annotation_id = len(self.get_annotations())
+            for i, t in enumerate(txt, start=1):
+                category_id, x, y, w, h = list(map(float, t.split()))
+                category_id = int(category_id) + 1
+                x *= width
+                y *= height
+                w *= width
+                h *= height
+
+                x -= w / 2
+                y -= h / 2
+
+                x, y, w, h = int(x), int(y), int(w), int(h)
+                annotation = Annotation.object_detection(
+                    annotation_id=current_annotation_id + i,
+                    image_id=image_id,
+                    category_id=category_id,
+                    bbox=[x, y, w, h],
+                    area=w * h,
+                )
+                self.add_annotations([annotation])
+
+            # raw
+            dst = self.raw_image_dir / f"{image_id}{image_path.suffix}"
+            io.copy_file(image_path, dst)
+
+
+def import_yolo(self, image_dir: str, yaml_path: str):
     """
     Import YOLO dataset.
 
@@ -350,27 +370,45 @@ def import_yolo(self, yaml_path: str):
         _import = _import_yolo_object_detection
     elif self.task == TaskType.CLASSIFICATION:
         _import = _import_yolo_classification
+    elif self.task == TaskType.INSTANCE_SEGMENTATION:
+        _import = _import_yolo_object_detection
     else:
         raise ValueError(f"Unsupported task: {self.task}")
 
-    info = io.load_yaml(yaml_path)
-    yolo_root_dir = Path(info["path"])
+    if isinstance(image_dir, str):
+        image_dir = Path(image_dir)
 
-    current_image_id = 1
+    image_paths = set()
     for set_type in ["train", "val", "test"]:
-        if set_type not in info.keys():
-            continue
+        set_dir = image_dir / set_type
+        image_paths |= {
+            _remove_root_dir(set_dir, image_path) for image_path in search.get_image_files(set_dir)
+        }
+    image_path2id = {image_path: i for i, image_path in enumerate(image_paths, start=1)}
+    _import(self, image_dir, image_path2id, yaml_path)
 
-        # sets
-        set_dir = Path(yolo_root_dir) / set_type
-        image_num = len(search.get_image_files(set_dir))
-        image_ids = list(range(current_image_id, image_num + current_image_id))
-
-        io.save_json(image_ids, self.set_dir / f"{set_type}.json", True)
-        current_image_id += image_num
-
-        # import other field
-        _import(self, set_dir, image_ids, info)
+    # info = io.load_yaml(yaml_path)
+    # yolo_root_dir = Path(info["path"])
 
     # TODO: add unlabeled set
     io.save_json([], self.unlabeled_set_file, create_directory=True)
+
+
+def _remove_root_dir(root_dir: Path, target_dir: Path) -> Path:
+    """
+    Remove root dir from target dir
+
+    Args:
+        root_dir (Path): Root directory
+        target_dir (Path): Target directory
+
+    Returns:
+        Path: Relative path from root dir to target dir
+    """
+    idx = 0
+    for root_part, target_part in zip(root_dir.parts, target_dir.parts):
+        if root_part != target_part:
+            break
+        idx += 1
+
+    return Path(*target_dir.parts[idx:])
