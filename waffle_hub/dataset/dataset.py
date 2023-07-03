@@ -766,7 +766,7 @@ class Dataset:
         cls,
         name: str,
         task: str,
-        image_dir: str,
+        yolo_root_dir: str,
         yaml_path: str = None,
         root_dir: str = None,
     ) -> "Dataset":
@@ -777,7 +777,7 @@ class Dataset:
         Args:
             name (str): Dataset name.
             task (str): Dataset task.
-            image_dir (str): Image directory.
+            yolo_root_dir (str): Yolo dataset root directory.
             yaml_path (str): Yolo yaml file path. when task is classification, yaml_path is not required.
             root_dir (str, optional): Dataset root directory. Defaults to None.
 
@@ -790,7 +790,7 @@ class Dataset:
 
         ds = Dataset(name=name, task=task, root_dir=root_dir)
 
-        import_yolo(ds, image_dir, yaml_path)
+        import_yolo(ds, yolo_root_dir, yaml_path)
 
         return ds
 
