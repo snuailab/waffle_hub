@@ -102,7 +102,14 @@ def export_autocare_dlt(self, export_dir: Union[str, Path]) -> str:
     return str(export_dir)
 
 
-def import_autocare_dlt(self, coco_files, coco_root_dirs):
+def import_autocare_dlt(self, coco_files: list[str], coco_root_dirs: list[str]):
+    """
+    Import dataset from Autocare DLT format
+
+    Args:
+        coco_files (list[str]): List of coco files
+        coco_root_dirs (list[str]): List of coco root directories
+    """
     if len(coco_files) == 1:
         set_names = [None]
     elif len(coco_files) == 2:

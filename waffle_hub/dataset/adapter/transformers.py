@@ -172,6 +172,12 @@ def export_transformers(self, export_dir: Union[str, Path]) -> str:
 
 
 def import_transformers(self, dataset_dir: str):
+    """
+    Import dataset from Transformers format
+
+    Args:
+        dataset_dir (str): Path to Transformers dataset directory
+    """
     dataset = load_from_disk(dataset_dir)
 
     if isinstance(dataset, DatasetDict):

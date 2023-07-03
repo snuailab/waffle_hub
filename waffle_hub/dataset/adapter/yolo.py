@@ -340,6 +340,12 @@ def _import_yolo_object_detection(self, set_dir: Path, image_ids: list[int], inf
 
 
 def import_yolo(self, yaml_path: str):
+    """
+    Import YOLO dataset.
+
+    Args:
+        yaml_path (str): Path to the yaml file.
+    """
     if self.task == TaskType.OBJECT_DETECTION:
         _import = _import_yolo_object_detection
     elif self.task == TaskType.CLASSIFICATION:
@@ -368,5 +374,3 @@ def import_yolo(self, yaml_path: str):
 
     # TODO: add unlabeled set
     io.save_json([], self.unlabeled_set_file, create_directory=True)
-
-    return self.dataset_dir

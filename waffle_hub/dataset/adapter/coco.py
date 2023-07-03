@@ -99,7 +99,14 @@ def export_coco(self, export_dir: Union[str, Path]) -> str:
     return str(export_dir)
 
 
-def import_coco(self, coco_files, coco_root_dirs):
+def import_coco(self, coco_files: list[str], coco_root_dirs: list[str]):
+    """
+    Import coco dataset
+
+    Args:
+        coco_files (list[str]): List of coco annotation files
+        coco_root_dirs (list[str]): List of coco root directories
+    """
     if len(coco_files) == 1:
         set_names = [None]
     elif len(coco_files) == 2:
