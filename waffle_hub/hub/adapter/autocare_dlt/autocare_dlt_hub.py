@@ -109,24 +109,6 @@ class AutocareDLTHub(Hub):
             root_dir=root_dir,
         )
 
-    @property
-    def categories(self) -> list[dict]:
-        return self.__categories
-
-    @categories.setter
-    @type_validator(list)
-    def categories(self, v):
-        if isinstance(v[0], str):
-            v = [{"supercategory": "object", "name": n} for n in v]
-        elif isinstance(v[0], dict) and "supercategory" not in v[0]:
-            # TODO: Temporal solution for DLT classification: Not supported multi-task yet.
-            v_ = []
-            for k, cls in v[0].items():
-                for c in cls:
-                    v_.append({"supercategory": k, "name": c})
-            v = v_
-        self.__categories = v
-
     # Hub Utils
     def get_preprocess(self, *args, **kwargs):
 
@@ -230,11 +212,21 @@ class AutocareDLTHub(Hub):
 
         cfg.data_config = self.artifact_dir / "data.json"
         io.save_json(data_config, cfg.data_config, create_directory=True)
-        categories = (
-            self.categories
-            if self._Hub__task == TaskType.CLASSIFICATION
-            else [x["name"] for x in self.categories]
-        )
+
+        if self.task == TaskType.CLASSIFICATION:
+            super_cat = [[c["supercategory"], c["name"]] for c in self.categories]
+            super_cat_dict = {}
+            for super_cat, cat in super_cat:
+                if super_cat not in super_cat_dict:
+                    super_cat_dict[super_cat] = []
+                super_cat_dict[super_cat].append(cat)
+
+            categories = []
+            for super_cat, cat in super_cat_dict.items():
+                categories.append({super_cat: cat})
+
+        else:
+            categories = self.categories
 
         model_config = get_model_config(
             self.model_type,

@@ -1,12 +1,16 @@
 from dataclasses import dataclass
 
-from waffle_hub.schema.base_schema import BaseSchema
 from waffle_utils.log import datetime_now
+
+from waffle_hub.schema.base_schema import BaseSchema
+from waffle_hub.schema.fields import Category
+
 
 @dataclass
 class DatasetInfo(BaseSchema):
     name: str
     task: str
+    categories: list[Category] = None
     created: str = None
 
     def __post_init__(self):

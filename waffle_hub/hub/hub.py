@@ -36,6 +36,7 @@ from waffle_hub.schema.configs import (
     TrainConfig,
 )
 from waffle_hub.schema.data import ImageInfo
+from waffle_hub.schema.fields import Category
 from waffle_hub.schema.result import (
     EvaluateResult,
     ExportResult,
@@ -485,7 +486,7 @@ class Hub:
         self.__version = v
 
     @property
-    def categories(self) -> list[dict]:
+    def categories(self) -> list[Category]:
         return self.__categories
 
     @categories.setter
@@ -495,6 +496,7 @@ class Hub:
             raise ValueError("Categories must be specified.")
         if not isinstance(v[0], dict):
             v = [{"supercategory": "object", "name": str(n)} for n in v]
+
         self.__categories = v
 
     @cached_property
