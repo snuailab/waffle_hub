@@ -296,7 +296,13 @@ class Dataset:
         Returns:
             Dataset: Dataset Class
         """
-        return cls(name=name, task=task, categories=categories, root_dir=root_dir)
+        root_dir = Dataset.parse_root_dir(root_dir)
+        try:
+            return cls(name=name, task=task, categories=categories, root_dir=root_dir)
+        except Exception as e:
+            if (root_dir / name).exists():
+                io.remove_directory(root_dir / name)
+            raise e
 
     @classmethod
     def clone(
@@ -332,13 +338,20 @@ class Dataset:
         Returns:
             Dataset: Dataset Class
         """
-        src_ds = Dataset.load(src_name, src_root_dir)
+        root_dir = Dataset.parse_root_dir(root_dir)
 
-        ds = Dataset.new(name=name, task=src_ds.task, root_dir=root_dir)
-        io.copy_files_to_directory(src_ds.dataset_dir, ds.dataset_dir, create_directory=True)
-        ds.save_dataset_info()
+        try:
+            src_ds = Dataset.load(src_name, src_root_dir)
 
-        return ds
+            ds = Dataset.new(name=name, task=src_ds.task, root_dir=root_dir)
+            io.copy_files_to_directory(src_ds.dataset_dir, ds.dataset_dir, create_directory=True)
+            ds.save_dataset_info()
+
+            return ds
+        except Exception as e:
+            if (root_dir / name).exists():
+                io.remove_directory(root_dir / name)
+            raise e
 
     @classmethod
     def dummy(

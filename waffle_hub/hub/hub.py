@@ -283,24 +283,34 @@ class Hub:
         Returns:
             Hub: Hub instance
         """
-        if name in cls.get_hub_list(root_dir):
-            raise ValueError(f"{name} already exists. Try another name.")
+        root_dir = Hub.parse_root_dir(root_dir)
+        try:
+            if name in cls.get_hub_list(root_dir):
+                raise ValueError(f"{name} already exists. Try another name.")
 
-        backend = backend if backend else cls.get_available_backends()[0]
-        task = str(task).upper() if task else cls.get_available_tasks(backend)[0]
-        model_type = model_type if model_type else cls.get_available_model_types(backend, task)[0]
-        model_size = (
-            model_size if model_size else cls.get_available_model_sizes(backend, task, model_type)[0]
-        )
+            backend = backend if backend else cls.get_available_backends()[0]
+            task = str(task).upper() if task else cls.get_available_tasks(backend)[0]
+            model_type = (
+                model_type if model_type else cls.get_available_model_types(backend, task)[0]
+            )
+            model_size = (
+                model_size
+                if model_size
+                else cls.get_available_model_sizes(backend, task, model_type)[0]
+            )
 
-        return cls.get_hub_class(backend)(
-            name=name,
-            task=task,
-            model_type=model_type,
-            model_size=model_size,
-            categories=categories,
-            root_dir=root_dir,
-        )
+            return cls.get_hub_class(backend)(
+                name=name,
+                task=task,
+                model_type=model_type,
+                model_size=model_size,
+                categories=categories,
+                root_dir=root_dir,
+            )
+        except Exception as e:
+            if (root_dir / name).exists():
+                io.remove_directory(root_dir / name)
+            raise e
 
     @classmethod
     def load(cls, name: str, root_dir: str = None) -> "Hub":
@@ -340,17 +350,23 @@ class Hub:
         Returns:
             Hub: New Hub instance
         """
-        if name in cls.get_hub_list(root_dir):
-            raise ValueError(f"{name} already exists. Try another name.")
+        root_dir = Hub.parse_root_dir(root_dir)
+        try:
+            if name in cls.get_hub_list(root_dir):
+                raise ValueError(f"{name} already exists. Try another name.")
 
-        model_config = io.load_yaml(model_config_file)
-        return cls.new(
-            **{
-                **model_config,
-                "name": name,
-                "root_dir": root_dir,
-            }
-        )
+            model_config = io.load_yaml(model_config_file)
+            return cls.new(
+                **{
+                    **model_config,
+                    "name": name,
+                    "root_dir": root_dir,
+                }
+            )
+        except Exception as e:
+            if (root_dir / name).exists():
+                io.remove_directory(root_dir / name)
+            raise e
 
     @classmethod
     def get_hub_list(cls, root_dir: str = None) -> list[str]:
