@@ -10,7 +10,7 @@ tbparse==0.0.7
 waffle-utils>=0.3.0
 
 # ultralytics
-ultralytics==8.0.112
+ultralytics==8.0.125
 
 # huggingface
 datasets==2.12.0
