@@ -1,4 +1,6 @@
 import warnings
+from collections import defaultdict
+from itertools import groupby
 from pathlib import Path
 from typing import Union
 
@@ -227,22 +229,19 @@ def export_yolo(self, export_dir: Union[str, Path]) -> str:
 
 
 def _import_yolo_classification(self, yolo_root_dir: Path, *args):
-    # categories
-    image_paths = set()
-    category_names = set()
-    for set_type in ["train", "val", "test"]:
-        set_dir = yolo_root_dir / set_type
-        for category_name in [path for path in set_dir.glob("*") if path.is_dir()]:
-            category_name = _remove_root_dir(set_dir, category_name).parts[0]
-            category_names.add(category_name)
-            image_paths |= {
-                _remove_root_dir(set_dir / category_name, image_path)
-                for image_path in search.get_image_files(set_dir / category_name)
-            }
-    image_path2id = {image_path: i for i, image_path in enumerate(image_paths, start=1)}
+    # convert to set_type/category/image_path to get set and category information
+    image_paths = list(
+        map(
+            lambda image_path: image_path.relative_to(yolo_root_dir),
+            search.get_image_files(yolo_root_dir),
+        )
+    )
+    category_group = groupby(image_paths, lambda image_path: image_path.parts[1])
 
+    # category
+    category_names = {k for k, _ in category_group}
     category_name2id = {}
-    for category_id, category_name in enumerate(sorted(list(category_names)), start=1):
+    for category_id, category_name in enumerate(category_names, start=1):
         category_name2id[category_name] = category_id
         self.add_categories(
             [
@@ -253,49 +252,56 @@ def _import_yolo_classification(self, yolo_root_dir: Path, *args):
             ]
         )
 
-    for set_type in ["train", "val", "test"]:
-        image_ids = []
-        for category_name in category_names:
-            set_dir = yolo_root_dir / set_type / category_name
-            category_id = category_name2id[category_name]
-            for image_path in search.get_image_files(set_dir):
-                file_name = _remove_root_dir(set_dir, image_path)
-                image_id = image_path2id[file_name]
-                image_ids.append(image_id)
+    # image & annotation & set & raw
+    new_annotation_id = 1
+    set2image_ids = defaultdict(list)
+    for image_id, image_path in enumerate(image_paths, start=1):
+        set_type = image_path.parts[0]
+        category_name = image_path.parts[1]
+        file_name = "".join(image_path.parts[2:])
 
-                # image
-                img = cv2.imread(str(image_path))
-                height, width, _ = img.shape
-                image = Image.new(
+        set2image_ids[set_type].append(image_id)
+
+        height, width, _ = cv2.imread(str(yolo_root_dir / image_path)).shape
+        self.add_images(
+            [
+                Image.new(
                     image_id=image_id,
-                    file_name=str(file_name),
+                    file_name=file_name,
                     width=width,
                     height=height,
                 )
-                self.add_images([image])
+            ]
+        )
 
-                # annotation
-                annotation = Annotation.classification(
-                    annotation_id=image_id,
+        self.add_annotations(
+            [
+                Annotation.classification(
+                    annotation_id=new_annotation_id,
                     image_id=image_id,
-                    category_id=category_id,
+                    category_id=category_name2id[category_name],
                 )
-                self.add_annotations([annotation])
+            ]
+        )
+        new_annotation_id += 1
 
-                # raw
-                dst = self.raw_image_dir / file_name
-                io.copy_file(image_path, dst, True)
+        io.copy_file(
+            yolo_root_dir / image_path, self.raw_image_dir / file_name, create_directory=True
+        )
 
-        io.save_json(image_ids, self.set_dir / f"{set_type}.json", True)
+    for set_type in ["train", "val", "test"]:
+        io.save_json(set2image_ids[set_type], self.set_dir / f"{set_type}.json", True)
 
 
 def _import_yolo_object_detection(self, yolo_root_dir: Path, yaml_path: str):
-    # categories
+    # category
     info = io.load_yaml(yaml_path)
     names = info["names"]
+    category_name2id = {}
     if isinstance(names, list):
         names = {category_id: category_name for category_id, category_name in enumerate(names)}
     for category_id, category_name in names.items():
+        category_name2id[category_name] = category_id + 1
         self.add_categories(
             [
                 Category.object_detection(
@@ -305,155 +311,143 @@ def _import_yolo_object_detection(self, yolo_root_dir: Path, yaml_path: str):
             ]
         )
 
-    image_paths = set()
-    for set_type in ["train", "val", "test"]:
-        set_dir = yolo_root_dir / set_type / "images"
-        image_paths |= {
-            _remove_root_dir(set_dir, image_path) for image_path in search.get_image_files(set_dir)
-        }
-    image_path2id = {image_path: i for i, image_path in enumerate(image_paths, start=1)}
+    # image & annotation & set & raw
+    new_annotation_id = 1
+    set2image_ids = defaultdict(list)
+    image_paths = list(
+        map(
+            lambda image_path: image_path.relative_to(yolo_root_dir),
+            search.get_image_files(yolo_root_dir),
+        )
+    )
+    for image_id, image_path in enumerate(image_paths, start=1):
+        set_type = image_path.parts[0]
+        label_path = image_path.with_suffix(".txt")
+        label_parts = list(label_path.parts)
+        label_parts[1] = "labels"
+        label_path = yolo_root_dir / Path(*label_parts)
+        file_name = "".join(image_path.parts[2:])
 
-    for set_type in ["train", "val", "test"]:
-        set_dir = yolo_root_dir / set_type
-        image_dir = set_dir / "images"
-        label_dir = set_dir / "labels"
+        set2image_ids[set_type].append(image_id)
 
-        if not image_dir.exists():
-            raise FileNotFoundError(f"{image_dir} does not exist.")
-        if not label_dir.exists():
-            raise FileNotFoundError(f"{label_dir} does not exist.")
-
-        image_ids = []
-        for image_path in search.get_image_files(image_dir):
-            # image
-            file_name = _remove_root_dir(image_dir, image_path)
-            image_id = image_path2id[file_name]
-            image_ids.append(image_id)
-            img = cv2.imread(str(image_path))
-            height, width, _ = img.shape
-            image = Image.new(
-                image_id=image_id,
-                file_name=str(file_name),
-                width=width,
-                height=height,
-            )
-            self.add_images([image])
-
-            # annotation
-            label_path = label_dir / file_name.with_suffix(".txt")
-            with open(label_path) as f:  # TODO: use load_txt of waffle_utils after implementing
-                txt = f.readlines()
-
-            current_annotation_id = len(self.get_annotations())
-            for i, t in enumerate(txt, start=1):
-                category_id, x, y, w, h = list(map(float, t.split()))
-                category_id = int(category_id) + 1
-                x *= width
-                y *= height
-                w *= width
-                h *= height
-
-                x -= w / 2
-                y -= h / 2
-
-                x, y, w, h = int(x), int(y), int(w), int(h)
-                annotation = Annotation.object_detection(
-                    annotation_id=current_annotation_id + i,
+        height, width, _ = cv2.imread(str(yolo_root_dir / image_path)).shape
+        self.add_images(
+            [
+                Image.new(
                     image_id=image_id,
-                    category_id=category_id,
-                    bbox=[x, y, w, h],
-                    area=w * h,
+                    file_name=file_name,
+                    width=width,
+                    height=height,
                 )
-                self.add_annotations([annotation])
+            ]
+        )
 
-            # raw
-            dst = self.raw_image_dir / file_name
-            io.copy_file(image_path, dst, True)
-        io.save_json(image_ids, self.set_dir / f"{set_type}.json", True)
+        # ann
+        with label_path.open("r") as f:
+            for line in f.readlines():
+                category_id, x, y, w, h = map(float, line.split())
+                x, y, w, h = x * width, y * height, w * width, h * height
+                self.add_annotations(
+                    [
+                        Annotation.object_detection(
+                            annotation_id=new_annotation_id,
+                            image_id=image_id,
+                            category_id=int(category_id) + 1,
+                            bbox=[x, y, x + w, y + h],
+                        )
+                    ]
+                )
+                new_annotation_id += 1
+
+        io.copy_file(
+            yolo_root_dir / image_path, self.raw_image_dir / file_name, create_directory=True
+        )
+
+    for set_type in ["train", "val", "test"]:
+        io.save_json(set2image_ids[set_type], self.set_dir / f"{set_type}.json", True)
 
 
 def _import_yolo_instance_segmentation(self, yolo_root_dir: Path, yaml_path: str):
-    # categories
+    # category
     info = io.load_yaml(yaml_path)
     names = info["names"]
+    category_name2id = {}
     if isinstance(names, list):
         names = {category_id: category_name for category_id, category_name in enumerate(names)}
     for category_id, category_name in names.items():
+        category_name2id[category_name] = category_id + 1
         self.add_categories(
             [
-                Category.object_detection(
+                Category.instance_segmentation(
                     category_id=category_id + 1,
                     name=category_name,
                 )
             ]
         )
 
-    image_paths = set()
-    for set_type in ["train", "val", "test"]:
-        set_dir = yolo_root_dir / set_type / "images"
-        image_paths |= {
-            _remove_root_dir(set_dir, image_path) for image_path in search.get_image_files(set_dir)
-        }
-    image_path2id = {image_path: i for i, image_path in enumerate(image_paths, start=1)}
+    # image & annotation & set & raw
+    new_annotation_id = 1
+    set2image_ids = defaultdict(list)
+    image_paths = list(
+        map(
+            lambda image_path: image_path.relative_to(yolo_root_dir),
+            search.get_image_files(yolo_root_dir),
+        )
+    )
+    for image_id, image_path in enumerate(image_paths, start=1):
+        set_type = image_path.parts[0]
+        label_path = image_path.with_suffix(".txt")
+        label_parts = list(label_path.parts)
+        label_parts[1] = "labels"
+        label_path = yolo_root_dir / Path(*label_parts)
+        file_name = "".join(image_path.parts[2:])
 
-    for set_type in ["train", "val", "test"]:
-        set_dir = yolo_root_dir / set_type
-        image_dir = set_dir / "images"
-        label_dir = set_dir / "labels"
+        set2image_ids[set_type].append(image_id)
 
-        if not image_dir.exists():
-            raise FileNotFoundError(f"{image_dir} does not exist.")
-        if not label_dir.exists():
-            raise FileNotFoundError(f"{label_dir} does not exist.")
-
-        image_ids = []
-        for image_path in search.get_image_files(image_dir):
-            # image
-            file_name = _remove_root_dir(image_dir, image_path)
-            image_id = image_path2id[file_name]
-            image_ids.append(image_id)
-            img = cv2.imread(str(image_path))
-            height, width, _ = img.shape
-            image = Image.new(
-                image_id=image_id,
-                file_name=str(file_name),
-                width=width,
-                height=height,
-            )
-            self.add_images([image])
-
-            # annotation
-            label_path = label_dir / file_name.with_suffix(".txt")
-            with open(label_path) as f:  # TODO: use load_txt of waffle_utils after implementing
-                txt = f.readlines()
-
-            current_annotation_id = len(self.get_annotations())
-            for i, t in enumerate(txt, start=1):
-                category_id, x, y, w, h = list(map(float, t.split()))
-                category_id = int(category_id) + 1
-                x *= width
-                y *= height
-                w *= width
-                h *= height
-
-                x -= w / 2
-                y -= h / 2
-
-                x, y, w, h = int(x), int(y), int(w), int(h)
-                annotation = Annotation.instance_segmentation(
-                    annotation_id=current_annotation_id + i,
+        height, width, _ = cv2.imread(str(yolo_root_dir / image_path)).shape
+        self.add_images(
+            [
+                Image.new(
                     image_id=image_id,
-                    category_id=category_id,
-                    segmentation=[],
-                    bbox=[x, y, w, h],
-                    area=w * h,
+                    file_name=file_name,
+                    width=width,
+                    height=height,
                 )
-                self.add_annotations([annotation])
+            ]
+        )
 
-            # raw
-            dst = self.raw_image_dir / file_name
-            io.copy_file(image_path, dst, True)
-        io.save_json(image_ids, self.set_dir / f"{set_type}.json", True)
+        # ann
+        with label_path.open("r") as f:
+            for line in f.readlines():
+                label = list(map(float, line.split()))
+                category_id = int(label[0])
+                segment = label[1:]
+                segment[::2] = [int(x * width) for x in segment[::2]]
+                segment[1::2] = [y * height for y in segment[1::2]]
+                x1 = min(segment[::2])
+                y1 = min(segment[1::2])
+                x2 = max(segment[::2])
+                y2 = max(segment[1::2])
+
+                self.add_annotations(
+                    [
+                        Annotation.instance_segmentation(
+                            annotation_id=new_annotation_id,
+                            image_id=image_id,
+                            category_id=int(category_id) + 1,
+                            segmentation=[segment],
+                            bbox=[x1, y1, x2, y2],
+                        )
+                    ]
+                )
+                new_annotation_id += 1
+
+        io.copy_file(
+            yolo_root_dir / image_path, self.raw_image_dir / file_name, create_directory=True
+        )
+
+    for set_type in ["train", "val", "test"]:
+        io.save_json(set2image_ids[set_type], self.set_dir / f"{set_type}.json", True)
 
 
 def import_yolo(self, yolo_root_dir: str, yaml_path: str):
@@ -479,23 +473,3 @@ def import_yolo(self, yolo_root_dir: str, yaml_path: str):
 
     # TODO: add unlabeled set
     io.save_json([], self.unlabeled_set_file, create_directory=True)
-
-
-def _remove_root_dir(root_dir: Path, target_dir: Path) -> Path:
-    """
-    Remove root dir from target dir
-
-    Args:
-        root_dir (Path): Root directory
-        target_dir (Path): Target directory
-
-    Returns:
-        Path: Relative path from root dir to target dir
-    """
-    idx = 0
-    for root_part, target_part in zip(root_dir.parts, target_dir.parts):
-        if root_part != target_part:
-            break
-        idx += 1
-
-    return Path(*target_dir.parts[idx:])
