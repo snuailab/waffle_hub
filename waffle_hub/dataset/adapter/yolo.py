@@ -324,6 +324,7 @@ def _import_yolo_object_detection(self, yolo_root_dir: Path, yaml_path: str):
         )
     )
     for image_id, image_path in enumerate(image_paths, start=1):
+        set_type = image_path.parts[0]
         label_path = image_path.with_suffix(".txt")
         label_parts = list(label_path.parts)
         label_parts[1] = "labels"
