@@ -310,6 +310,9 @@ def _import_yolo_object_detection(self, yolo_root_dir: Path, yaml_path: str):
                 )
             ]
         )
+    for set_type in ["train", "val", "test"]:
+        if info[set_type] != set_type:
+            raise ValueError(f"yaml file's {set_type} must be {set_type} directory")
 
     # image & annotation & set & raw
     new_annotation_id = 1
@@ -321,7 +324,6 @@ def _import_yolo_object_detection(self, yolo_root_dir: Path, yaml_path: str):
         )
     )
     for image_id, image_path in enumerate(image_paths, start=1):
-        set_type = image_path.parts[0]
         label_path = image_path.with_suffix(".txt")
         label_parts = list(label_path.parts)
         label_parts[1] = "labels"
@@ -384,6 +386,9 @@ def _import_yolo_instance_segmentation(self, yolo_root_dir: Path, yaml_path: str
                 )
             ]
         )
+    for set_type in ["train", "val", "test"]:
+        if info[set_type] != set_type:
+            raise ValueError(f"yaml file's {set_type} must be {set_type} directory")
 
     # image & annotation & set & raw
     new_annotation_id = 1
