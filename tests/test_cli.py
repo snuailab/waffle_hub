@@ -46,16 +46,17 @@ def test_dataset_from_coco(test_dir: Path):
 
 
 def test_dataset_from_yolo(test_dir: Path):
-    url = "https://raw.githubusercontent.com/snuailab/assets/main/waffle/sample_dataset/mnist_yolo_object_detection_splited.zip"
+    url = "https://raw.githubusercontent.com/snuailab/assets/main/waffle/sample_dataset/mnist_yolo_object_detection.zip"
     yolo_dir = test_dir / "datasets" / "mnist_yolo"
 
     get_file_from_url(url, str(test_dir), True)
-    unzip(str(test_dir / "mnist_yolo_object_detection_splited.zip"), yolo_dir)
+    unzip(str(test_dir / "mnist_yolo_object_detection.zip"), yolo_dir)
 
     cmd = f"python -m waffle_hub.dataset.cli from_yolo \
         --name from_yolo \
         --root-dir {test_dir / 'datasets'} \
         --task object_detection \
+        --yolo-root-dir {yolo_dir} \
         --yaml-path {yolo_dir / 'data.yaml'} \
     "
     ret = run_cli(cmd)
