@@ -143,6 +143,9 @@ class Dataset:
                     )
                 )
                 if annotations:
+                    io.copy_file(
+                        self.raw_image_dir / image.file_name, ds.raw_image_dir / image.file_name
+                    )
                     ds.add_images([image])
                     ds.add_annotations(annotations)
 
