@@ -126,6 +126,30 @@ class Dataset:
 
         self.add_categories(v)
 
+    def extract_by_categories(self, name: str, category_ids: list[int], root_dir: str = None):
+        ds = Dataset.new(
+            name=name,
+            task=self.task,
+            root_dir=root_dir,
+        )
+        try:
+            ds.add_categories(self.get_categories(category_ids))
+
+            for image in self.get_images():
+                annotations = list(
+                    filter(
+                        lambda ann: ann.category_id in category_ids,
+                        self.get_annotations(image.image_id),
+                    )
+                )
+                if annotations:
+                    ds.add_images([image])
+                    ds.add_annotations(annotations)
+
+        except Exception as e:
+            ds.delete()
+            raise e
+
     @property
     def created(self):
         return self.__created
