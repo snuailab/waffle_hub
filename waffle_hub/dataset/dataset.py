@@ -133,7 +133,13 @@ class Dataset:
             root_dir=root_dir,
         )
         try:
-            ds.add_categories(self.get_categories(category_ids))
+            category_old2new = {}
+            for new_category_id, category_id in enumerate(category_ids, start=1):
+                category_old2new[category_id] = new_category_id
+                categories = self.get_categories([category_id])
+                for category in categories:
+                    category.category_id = new_category_id
+                ds.add_categories(categories)
 
             for image in self.get_images():
                 annotations = list(
@@ -142,6 +148,9 @@ class Dataset:
                         self.get_annotations(image.image_id),
                     )
                 )
+                for annotation in annotations:
+                    annotation.category_id = category_old2new[annotation.category_id]
+
                 if annotations:
                     io.copy_file(
                         self.raw_image_dir / image.file_name, ds.raw_image_dir / image.file_name
