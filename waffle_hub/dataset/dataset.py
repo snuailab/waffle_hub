@@ -126,7 +126,19 @@ class Dataset:
 
         self.add_categories(v)
 
-    def extract_by_categories(self, name: str, category_ids: list[int], root_dir: str = None):
+    def extract_by_categories(
+        self, name: str, category_ids: list[int], root_dir: str = None
+    ) -> "Dataset":
+        """
+        Extract a new dataset by categories
+
+        Args:
+            name (str): Name of the new dataset
+            category_ids (list[int]): Category IDs to extract
+            root_dir (str, optional): Root directory of the new dataset. Defaults to None.
+
+        Returns (Dataset): New dataset
+        """
         ds = Dataset.new(
             name=name,
             task=self.task,
@@ -161,6 +173,8 @@ class Dataset:
         except Exception as e:
             ds.delete()
             raise e
+
+        return ds
 
     @property
     def created(self):
