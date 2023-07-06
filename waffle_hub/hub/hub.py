@@ -918,9 +918,6 @@ class Hub:
                 self.save_train_config(cfg)
                 self.training(cfg, callback)
                 self.on_train_end(cfg)
-                self.after_train(cfg, result)
-                metric_logger.stop()
-
                 self.evaluate(
                     dataset=dataset,
                     batch_size=cfg.batch_size,
@@ -929,6 +926,9 @@ class Hub:
                     device=cfg.device,
                     workers=cfg.workers,
                 )
+                self.after_train(cfg, result)
+                metric_logger.stop()
+
                 callback.force_finish()
             except FileExistsError as e:
                 callback.force_finish()

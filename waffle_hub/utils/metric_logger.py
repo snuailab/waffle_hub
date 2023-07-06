@@ -1,4 +1,5 @@
 import logging
+import re
 import time
 from abc import ABC, abstractmethod
 from pathlib import Path
@@ -70,6 +71,8 @@ try:
             self.kwargs = kwargs
 
         def log_metric(self, tag, value, step):
+            # remove invalid characters in tag using regex (only alphabet, -, _, / are allowed)
+            tag = re.sub(r"[^a-zA-Z0-9-_\/]", "_", tag)
             mlflow.log_metric(tag, value, step)
 
         def open(self):
