@@ -52,6 +52,7 @@ from waffle_hub.utils.callback import (
 from waffle_hub.utils.data import ImageDataset, LabeledDataset, get_image_transform
 from waffle_hub.utils.draw import draw_results
 from waffle_hub.utils.evaluate import evaluate_function
+from waffle_hub.utils.metric_logger import MetricLogger
 
 logger = logging.getLogger(__name__)
 
@@ -72,6 +73,8 @@ class Hub:
     EXPORT_DIR = Path("exports")
 
     DRAW_DIR = Path("draws")
+
+    TRAIN_LOG_DIR = Path("logs")
 
     # config files
     CONFIG_DIR = Path("configs")
@@ -556,6 +559,11 @@ class Hub:
         return self.inference_dir / Hub.DRAW_DIR
 
     @cached_property
+    def train_log_dir(self) -> Path:
+        """Train Logs Directory"""
+        return self.hub_dir / Hub.TRAIN_LOG_DIR
+
+    @cached_property
     def train_config_file(self) -> Path:
         """Train Config yaml File"""
         return self.hub_dir / Hub.TRAIN_CONFIG_FILE
@@ -897,11 +905,22 @@ class Hub:
 
         def inner(callback: TrainCallback, result: TrainResult):
             try:
+                metric_logger = MetricLogger(
+                    name=self.name,
+                    log_dir=self.train_log_dir,
+                    func=self.get_metrics,
+                    interval=10,
+                    prefix="waffle",
+                )
+                metric_logger.start()
                 self.before_train(cfg)
                 self.on_train_start(cfg)
                 self.save_train_config(cfg)
                 self.training(cfg, callback)
                 self.on_train_end(cfg)
+                self.after_train(cfg, result)
+                metric_logger.stop()
+
                 self.evaluate(
                     dataset=dataset,
                     batch_size=cfg.batch_size,
@@ -910,7 +929,6 @@ class Hub:
                     device=cfg.device,
                     workers=cfg.workers,
                 )
-                self.after_train(cfg, result)
                 callback.force_finish()
             except Exception as e:
                 if self.artifact_dir.exists():
