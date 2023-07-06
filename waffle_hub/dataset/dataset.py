@@ -10,23 +10,21 @@ from pathlib import Path
 from tempfile import mkdtemp
 from typing import Union
 
-import cv2
 import PIL.Image
-import tqdm
-from pycocotools.coco import COCO
 from waffle_utils.file import io, network
-from waffle_utils.file.search import get_files, get_image_files
 from waffle_utils.log import datetime_now
 from waffle_utils.utils import type_validator
 
-from datasets import Dataset as HFDataset
-from datasets import DatasetDict, load_from_disk
 from waffle_hub import EXPORT_MAP, DataType, SplitMethod, TaskType
 from waffle_hub.dataset.adapter import (
     export_autocare_dlt,
     export_coco,
     export_transformers,
     export_yolo,
+    import_autocare_dlt,
+    import_coco,
+    import_transformers,
+    import_yolo,
 )
 from waffle_hub.schema import Annotation, Category, DatasetInfo, Image
 
@@ -127,6 +125,56 @@ class Dataset:
             pass
 
         self.add_categories(v)
+
+    def extract_by_categories(
+        self, name: str, category_ids: list[int], root_dir: str = None
+    ) -> "Dataset":
+        """
+        Extract a new dataset by categories
+
+        Args:
+            name (str): Name of the new dataset
+            category_ids (list[int]): Category IDs to extract
+            root_dir (str, optional): Root directory of the new dataset. Defaults to None.
+
+        Returns (Dataset): New dataset
+        """
+        ds = Dataset.new(
+            name=name,
+            task=self.task,
+            root_dir=root_dir,
+        )
+        try:
+            category_old2new = {}
+            for new_category_id, category_id in enumerate(category_ids, start=1):
+                category_old2new[category_id] = new_category_id
+                categories = self.get_categories([category_id])
+                for category in categories:
+                    category.category_id = new_category_id
+                ds.add_categories(categories)
+
+            for image in self.get_images():
+                annotations = list(
+                    filter(
+                        lambda ann: ann.category_id in category_ids,
+                        self.get_annotations(image.image_id),
+                    )
+                )
+                for annotation in annotations:
+                    annotation.category_id = category_old2new[annotation.category_id]
+
+                if annotations:
+                    io.copy_file(
+                        self.raw_image_dir / image.file_name, ds.raw_image_dir / image.file_name
+                    )
+                    ds.add_images([image])
+                    ds.add_annotations(annotations)
+
+        except Exception as e:
+            ds.delete()
+            raise e
+
+        return ds
 
     @property
     def created(self):
@@ -686,92 +734,10 @@ class Dataset:
         coco_files = coco_file
         coco_root_dirs = coco_root_dir
 
-        if len(coco_files) == 1:
-            set_names = [None]
-        elif len(coco_files) == 2:
-            set_names = ["train", "val"]
-        elif len(coco_files) == 3:
-            set_names = ["train", "val", "test"]
-        else:
-            raise ValueError("coco_file should have 1, 2, or 3 files.")
-
-        cocos = [COCO(coco_file) for coco_file in coco_files]
-
-        # categories should be same between coco files
-        categories = cocos[0].loadCats(cocos[0].getCatIds())
-        for coco in cocos[1:]:
-            if categories != coco.loadCats(coco.getCatIds()):
-                raise ValueError("categories should be same between coco files.")
-
-        coco_cat_id_to_waffle_cat_id = {}
-        for i, category in enumerate(categories, start=1):
-            coco_category_id = category.pop("id")
-            coco_cat_id_to_waffle_cat_id[coco_category_id] = i
-            ds.add_categories([Category.from_dict({**category, "category_id": i}, task=ds.task)])
-
-        # import coco dataset
-        total_length = sum([len(coco.getImgIds()) for coco in cocos])
-        logging.info(f"Importing coco dataset. Total length: {total_length}")
-        pgbar = tqdm.tqdm(total=total_length, desc="Importing coco dataset")
-
-        image_id = 1
-        annotation_id = 1
-
-        # parse coco annotation file
-        for coco, coco_root_dir, set_name in tqdm.tqdm(zip(cocos, coco_root_dirs, set_names)):
-
-            image_ids = []
-            for coco_image_id, annotation_dicts in coco.imgToAnns.items():
-                if len(annotation_dicts) == 0:
-                    warnings.warn(f"image_id {coco_image_id} has no annotations.")
-                    continue
-
-                image_dict = coco.loadImgs(coco_image_id)[0]
-                image_dict.pop("id")
-
-                file_name = image_dict.pop("file_name")
-                image_path = Path(coco_root_dir) / file_name
-                if not image_path.exists():
-                    raise FileNotFoundError(f"{image_path} does not exist.")
-
-                if set_name:
-                    file_name = f"{set_name}/{file_name}"
-
-                ds.add_images(
-                    [Image.from_dict({**image_dict, "image_id": image_id, "file_name": file_name})]
-                )
-                io.copy_file(image_path, ds.raw_image_dir / file_name, create_directory=True)
-
-                for annotation_dict in annotation_dicts:
-                    annotation_dict.pop("id")
-                    ds.add_annotations(
-                        [
-                            Annotation.from_dict(
-                                {
-                                    **annotation_dict,
-                                    "image_id": image_id,
-                                    "annotation_id": annotation_id,
-                                    "category_id": coco_cat_id_to_waffle_cat_id[
-                                        annotation_dict["category_id"]
-                                    ],
-                                },
-                                task=ds.task,
-                            )
-                        ]
-                    )
-                    annotation_id += 1
-
-                image_ids.append(image_id)
-                image_id += 1
-                pgbar.update(1)
-
-            if set_name:
-                io.save_json(image_ids, ds.set_dir / f"{set_name}.json", create_directory=True)
-
-        pgbar.close()
+        import_coco(ds, coco_files, coco_root_dirs)
 
         if len(coco_files) == 2:
-            logging.info("copying val set to test set")
+            logger.info("copying val set to test set")
             io.copy_file(ds.val_set_file, ds.test_set_file, create_directory=True)
 
         # TODO: add unlabeled set
@@ -834,98 +800,7 @@ class Dataset:
         coco_files = coco_file
         coco_root_dirs = coco_root_dir
 
-        if len(coco_files) == 1:
-            set_names = [None]
-        elif len(coco_files) == 2:
-            set_names = ["train", "val"]
-        elif len(coco_files) == 3:
-            set_names = ["train", "val", "test"]
-        else:
-            raise ValueError("coco_file should have 1, 2, or 3 files.")
-
-        cocos = []
-        for coco_file in coco_files:
-            coco_dict = io.load_json(coco_file)
-            for ann in coco_dict["annotations"]:
-                if "category_id" not in ann:
-                    ann["category_id"] = -1  # dummy category_id to use COCO
-            coco = COCO()
-            coco.dataset = coco_dict
-            coco.createIndex()
-            cocos.append(coco)
-
-        # categories should be same between coco files
-        categories = cocos[0].loadCats(cocos[0].getCatIds())
-        for coco in cocos[1:]:
-            if categories != coco.loadCats(coco.getCatIds()):
-                raise ValueError("categories should be same between coco files.")
-
-        coco_cat_id_to_waffle_cat_id = {}
-        for i, category in enumerate(categories, start=1):
-            coco_category_id = category.pop("id")
-            coco_cat_id_to_waffle_cat_id[coco_category_id] = i
-            ds.add_categories([Category.from_dict({**category, "category_id": i}, task=ds.task)])
-
-        # import coco dataset
-        total_length = sum([len(coco.getImgIds()) for coco in cocos])
-        logging.info(f"Importing coco dataset. Total length: {total_length}")
-        pgbar = tqdm.tqdm(total=total_length, desc="Importing coco dataset")
-
-        image_id = 1
-        annotation_id = 1
-
-        # parse coco annotation file
-        for coco, coco_root_dir, set_name in tqdm.tqdm(zip(cocos, coco_root_dirs, set_names)):
-
-            image_ids = []
-            for coco_image_id, annotation_dicts in coco.imgToAnns.items():
-                if len(annotation_dicts) == 0:
-                    warnings.warn(f"image_id {coco_image_id} has no annotations.")
-                    continue
-
-                image_dict = coco.loadImgs(coco_image_id)[0]
-                image_dict.pop("id")
-
-                file_name = image_dict.pop("file_name")
-                image_path = Path(coco_root_dir) / file_name
-                if not image_path.exists():
-                    raise FileNotFoundError(f"{image_path} does not exist.")
-
-                if set_name:
-                    file_name = f"{set_name}/{file_name}"
-
-                ds.add_images(
-                    [Image.from_dict({**image_dict, "image_id": image_id, "file_name": file_name})]
-                )
-                io.copy_file(image_path, ds.raw_image_dir / file_name, create_directory=True)
-
-                for annotation_dict in annotation_dicts:
-                    annotation_dict.pop("id")
-                    ds.add_annotations(
-                        [
-                            Annotation.from_dict(
-                                {
-                                    **annotation_dict,
-                                    "image_id": image_id,
-                                    "annotation_id": annotation_id,
-                                    "category_id": coco_cat_id_to_waffle_cat_id[
-                                        annotation_dict["category_id"]
-                                    ],
-                                },
-                                task=ds.task,
-                            )
-                        ]
-                    )
-                    annotation_id += 1
-
-                image_ids.append(image_id)
-                image_id += 1
-                pgbar.update(1)
-
-            if set_name:
-                io.save_json(image_ids, ds.set_dir / f"{set_name}.json", create_directory=True)
-
-        pgbar.close()
+        import_autocare_dlt(ds, coco_files, coco_root_dirs)
 
         if len(coco_files) == 2:
             logging.info("copying val set to test set")
@@ -941,7 +816,8 @@ class Dataset:
         cls,
         name: str,
         task: str,
-        yaml_path: str,
+        yolo_root_dir: str,
+        yaml_path: str = None,
         root_dir: str = None,
     ) -> "Dataset":
         """
@@ -951,7 +827,8 @@ class Dataset:
         Args:
             name (str): Dataset name.
             task (str): Dataset task.
-            yaml_path (str): Yolo yaml file path.
+            yolo_root_dir (str): Yolo dataset root directory.
+            yaml_path (str): Yolo yaml file path. when task is classification, yaml_path is not required.
             root_dir (str, optional): Dataset root directory. Defaults to None.
 
         Example:
@@ -963,143 +840,7 @@ class Dataset:
 
         ds = Dataset(name=name, task=task, root_dir=root_dir)
 
-        def _import_classification(set_dir: Path, image_ids: list[int]):
-            # categories
-            for category_id, category_name in info["names"].items():
-                ds.add_categories(
-                    [
-                        Category.classification(
-                            category_id=category_id + 1,
-                            name=category_name,
-                        )
-                    ]
-                )
-            name2id = {v: k for k, v in info["names"].items()}
-
-            for image_id, image_path in zip(image_ids, get_image_files(set_dir)):
-                category_name_index = image_path.parts.index(set_dir.stem) + 1
-                category_name = image_path.parts[category_name_index]
-                category_id = name2id[category_name] + 1
-
-                # image
-                img = cv2.imread(str(image_path))
-                height, width, _ = img.shape
-                image = Image.new(
-                    image_id=image_id,
-                    file_name=f"{image_id}{image_path.suffix}",
-                    width=width,
-                    height=height,
-                )
-                ds.add_images([image])
-
-                # annotation
-                annotation = Annotation.classification(
-                    annotation_id=image_id,
-                    image_id=image_id,
-                    category_id=category_id,
-                )
-                ds.add_annotations([annotation])
-
-                # raw
-                dst = ds.raw_image_dir / f"{image_id}{image_path.suffix}"
-                io.copy_file(image_path, dst)
-
-        def _import_object_detection(set_dir: Path, image_ids: list[int]):
-            image_dir = set_dir / "images"
-            label_dir = set_dir / "labels"
-
-            if not image_dir.exists():
-                warnings.warn(f"{image_dir} does not exist.")
-                return
-            if not label_dir.exists():
-                warnings.warn(f"{label_dir} does not exist.")
-                return
-
-            # categories
-            for category_id, category_name in info["names"].items():
-                ds.add_categories(
-                    [
-                        Category.object_detection(
-                            category_id=category_id + 1,
-                            name=category_name,
-                        )
-                    ]
-                )
-
-            for image_id, image_path, label_path in zip(
-                image_ids,
-                get_image_files(image_dir),
-                get_files(label_dir, "txt"),
-            ):
-                # image
-                img = cv2.imread(str(image_path))
-                height, width, _ = img.shape
-                image = Image.new(
-                    image_id=image_id,
-                    file_name=f"{image_id}{image_path.suffix}",
-                    width=width,
-                    height=height,
-                )
-                ds.add_images([image])
-
-                # annotation
-                with open(label_path) as f:  # TODO: use load_txt of waffle_utils after implementing
-                    txt = f.readlines()
-
-                current_annotation_id = len(ds.get_annotations())
-                for i, t in enumerate(txt, start=1):
-                    category_id, x, y, w, h = list(map(float, t.split()))
-                    category_id = int(category_id) + 1
-                    x *= width
-                    y *= height
-                    w *= width
-                    h *= height
-
-                    x -= w / 2
-                    y -= h / 2
-
-                    x, y, w, h = int(x), int(y), int(w), int(h)
-                    annotation = Annotation.object_detection(
-                        annotation_id=current_annotation_id + i,
-                        image_id=image_id,
-                        category_id=category_id,
-                        bbox=[x, y, w, h],
-                        area=w * h,
-                    )
-                    ds.add_annotations([annotation])
-
-                # raw
-                dst = ds.raw_image_dir / f"{image_id}{image_path.suffix}"
-                io.copy_file(image_path, dst)
-
-        if task == TaskType.OBJECT_DETECTION:
-            _import = _import_object_detection
-        elif task == TaskType.CLASSIFICATION:
-            _import = _import_classification
-        else:
-            raise ValueError(f"Unsupported task: {task}")
-
-        info = io.load_yaml(yaml_path)
-        yolo_root_dir = Path(info["path"])
-
-        current_image_id = 1
-        for set_type in ["train", "val", "test"]:
-            if set_type not in info.keys():
-                continue
-
-            # sets
-            set_dir = Path(yolo_root_dir) / set_type
-            image_num = len(get_image_files(set_dir))
-            image_ids = list(range(current_image_id, image_num + current_image_id))
-
-            io.save_json(image_ids, ds.set_dir / f"{set_type}.json", True)
-            current_image_id += image_num
-
-            # import other field
-            _import(set_dir, image_ids)
-
-        # TODO: add unlabeled set
-        io.save_json([], ds.unlabeled_set_file, create_directory=True)
+        import_yolo(ds, yolo_root_dir, yaml_path)
 
         return ds
 
@@ -1133,98 +874,7 @@ class Dataset:
         """
         ds = Dataset.new(name=name, task=task, root_dir=root_dir)
 
-        dataset = load_from_disk(dataset_dir)
-
-        if isinstance(dataset, DatasetDict):
-            is_splited = True
-        elif isinstance(dataset, HFDataset):
-            is_splited = False
-        else:
-            raise ValueError("dataset should be Dataset or DatasetDict")
-
-        def _import(dataset: HFDataset, task: str, image_ids: list[int]):
-            if task == TaskType.OBJECT_DETECTION:
-                if not ds.get_categories():
-                    categories = dataset.features["objects"].feature["category"].names
-                    for category_id, category_name in enumerate(categories):
-                        category = Category.object_detection(
-                            category_id=category_id + 1,
-                            supercategory="object",
-                            name=category_name,
-                        )
-                        ds.add_categories([category])
-
-                for data in dataset:
-                    data["image"].save(f"{ds.raw_image_dir}/{data['image_id']}.jpg")
-                    image = Image.new(
-                        image_id=data["image_id"],
-                        file_name=f"{data['image_id']}.jpg",
-                        width=data["width"],
-                        height=data["height"],
-                    )
-                    ds.add_images([image])
-
-                    annotation_ids = data["objects"]["id"]
-                    areas = data["objects"]["area"]
-                    category_ids = data["objects"]["category"]
-                    bboxes = data["objects"]["bbox"]
-
-                    for annotation_id, area, category_id, bbox in zip(
-                        annotation_ids, areas, category_ids, bboxes
-                    ):
-                        annotation = Annotation.object_detection(
-                            annotation_id=annotation_id,
-                            image_id=image.image_id,
-                            category_id=category_id + 1,
-                            area=area,
-                            bbox=bbox,
-                        )
-                        ds.add_annotations([annotation])
-
-            elif task == TaskType.CLASSIFICATION:
-                if not ds.get_categories():
-                    categories = dataset.features["label"].names
-                    for category_id, category_name in enumerate(categories):
-                        category = Category.classification(
-                            category_id=category_id + 1,
-                            supercategory="object",
-                            name=category_name,
-                        )
-                        ds.add_categories([category])
-
-                for image_id, data in zip(image_ids, dataset):
-                    image_save_path = f"{ds.raw_image_dir}/{image_id}.jpg"
-                    data["image"].save(image_save_path)
-                    pil_image = PIL.Image.open(image_save_path)
-                    width, height = pil_image.size
-                    image = Image.new(
-                        image_id=image_id,
-                        file_name=f"{image_id}.jpg",
-                        width=width,
-                        height=height,
-                    )
-                    ds.add_images([image])
-
-                    annotation = Annotation.classification(
-                        annotation_id=image_id,
-                        image_id=image.image_id,
-                        category_id=data["label"] + 1,
-                    )
-                    ds.add_annotations([annotation])
-
-            else:
-                raise ValueError("task should be one of ['classification', 'object_detection']")
-
-        if is_splited:
-            start_num = 1
-            for set_type, set in dataset.items():
-                image_ids = list(range(start_num, set.num_rows + start_num))
-                start_num += set.num_rows
-                io.save_json(image_ids, ds.set_dir / f"{set_type}.json", True)
-                _import(set, task, image_ids)
-        else:
-            image_ids = list(range(1, dataset.num_rows + 1))
-            _import(dataset, task, image_ids)
+        import_transformers(ds, dataset_dir)
 
         # TODO: add unlabeled set
         io.save_json([], ds.unlabeled_set_file, create_directory=True)

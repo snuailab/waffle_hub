@@ -312,6 +312,85 @@ def test_coco(coco_path, tmpdir, task):
     _total_coco(f"coco_{task}", task, coco_path, tmpdir)
 
 
+# test ultralytics
+def _from_yolo(dataset_name, task: TaskType):
+    dataset = Dataset.from_yolo(
+        name=dataset_name,
+        task=task,
+        yolo_root_dir=yolo_path,
+        root_dir=root_dir,
+    )
+    assert dataset.dataset_info_file.exists()
+
+
+def test_yolo_classification(yolo_classification_path: Path, tmpdir: Path):
+    dataset_name = "yolo_classification"
+    root_dir = tmpdir
+
+    dataset = Dataset.from_yolo(
+        name=dataset_name,
+        task=TaskType.CLASSIFICATION,
+        yolo_root_dir=yolo_classification_path,
+        root_dir=root_dir,
+    )
+    train_ids, val_ids, test_ids, unlabeled_ids = dataset.get_split_ids()
+    assert len(train_ids) == 60
+    assert len(val_ids) == 20
+    assert len(test_ids) == 20
+    assert len(dataset.get_images()) == 100
+
+    _load(dataset_name, root_dir)
+    _clone(dataset_name, root_dir)
+    _split(dataset_name, root_dir)
+    _export(dataset_name, TaskType.CLASSIFICATION, root_dir)
+
+
+def test_yolo_object_detection(yolo_object_detection_path: Path, tmpdir: Path):
+    dataset_name = "yolo_object_detection"
+    root_dir = tmpdir
+
+    dataset = Dataset.from_yolo(
+        name=dataset_name,
+        task=TaskType.OBJECT_DETECTION,
+        yolo_root_dir=yolo_object_detection_path,
+        yaml_path=yolo_object_detection_path / "data.yaml",
+        root_dir=root_dir,
+    )
+    train_ids, val_ids, test_ids, unlabeled_ids = dataset.get_split_ids()
+    assert len(train_ids) == 60
+    assert len(val_ids) == 20
+    assert len(test_ids) == 20
+    assert len(dataset.get_images()) == 100
+
+    _load(dataset_name, root_dir)
+    _clone(dataset_name, root_dir)
+    _split(dataset_name, root_dir)
+    _export(dataset_name, TaskType.OBJECT_DETECTION, root_dir)
+
+
+def test_yolo_instance_segmentation(yolo_instance_segmentation_path: Path, tmpdir: Path):
+    dataset_name = "yolo_instance_segmentation"
+    root_dir = tmpdir
+
+    dataset = Dataset.from_yolo(
+        name=dataset_name,
+        task=TaskType.INSTANCE_SEGMENTATION,
+        yolo_root_dir=yolo_instance_segmentation_path,
+        yaml_path=yolo_instance_segmentation_path / "data.yaml",
+        root_dir=root_dir,
+    )
+    train_ids, val_ids, test_ids, unlabeled_ids = dataset.get_split_ids()
+    assert len(train_ids) == 60
+    assert len(val_ids) == 20
+    assert len(test_ids) == 20
+    assert len(dataset.get_images()) == 100
+
+    _load(dataset_name, root_dir)
+    _clone(dataset_name, root_dir)
+    _split(dataset_name, root_dir)
+    _export(dataset_name, TaskType.INSTANCE_SEGMENTATION, root_dir)
+
+
 # test autocare_dlt
 def _from_autocare_dlt(dataset_name, task: TaskType, coco_path, root_dir):
     dataset = Dataset.from_autocare_dlt(
@@ -482,3 +561,22 @@ def test_merge(coco_path, tmpdir):
     assert category_counts[1] == category_1_num
     assert category_counts[2] == category_2_num
     assert category_counts[3] == category_1_num
+
+
+def test_extract_by_categories(tmpdir):
+    ds = Dataset.dummy(
+        name="dummy_for_extract_by_categories",
+        root_dir=tmpdir,
+        task=TaskType.OBJECT_DETECTION,
+        image_num=10,
+        category_num=3,
+    )
+
+    extracted_ds = ds.extract_by_categories(
+        name="extracted",
+        root_dir=tmpdir,
+        category_ids=[1, 2],
+    )
+
+    assert extracted_ds.dataset_dir.exists()
+    assert len(extracted_ds.get_categories()) == 2
