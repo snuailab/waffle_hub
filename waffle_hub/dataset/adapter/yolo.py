@@ -455,7 +455,6 @@ def _import_yolo_instance_segmentation(self, yolo_root_dir: Path, yaml_path: str
     for set_type in ["train", "val", "test"]:
         io.save_json(set2image_ids[set_type], self.set_dir / f"{set_type}.json", True)
 
-
 def import_yolo(self, yolo_root_dir: str, yaml_path: str):
     """
     Import YOLO dataset.
@@ -476,7 +475,6 @@ def import_yolo(self, yolo_root_dir: str, yaml_path: str):
         yolo_root_dir = Path(yolo_root_dir)
 
     _import(self, yolo_root_dir, yaml_path)
-
 
     # TODO: add unlabeled set
     io.save_json([], self.unlabeled_set_file, create_directory=True)
