@@ -912,6 +912,8 @@ class Hub:
                 self.after_train(cfg, result)
                 callback.force_finish()
             except FileExistsError as e:
+                callback.force_finish()
+                callback.set_failed()
                 raise e
             except Exception as e:
                 if self.artifact_dir.exists():
