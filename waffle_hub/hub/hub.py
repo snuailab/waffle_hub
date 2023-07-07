@@ -52,6 +52,7 @@ from waffle_hub.utils.callback import (
 from waffle_hub.utils.data import ImageDataset, LabeledDataset, get_image_transform
 from waffle_hub.utils.draw import draw_results
 from waffle_hub.utils.evaluate import evaluate_function
+from waffle_hub.utils.metric_logger import MetricLogger
 
 logger = logging.getLogger(__name__)
 
@@ -72,6 +73,8 @@ class Hub:
     EXPORT_DIR = Path("exports")
 
     DRAW_DIR = Path("draws")
+
+    TRAIN_LOG_DIR = Path("logs")
 
     # config files
     CONFIG_DIR = Path("configs")
@@ -225,7 +228,8 @@ class Hub:
             raise ValueError(f"{task} is not supported with {backend}")
         if model_type not in hub.MODEL_TYPES[task]:
             raise ValueError(f"{model_type} is not supported with {backend}")
-        return hub.MODEL_TYPES[task][model_type]
+        model_sizes = hub.MODEL_TYPES[task][model_type]
+        return model_sizes if isinstance(model_sizes, list) else list(model_sizes.keys())
 
     @classmethod
     def get_default_train_params(
@@ -553,6 +557,11 @@ class Hub:
     def draw_dir(self) -> Path:
         """Draw Results Directory"""
         return self.inference_dir / Hub.DRAW_DIR
+
+    @cached_property
+    def train_log_dir(self) -> Path:
+        """Train Logs Directory"""
+        return self.hub_dir / Hub.TRAIN_LOG_DIR
 
     @cached_property
     def train_config_file(self) -> Path:
@@ -896,6 +905,14 @@ class Hub:
 
         def inner(callback: TrainCallback, result: TrainResult):
             try:
+                metric_logger = MetricLogger(
+                    name=self.name,
+                    log_dir=self.train_log_dir,
+                    func=self.get_metrics,
+                    interval=10,
+                    prefix="waffle",
+                )
+                metric_logger.start()
                 self.before_train(cfg)
                 self.on_train_start(cfg)
                 self.save_train_config(cfg)
@@ -910,6 +927,8 @@ class Hub:
                     workers=cfg.workers,
                 )
                 self.after_train(cfg, result)
+                metric_logger.stop()
+
                 callback.force_finish()
             except FileExistsError as e:
                 callback.force_finish()
