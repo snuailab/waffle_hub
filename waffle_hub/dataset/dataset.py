@@ -126,42 +126,6 @@ class Dataset:
 
         self.add_categories(v)
 
-    def extract_by_categories(self, name: str, category_ids: list[int], root_dir: str = None):
-        ds = Dataset.new(
-            name=name,
-            task=self.task,
-            root_dir=root_dir,
-        )
-        try:
-            category_old2new = {}
-            for new_category_id, category_id in enumerate(category_ids, start=1):
-                category_old2new[category_id] = new_category_id
-                categories = self.get_categories([category_id])
-                for category in categories:
-                    category.category_id = new_category_id
-                ds.add_categories(categories)
-
-            for image in self.get_images():
-                annotations = list(
-                    filter(
-                        lambda ann: ann.category_id in category_ids,
-                        self.get_annotations(image.image_id),
-                    )
-                )
-                for annotation in annotations:
-                    annotation.category_id = category_old2new[annotation.category_id]
-
-                if annotations:
-                    io.copy_file(
-                        self.raw_image_dir / image.file_name, ds.raw_image_dir / image.file_name
-                    )
-                    ds.add_images([image])
-                    ds.add_annotations(annotations)
-
-        except Exception as e:
-            ds.delete()
-            raise e
-
     @property
     def created(self):
         return self.__created
@@ -802,7 +766,8 @@ class Dataset:
         cls,
         name: str,
         task: str,
-        yaml_path: str,
+        yolo_root_dir: str,
+        yaml_path: str = None,
         root_dir: str = None,
     ) -> "Dataset":
         """
@@ -812,7 +777,8 @@ class Dataset:
         Args:
             name (str): Dataset name.
             task (str): Dataset task.
-            yaml_path (str): Yolo yaml file path.
+            yolo_root_dir (str): Yolo dataset root directory.
+            yaml_path (str): Yolo yaml file path. when task is classification, yaml_path is not required.
             root_dir (str, optional): Dataset root directory. Defaults to None.
 
         Example:
@@ -824,7 +790,7 @@ class Dataset:
 
         ds = Dataset(name=name, task=task, root_dir=root_dir)
 
-        import_yolo(ds, yaml_path)
+        import_yolo(ds, yolo_root_dir, yaml_path)
 
         return ds
 
