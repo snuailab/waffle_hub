@@ -5,8 +5,7 @@ from waffle_hub.schema.configs import TrainConfig
 MODEL_TYPES = {
     TaskType.OBJECT_DETECTION: {
         "yolov8": list("nsmlx"),
-        "yolov5u": list("nsmlx"),
-        "yolov5u6": list("nsmlx"),
+        "yolov5": ["n", "s", "m", "l", "x", "n6", "s6", "m6", "l6", "x6"],
     },
     TaskType.CLASSIFICATION: {"yolov8": list("nsmlx")},
     TaskType.INSTANCE_SEGMENTATION: {"yolov8": list("nsmlx")},
@@ -24,50 +23,41 @@ TASK_MAP = {
 PRETRAINED_WEIGHT = {
     TaskType.OBJECT_DETECTION: {
         "yolov8": {
-            "n" : "yolov8n.pt",
-            "s" : "yolov8s.pt",
-            "m" : "yolov8m.pt",
-            "l" : "yolov8l.pt",
-            "x" : "yolov8x.pt"
+            "n": "yolov8n.pt",
+            "s": "yolov8s.pt",
+            "m": "yolov8m.pt",
+            "l": "yolov8l.pt",
+            "x": "yolov8x.pt",
         },
-        "yolov5u": {
-            "n" : "yolov5nu.pt",
-            "s" : "yolov5su.pt",
-            "m" : "yolov5mu.pt",
-            "l" : "yolov5lu.pt",
-            "x" : "yolov5xu.pt"
+        "yolov5": {
+            "n": "yolov5nu.pt",
+            "s": "yolov5su.pt",
+            "m": "yolov5mu.pt",
+            "l": "yolov5lu.pt",
+            "x": "yolov5xu.pt",
+            "n6": "yolov5n6u.pt",
+            "s6": "yolov5s6u.pt",
+            "m6": "yolov5m6u.pt",
+            "l6": "yolov5l6u.pt",
+            "x6": "yolov5x6u.pt",
         },
-        "yolov5u6": {
-            "n" : "yolov5n6u.pt",
-            "s" : "yolov5s6u.pt",
-            "m" : "yolov5m6u.pt",
-            "l" : "yolov5l6u.pt",
-            "x" : "yolov5x6u.pt"
-        },
-        "yolov6": {
-            "n" : "yolov6n.pt",
-            "s" : "yolov6s.pt",
-            "m" : "yolov6m.pt",
-            "l" : "yolov6l.pt",
-            "x" : "yolov6x.pt"
-        }
     },
     TaskType.CLASSIFICATION: {
         "yolov8": {
-            "n" : "yolov8n-cls.pt",
-            "s" : "yolov8s-cls.pt",
-            "m" : "yolov8m-cls.pt",
-            "l" : "yolov8l-cls.pt",
-            "x" : "yolov8x-cls.pt"
+            "n": "yolov8n-cls.pt",
+            "s": "yolov8s-cls.pt",
+            "m": "yolov8m-cls.pt",
+            "l": "yolov8l-cls.pt",
+            "x": "yolov8x-cls.pt",
         }
     },
     TaskType.INSTANCE_SEGMENTATION: {
         "yolov8": {
-            "n" : "yolov8n-seg.pt",
-            "s" : "yolov8s-seg.pt",
-            "m" : "yolov8m-seg.pt",
-            "l" : "yolov8l-seg.pt",
-            "x" : "yolov8x-seg.pt"
+            "n": "yolov8n-seg.pt",
+            "s": "yolov8s-seg.pt",
+            "m": "yolov8m-seg.pt",
+            "l": "yolov8l-seg.pt",
+            "x": "yolov8x-seg.pt",
         }
     },
 }
@@ -111,7 +101,7 @@ DEFAULT_PARAMS = {
                 batch_size=8,
             ),
         },
-        "yolov5u": {
+        "yolov5": {
             "n": TrainConfig(
                 epochs=50,
                 image_size=[640, 640],
@@ -147,42 +137,40 @@ DEFAULT_PARAMS = {
                 letter_box=True,
                 batch_size=8,
             ),
-        },
-        "yolov5u6": {
-            "n": TrainConfig(
+            "n6": TrainConfig(
                 epochs=50,
-                image_size=[640, 640],
-                learning_rate=0.01,
-                letter_box=True,
-                batch_size=64,
-            ),
-            "s": TrainConfig(
-                epochs=50,
-                image_size=[640, 640],
+                image_size=[1280, 1280],
                 learning_rate=0.01,
                 letter_box=True,
                 batch_size=32,
             ),
-            "m": TrainConfig(
+            "s6": TrainConfig(
                 epochs=50,
-                image_size=[640, 640],
+                image_size=[1280, 1280],
                 learning_rate=0.01,
                 letter_box=True,
                 batch_size=16,
             ),
-            "l": TrainConfig(
+            "m6": TrainConfig(
                 epochs=50,
-                image_size=[640, 640],
+                image_size=[1280, 1280],
                 learning_rate=0.01,
                 letter_box=True,
                 batch_size=8,
             ),
-            "x": TrainConfig(
+            "l6": TrainConfig(
                 epochs=50,
-                image_size=[640, 640],
+                image_size=[1280, 1280],
                 learning_rate=0.01,
                 letter_box=True,
-                batch_size=8,
+                batch_size=4,
+            ),
+            "x6": TrainConfig(
+                epochs=50,
+                image_size=[1280, 1280],
+                learning_rate=0.01,
+                letter_box=True,
+                batch_size=2,
             ),
         },
     },
