@@ -131,10 +131,12 @@ class Dataset:
     ) -> "Dataset":
         """
         Extract a new dataset by categories
+
         Args:
             name (str): Name of the new dataset
             category_ids (list[int]): Category IDs to extract
             root_dir (str, optional): Root directory of the new dataset. Defaults to None.
+
         Returns (Dataset): New dataset
         """
         ds = Dataset.new(
