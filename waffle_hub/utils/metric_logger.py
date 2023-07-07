@@ -73,14 +73,14 @@ try:
         def log_metric(self, tag, value, step):
             # remove invalid characters in tag using regex (only alphabet, -, _, / are allowed)
             tag = re.sub(r"[^a-zA-Z0-9-_\/]", "_", tag)
-            mlflow.log_metric(tag, value, step)
+            with mlflow.start_run(run_name=self.kwargs.get("run_name", "0")):
+                mlflow.log_metric(tag, value, step)
 
         def open(self):
             exp = mlflow.set_experiment(self.name)
             # TODO: only support one model for one experiment
             for run in mlflow.search_runs(experiment_ids=exp.experiment_id).run_id:
                 mlflow.delete_run(mlflow.get_run(run).info.run_id)
-            mlflow.start_run(run_name=self.kwargs.get("run_name", "0"))
             logging.info(f"MLFlow logs will be saved to {mlflow.get_tracking_uri()}")
 
         def close(self):

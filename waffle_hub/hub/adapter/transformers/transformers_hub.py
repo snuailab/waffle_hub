@@ -20,6 +20,8 @@ from transformers import (
     Trainer,
     TrainerCallback,
 )
+from transformers.trainer_callback import TrainerControl, TrainerState
+from transformers.training_args import TrainingArguments
 from transformers.utils import ModelOutput
 from waffle_utils.file import io
 
@@ -48,7 +50,9 @@ class CustomCallback(TrainerCallback):
         self._trainer = trainer
         self.metric_file = metric_file
 
-    def on_epoch_end(self, args, state, control, **kwargs):
+    def on_train_end(
+        self, args: TrainingArguments, state: TrainerState, control: TrainerControl, **kwargs
+    ):
         epoch_metric = defaultdict(list)
         for metric in state.log_history:
             epoch = int(metric.get("epoch"))
