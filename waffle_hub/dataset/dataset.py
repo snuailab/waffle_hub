@@ -11,7 +11,9 @@ from tempfile import mkdtemp
 from typing import Union
 
 import PIL.Image
+import tqdm
 from waffle_utils.file import io, network
+from waffle_utils.image.io import load_image, save_image
 from waffle_utils.log import datetime_now
 from waffle_utils.utils import type_validator
 
@@ -27,6 +29,7 @@ from waffle_hub.dataset.adapter import (
     import_yolo,
 )
 from waffle_hub.schema import Annotation, Category, DatasetInfo, Image
+from waffle_hub.utils.draw import draw_results
 
 logger = logging.getLogger(__name__)
 
@@ -42,6 +45,7 @@ class Dataset:
     PREDICTION_DIR = Path("predictions")
     EXPORT_DIR = Path("exports")
     SET_DIR = Path("sets")
+    DRAW_DIR = Path("draws")
 
     TRAIN_SET_FILE_NAME = Path("train.json")
     VAL_SET_FILE_NAME = Path("val.json")
@@ -239,6 +243,10 @@ class Dataset:
     @cached_property
     def set_dir(self) -> Path:
         return self.dataset_dir / Dataset.SET_DIR
+
+    @cached_property
+    def draw_dir(self) -> Path:
+        return self.dataset_dir / Dataset.DRAW_DIR
 
     @cached_property
     def train_set_file(self) -> Path:
@@ -1346,3 +1354,16 @@ class Dataset:
         """Delete Dataset"""
         io.remove_directory(self.dataset_dir)
         del self
+
+    def draw_annotations(self, image_ids=None):
+        if not self.draw_dir.exists():
+            self.draw_dir.mkdir(parents=True)
+
+        images = self.get_images(image_ids)
+        names = self.get_category_names()
+
+        for image in tqdm.tqdm(images):
+            np_image = load_image(self.raw_image_dir / image.file_name)
+            annotations = self.get_annotations(image.image_id)
+            drawn_image = draw_results(np_image, annotations, names)
+            save_image(self.draw_dir / image.file_name, drawn_image)
