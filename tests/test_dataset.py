@@ -3,6 +3,7 @@ from pathlib import Path
 
 import pytest
 from waffle_utils.file.io import load_json, save_json
+from waffle_utils.file.search import get_image_files
 
 from waffle_hub import TaskType
 from waffle_hub.dataset import Dataset
@@ -580,3 +581,27 @@ def test_extract_by_categories(tmpdir):
 
     assert extracted_ds.dataset_dir.exists()
     assert len(extracted_ds.get_categories()) == 2
+
+
+@pytest.mark.parametrize(
+    "task",
+    [
+        TaskType.OBJECT_DETECTION,
+        TaskType.CLASSIFICATION,
+        TaskType.INSTANCE_SEGMENTATION,
+        TaskType.TEXT_RECOGNITION,
+    ],
+)
+def test_draw_annotations(tmpdir, task):
+    image_num = 5
+    ds = Dataset.dummy(
+        name=f"dummy_for_draw_annotations_{task}",
+        root_dir=tmpdir,
+        task=task,
+        image_num=image_num,
+        category_num=1,
+    )
+
+    ds.draw_annotations([1, 2])
+    assert ds.draw_dir.exists()
+    assert len(get_image_files(ds.draw_dir)) == 2
