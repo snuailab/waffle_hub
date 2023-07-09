@@ -1356,6 +1356,14 @@ class Dataset:
         del self
 
     def draw_annotations(self, image_ids=None):
+        """
+        Draw annotations on images
+        Save drawn images to draw_dir
+
+        Args:
+            image_ids (list[int], optional): image ids to draw. Defaults to None.
+
+        """
         if not self.draw_dir.exists():
             self.draw_dir.mkdir(parents=True)
 
