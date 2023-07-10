@@ -287,7 +287,7 @@ class UltralyticsHub(Hub):
                 imgsz={cfg.image_size},
                 lr0={cfg.learning_rate},
                 lrf={cfg.learning_rate},
-                rect={cfg.letter_box},
+                rect={False if "," in cfg.device else cfg.letter_box},
                 device="{cfg.device}",
                 workers={cfg.workers},
                 seed={cfg.seed},
