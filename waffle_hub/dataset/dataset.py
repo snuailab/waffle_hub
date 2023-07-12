@@ -353,6 +353,10 @@ class Dataset:
             Dataset: Dataset Class
         """
         root_dir = Dataset.parse_root_dir(root_dir)
+
+        if name in Dataset.get_dataset_list(root_dir):
+            raise FileExistsError(f"Dataset {name} already exists.")
+
         try:
             return cls(name=name, task=task, categories=categories, root_dir=root_dir)
         except Exception as e:
