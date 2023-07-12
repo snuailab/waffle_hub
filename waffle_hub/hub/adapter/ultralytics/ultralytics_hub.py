@@ -273,6 +273,9 @@ class UltralyticsHub(Hub):
             else self.MODEL_TYPES[self.task][self.model_type][self.model_size]
         )
 
+        # other
+        cfg.letter_box = False if "," in cfg.device else cfg.letter_box
+
     def training(self, cfg: TrainConfig, callback: TrainCallback):
 
         code = f"""if __name__ == "__main__":
