@@ -288,10 +288,11 @@ class Hub:
             Hub: Hub instance
         """
         root_dir = Hub.parse_root_dir(root_dir)
-        try:
-            if name in cls.get_hub_list(root_dir):
-                raise ValueError(f"{name} already exists. Try another name.")
 
+        if name in cls.get_hub_list(root_dir):
+            raise FileExistsError(f"{name} already exists. Try another name.")
+
+        try:
             backend = backend if backend else cls.get_available_backends()[0]
             task = str(task).upper() if task else cls.get_available_tasks(backend)[0]
             model_type = (
