@@ -4,24 +4,6 @@ from waffle_hub.schema.configs import TrainConfig
 # Common
 MODEL_TYPES = {
     TaskType.OBJECT_DETECTION: {
-        "yolov8": list("nsmlx"),
-        "yolov5": ["n", "s", "m", "l", "x", "n6", "s6", "m6", "l6", "x6"],
-    },
-    TaskType.CLASSIFICATION: {"yolov8": list("nsmlx")},
-    TaskType.INSTANCE_SEGMENTATION: {"yolov8": list("nsmlx")},
-    # "keypoint_detection": {"yolov8": list("nsmlx")},
-}
-
-# Backend Specifics
-TASK_MAP = {
-    TaskType.OBJECT_DETECTION: "detect",
-    TaskType.CLASSIFICATION: "classify",
-    TaskType.INSTANCE_SEGMENTATION: "segment"
-    # "keypoint_detection": "pose"
-}
-
-PRETRAINED_WEIGHT = {
-    TaskType.OBJECT_DETECTION: {
         "yolov8": {
             "n": "yolov8n.pt",
             "s": "yolov8s.pt",
@@ -60,6 +42,15 @@ PRETRAINED_WEIGHT = {
             "x": "yolov8x-seg.pt",
         }
     },
+    # "keypoint_detection": {"yolov8": list("nsmlx")},
+}
+
+# Backend Specifics
+TASK_MAP = {
+    TaskType.OBJECT_DETECTION: "detect",
+    TaskType.CLASSIFICATION: "classify",
+    TaskType.INSTANCE_SEGMENTATION: "segment"
+    # "keypoint_detection": "pose"
 }
 
 DEFAULT_PARAMS = {
