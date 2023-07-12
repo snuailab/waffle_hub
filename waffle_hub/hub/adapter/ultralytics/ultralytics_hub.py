@@ -21,7 +21,7 @@ from waffle_hub.schema.configs import TrainConfig
 from waffle_hub.utils.callback import TrainCallback
 from waffle_hub.utils.process import run_python_file
 
-from .config import DEFAULT_PARAMS, MODEL_TYPES, PRETRAINED_WEIGHT, TASK_MAP
+from .config import DEFAULT_PARAMS, MODEL_TYPES, TASK_MAP
 
 
 class UltralyticsHub(Hub):
@@ -32,7 +32,6 @@ class UltralyticsHub(Hub):
     DEFAULT_ADVANCE_PARAMS = dict(YOLO_DEFAULT_ADVANCE_PARAMS)
 
     TASK_MAP = TASK_MAP
-    PRETRAINED_WEIGHT = PRETRAINED_WEIGHT
 
     def __init__(
         self,
@@ -271,7 +270,7 @@ class UltralyticsHub(Hub):
         cfg.pretrained_model = (
             cfg.pretrained_model
             if cfg.pretrained_model
-            else self.PRETRAINED_WEIGHT[self.task][self.model_type][self.model_size]
+            else self.MODEL_TYPES[self.task][self.model_type][self.model_size]
         )
 
         # other
