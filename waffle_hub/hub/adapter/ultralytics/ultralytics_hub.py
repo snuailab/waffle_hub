@@ -21,7 +21,7 @@ from waffle_hub.schema.configs import TrainConfig
 from waffle_hub.utils.callback import TrainCallback
 from waffle_hub.utils.process import run_python_file
 
-from .config import DEFAULT_PARAMS, MODEL_TYPES, TASK_MAP, PRETRAINED_WEIGHT
+from .config import DEFAULT_PARAMS, MODEL_TYPES, PRETRAINED_WEIGHT, TASK_MAP
 
 
 class UltralyticsHub(Hub):
@@ -274,6 +274,9 @@ class UltralyticsHub(Hub):
             else self.PRETRAINED_WEIGHT[self.task][self.model_type][self.model_size]
         )
 
+        # other
+        cfg.letter_box = False if "," in cfg.device else cfg.letter_box
+
     def training(self, cfg: TrainConfig, callback: TrainCallback):
 
         code = f"""if __name__ == "__main__":
@@ -287,7 +290,7 @@ class UltralyticsHub(Hub):
                 imgsz={cfg.image_size},
                 lr0={cfg.learning_rate},
                 lrf={cfg.learning_rate},
-                rect={False if "," in cfg.device else cfg.letter_box},
+                rect={cfg.letter_box},
                 device="{cfg.device}",
                 workers={cfg.workers},
                 seed={cfg.seed},
