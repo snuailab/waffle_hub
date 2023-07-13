@@ -564,6 +564,25 @@ def test_merge(coco_path, tmpdir):
     assert category_counts[3] == category_1_num
 
 
+def test_extract_by_images_ids(tmpdir):
+    ds = Dataset.dummy(
+        name="dummy_for_extract_by_image_ids",
+        root_dir=tmpdir,
+        task=TaskType.OBJECT_DETECTION,
+        image_num=10,
+        category_num=3,
+    )
+
+    extracted_ds = ds.extract_by_image_ids(
+        name="extracted_by_image_ids",
+        root_dir=tmpdir,
+        image_ids=[1, 2],
+    )
+
+    assert extracted_ds.dataset_dir.exists()
+    assert len(extracted_ds.get_images()) == 2
+
+
 def test_extract_by_categories(tmpdir):
     ds = Dataset.dummy(
         name="dummy_for_extract_by_categories",
@@ -574,7 +593,7 @@ def test_extract_by_categories(tmpdir):
     )
 
     extracted_ds = ds.extract_by_categories(
-        name="extracted",
+        name="extracted_by_categories",
         root_dir=tmpdir,
         category_ids=[1, 2],
     )
