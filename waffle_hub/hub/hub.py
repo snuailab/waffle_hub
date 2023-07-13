@@ -52,6 +52,7 @@ from waffle_hub.utils.callback import (
 from waffle_hub.utils.data import ImageDataset, LabeledDataset, get_image_transform
 from waffle_hub.utils.draw import draw_results
 from waffle_hub.utils.evaluate import evaluate_function
+from waffle_hub.utils.export import export_engine, export_onnx
 from waffle_hub.utils.metric_logger import MetricLogger
 
 logger = logging.getLogger(__name__)
@@ -94,6 +95,7 @@ class Hub:
 
     # export results
     ONNX_FILE = "weights/model.onnx"
+    ENGINE_FILE = "weights/model.engine"
 
     def __init__(
         self,
@@ -576,8 +578,13 @@ class Hub:
 
     @cached_property
     def onnx_file(self) -> Path:
-        """Best Checkpoint File"""
+        """Onnx File Path"""
         return self.hub_dir / Hub.ONNX_FILE
+
+    @cached_property
+    def engine_file(self) -> Path:
+        """Best Checkpoint File"""
+        return self.hub_dir / Hub.ENGINE_FILE
 
     @cached_property
     def last_ckpt_file(self) -> Path:
@@ -1390,58 +1397,8 @@ class Hub:
 
         return result
 
-    # Export Hook
-    def before_export(self, cfg: ExportConfig):
-
-        # overwrite training config
-        train_config = self.get_train_config()
-        if cfg.image_size is None:
-            cfg.image_size = train_config.image_size
-
-    def on_export_start(self, cfg: ExportConfig):
-        pass
-
-    def exporting(self, cfg: ExportConfig, callback: ExportCallback) -> str:
-        image_size = cfg.image_size
-        image_size = [image_size, image_size] if isinstance(image_size, int) else image_size
-
-        model = self.get_model().half() if cfg.half else self.get_model()
-        model = model.to(cfg.device)
-
-        input_name = ["inputs"]
-        if self.task == TaskType.OBJECT_DETECTION:
-            output_names = ["bbox", "conf", "class_id"]
-        elif self.task == TaskType.CLASSIFICATION:
-            output_names = ["predictions"]
-        elif self.task == TaskType.INSTANCE_SEGMENTATION:
-            output_names = ["bbox", "conf", "class_id", "masks"]
-        elif self.task == TaskType.TEXT_RECOGNITION:
-            output_names = ["class_ids", "confs"]
-        else:
-            raise NotImplementedError(f"{self.task} does not support export yet.")
-
-        dummy_input = torch.randn(
-            cfg.batch_size, 3, *image_size, dtype=torch.float16 if cfg.half else torch.float32
-        )
-        dummy_input = dummy_input.to(cfg.device)
-
-        torch.onnx.export(
-            model,
-            dummy_input,
-            str(self.onnx_file),
-            input_names=input_name,
-            output_names=output_names,
-            opset_version=cfg.opset_version,
-            dynamic_axes={name: {0: "batch_size"} for name in input_name + output_names},
-        )
-
-    def on_export_end(self, cfg: ExportConfig):
-        pass
-
-    def after_export(self, cfg: ExportConfig, result: ExportResult):
-        result.export_file = self.onnx_file
-
-    def export(
+    # Export
+    def export_onnx(
         self,
         image_size: Union[int, list[int]] = None,
         batch_size: int = 16,
@@ -1450,7 +1407,7 @@ class Hub:
         device: str = "0",
         hold: bool = True,
     ) -> ExportResult:
-        """Export Model
+        """Export to ONNX
 
         Args:
             image_size (Union[int, list[int]], optional): inference image size. None for same with train_config (recommended).
@@ -1482,28 +1439,9 @@ class Hub:
         """
         self.check_train_sanity()
 
-        def inner(callback: ExportCallback, result: ExportResult):
-            try:
-                self.before_export(cfg)
-                self.on_export_start(cfg)
-                self.exporting(cfg, callback)
-                self.on_export_end(cfg)
-                self.after_export(cfg, result)
-                callback.force_finish()
-            except Exception as e:
-                if self.onnx_file.exists():
-                    io.remove_file(self.onnx_file)
-                callback.force_finish()
-                callback.set_failed()
-                raise e
+        model = self.get_model()
 
-        cfg = ExportConfig(
-            image_size=image_size,
-            batch_size=batch_size,
-            opset_version=opset_version,
-            half=half,
-            device="cpu" if device == "cpu" else f"cuda:{device}",
-        )
+        export_onnx()
 
         callback = ExportCallback(1)
         result = ExportResult()
