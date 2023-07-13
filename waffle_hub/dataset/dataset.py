@@ -130,6 +130,43 @@ class Dataset:
 
         self.add_categories(v)
 
+    def extract_by_image_ids(
+        self, name: str, image_ids: list[int], root_dir: str = None
+    ) -> "Dataset":
+        """
+        Extract a new dataset by image ids
+
+        Args:
+            name (str): Name of the new dataset
+            image_ids (list[int]): Image ids to extract
+            root_dir (str, optional): Root directory of the new dataset. Defaults to None.
+
+        Returns:
+            Dataset: Extracted dataset
+
+        """
+        ds = Dataset.new(
+            name=name,
+            task=self.task,
+            root_dir=root_dir,
+        )
+
+        try:
+            ds.add_categories(self.get_categories())
+            for image in self.get_images(image_ids):
+                annotations = self.get_annotations(image.image_id)
+                io.copy_file(
+                    self.raw_image_dir / image.file_name, ds.raw_image_dir / image.file_name
+                )
+                ds.add_images([image])
+                ds.add_annotations(annotations)
+
+        except Exception as e:
+            ds.delete()
+            raise e
+
+        return ds
+
     def extract_by_categories(
         self, name: str, category_ids: list[int], root_dir: str = None
     ) -> "Dataset":
