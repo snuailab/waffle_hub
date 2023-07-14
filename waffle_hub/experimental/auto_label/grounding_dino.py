@@ -133,12 +133,14 @@ if __name__ == "__main__":
     )
     parser.add_argument("--image_size", "-i", type=int, default=640, help="image size")
     parser.add_argument("--text_prompt", "-t", type=str, required=True, help="text prompt")
+    parser.add_argument("--class_name", type=str, required=True, help="class name")
     parser.add_argument("--output_dir", "-o", type=str, default="outputs", help="output directory")
 
     parser.add_argument("--box_threshold", type=float, default=0.3, help="box threshold")
     parser.add_argument("--text_threshold", type=float, default=0.25, help="text threshold")
 
     parser.add_argument("--draw", action="store_true", help="draw bounding boxes")
+    parser.add_argument("--recursive", action="store_true", help="load image recursively")
 
     parser.add_argument("--waffle_dataset_name", default=None, type=str, help="waffle dataset name")
 
@@ -151,9 +153,10 @@ if __name__ == "__main__":
 
     # text_prompt = args.text_prompt
     text_prompt = args.text_prompt
-    classes = [text_prompt]
-    class2id = {name: i for i, name in enumerate(classes)}
-    id2class = {i: name for i, name in enumerate(classes)}
+    class_name = args.class_name
+    class2id = {name: i for i, name in enumerate([class_name])}
+    id2class = {i: name for name, i in class2id.items()}
+    
     box_threshold = args.box_threshold
     text_threshold = args.text_threshold
 
@@ -170,7 +173,7 @@ if __name__ == "__main__":
 
     # get dataloader
     dl = ImageDataset(
-        image_dir=source_dir, image_size=args.image_size, letter_box=True
+        image_dir=source_dir, image_size=args.image_size, letter_box=True, recursive=args.recursive
     ).get_dataloader(1, 1)
     preprocess = T.Normalize([0.485, 0.456, 0.406], [0.229, 0.224, 0.225])
 
@@ -195,7 +198,7 @@ if __name__ == "__main__":
         )
         image_info = image_infos[0]  # TODO: batch
         if len(boxes) > 0:
-            results = parse_results(boxes, confs, labels, image_info, class2id)
+            results = parse_results(boxes, confs, [class_name] * len(labels), image_info, class2id)
         else:
             results = []
 
@@ -226,7 +229,7 @@ if __name__ == "__main__":
             draw = draw_results(
                 image_info.image_path,
                 results,
-                names=classes,
+                names=[class_name],
             )
             draw_path = draw_dir / file_name.with_suffix(".png")
             io.make_directory(draw_path.parent)
