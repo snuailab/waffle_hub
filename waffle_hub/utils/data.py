@@ -106,12 +106,13 @@ class ImageDataset:
         image_dir: str,
         image_size: Union[int, list[int]],
         letter_box: bool = False,
+        recursive: bool = True,
     ):
         self.image_dir = image_dir
         if Path(self.image_dir).is_file():
             self.image_paths = [self.image_dir]
         else:
-            self.image_paths = get_images(self.image_dir)
+            self.image_paths = get_images(self.image_dir, recursive=recursive)
 
         self.transform = get_image_transform(image_size, letter_box)
 
