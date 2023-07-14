@@ -1268,7 +1268,6 @@ class Dataset:
                 if test_ratio == 0.0:
                     train_ids.extend(image_ids[:train_num])
                     val_ids.extend(image_ids[train_num:])
-                    test_ids = val_ids
                 else:
                     train_ids.extend(image_ids[:train_num])
                     val_ids.extend(image_ids[train_num : train_num + val_num])

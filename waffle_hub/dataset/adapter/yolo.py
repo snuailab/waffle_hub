@@ -289,8 +289,11 @@ def _import_yolo_classification(self, yolo_root_dir: Path, *args):
             yolo_root_dir / image_path, self.raw_image_dir / file_name, create_directory=True
         )
 
-    for set_type in ["train", "val", "test"]:
-        io.save_json(set2image_ids[set_type], self.set_dir / f"{set_type}.json", True)
+    io.save_json(set2image_ids["train"], self.set_dir / "train.json", True)
+    io.save_json(set2image_ids["val"], self.set_dir / "val.json", True)
+    io.save_json(
+        set2image_ids["test" if "test" in set2image_ids else "val"], self.set_dir / "test.json", True
+    )
 
 
 def _import_yolo_object_detection(self, yolo_root_dir: Path, yaml_path: str):
@@ -310,9 +313,10 @@ def _import_yolo_object_detection(self, yolo_root_dir: Path, yaml_path: str):
                 )
             ]
         )
+
+    path_set_type = {}
     for set_type in ["train", "val", "test"]:
-        if info[set_type] != set_type:
-            raise ValueError(f"yaml file's {set_type} must be {set_type} directory")
+        path_set_type[info[set_type]] = set_type
 
     # image & annotation & set & raw
     new_annotation_id = 1
@@ -324,7 +328,7 @@ def _import_yolo_object_detection(self, yolo_root_dir: Path, yaml_path: str):
         )
     )
     for image_id, image_path in enumerate(image_paths, start=1):
-        set_type = image_path.parts[0]
+        set_type = path_set_type[image_path.parts[0]]
         label_path = image_path.with_suffix(".txt")
         label_parts = list(label_path.parts)
         label_parts[1] = "labels"
@@ -454,6 +458,7 @@ def _import_yolo_instance_segmentation(self, yolo_root_dir: Path, yaml_path: str
 
     for set_type in ["train", "val", "test"]:
         io.save_json(set2image_ids[set_type], self.set_dir / f"{set_type}.json", True)
+
 
 def import_yolo(self, yolo_root_dir: str, yaml_path: str):
     """

@@ -169,10 +169,12 @@ def _split(dataset_name, root_dir):
     dataset.split(0.8)
     train_ids, val_ids, test_ids, unlabeled_ids = dataset.get_split_ids()
     assert len(train_ids) + len(val_ids) == len(dataset.get_images())
+    assert len(test_ids) == 0
 
     dataset.split(0.445446, 0.554554)
     train_ids, val_ids, test_ids, unlabeled_ids = dataset.get_split_ids()
     assert len(train_ids) + len(val_ids) == len(dataset.get_images())
+    assert len(test_ids) == 0
 
     dataset.split(0.4, 0.4, 0.2)
     train_ids, val_ids, test_ids, unlabeled_ids = dataset.get_split_ids()
@@ -180,11 +182,13 @@ def _split(dataset_name, root_dir):
 
     dataset.split(0.99999999999999, 0.0)
     train_ids, val_ids, test_ids, unlabeled_ids = dataset.get_split_ids()
-    assert len(dataset.get_categories()) == len(val_ids) == len(test_ids)
+    assert len(dataset.get_categories()) == len(val_ids)
+    assert len(test_ids) == 0
 
     dataset.split(0.00000000000001, 0.0)
     train_ids, val_ids, test_ids, unlabeled_ids = dataset.get_split_ids()
     assert len(dataset.get_categories()) == len(train_ids)
+    assert len(test_ids) == 0
 
     with pytest.raises(ValueError):
         dataset.split(0.0, 0.2)
@@ -198,13 +202,48 @@ def _export(dataset_name, task: TaskType, root_dir):
     dataset.split(0.05)
 
     if task in [TaskType.OBJECT_DETECTION, TaskType.INSTANCE_SEGMENTATION, TaskType.CLASSIFICATION]:
-        dataset.export("coco")
+        export_dir = dataset.export("coco")
+        export_dir = Path(export_dir)
+        import_ds = Dataset.from_coco(
+            name=f"{task}_import_coco",
+            task=task,
+            coco_file=list(export_dir.glob("*.json")),
+            coco_root_dir=export_dir / "images",
+            root_dir=root_dir,
+        )
+        assert len(dataset.get_images()) == len(import_ds.get_images())
     if task in [TaskType.OBJECT_DETECTION, TaskType.INSTANCE_SEGMENTATION, TaskType.CLASSIFICATION]:
-        dataset.export("yolo")
+        export_dir = dataset.export("yolo")
+        export_dir = Path(export_dir)
+        import_ds = Dataset.from_yolo(
+            name=f"{task}_import_yolo",
+            task=task,
+            yolo_root_dir=export_dir,
+            yaml_path=export_dir / "data.yaml" if task != TaskType.CLASSIFICATION else None,
+            root_dir=root_dir,
+        )
+        assert len(dataset.get_images()) == len(import_ds.get_images())
     if task in [TaskType.OBJECT_DETECTION, TaskType.CLASSIFICATION]:
-        dataset.export("transformers")
+        export_dir = dataset.export("transformers")
+        export_dir = Path(export_dir)
+        import_ds = Dataset.from_transformers(
+            name=f"{task}_import_transformers",
+            task=task,
+            dataset_dir=export_dir,
+            root_dir=root_dir,
+        )
+        assert len(dataset.get_images()) == len(import_ds.get_images())
     if task in [TaskType.OBJECT_DETECTION, TaskType.TEXT_RECOGNITION, TaskType.CLASSIFICATION]:
-        dataset.export("autocare_dlt")
+        export_dir = dataset.export("autocare_dlt")
+        export_dir = Path(export_dir)
+        import_ds = Dataset.from_autocare_dlt(
+            name=f"{task}_import_autocare_dlt",
+            task=task,
+            coco_file=list(export_dir.glob("*.json")),
+            coco_root_dir=export_dir / "images",
+            root_dir=root_dir,
+        )
+        assert len(dataset.get_images()) == len(import_ds.get_images())
 
 
 # test dummy
@@ -314,16 +353,6 @@ def test_coco(coco_path, tmpdir, task):
 
 
 # test ultralytics
-def _from_yolo(dataset_name, task: TaskType):
-    dataset = Dataset.from_yolo(
-        name=dataset_name,
-        task=task,
-        yolo_root_dir=yolo_path,
-        root_dir=root_dir,
-    )
-    assert dataset.dataset_info_file.exists()
-
-
 def test_yolo_classification(yolo_classification_path: Path, tmpdir: Path):
     dataset_name = "yolo_classification"
     root_dir = tmpdir
