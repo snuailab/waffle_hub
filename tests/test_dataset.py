@@ -202,8 +202,7 @@ def _export(dataset_name, task: TaskType, root_dir):
     dataset.split(0.05)
 
     if task in [TaskType.OBJECT_DETECTION, TaskType.INSTANCE_SEGMENTATION, TaskType.CLASSIFICATION]:
-        export_dir = dataset.export("coco")
-        export_dir = Path(export_dir)
+        export_dir = Path(dataset.export("coco"))
         import_ds = Dataset.from_coco(
             name=f"{task}_import_coco",
             task=task,
@@ -213,8 +212,7 @@ def _export(dataset_name, task: TaskType, root_dir):
         )
         assert len(dataset.get_images()) == len(import_ds.get_images())
     if task in [TaskType.OBJECT_DETECTION, TaskType.INSTANCE_SEGMENTATION, TaskType.CLASSIFICATION]:
-        export_dir = dataset.export("yolo")
-        export_dir = Path(export_dir)
+        export_dir = Path(dataset.export("yolo"))
         import_ds = Dataset.from_yolo(
             name=f"{task}_import_yolo",
             task=task,
@@ -224,8 +222,7 @@ def _export(dataset_name, task: TaskType, root_dir):
         )
         assert len(dataset.get_images()) == len(import_ds.get_images())
     if task in [TaskType.OBJECT_DETECTION, TaskType.CLASSIFICATION]:
-        export_dir = dataset.export("transformers")
-        export_dir = Path(export_dir)
+        export_dir = Path(dataset.export("transformers"))
         import_ds = Dataset.from_transformers(
             name=f"{task}_import_transformers",
             task=task,
@@ -234,8 +231,7 @@ def _export(dataset_name, task: TaskType, root_dir):
         )
         assert len(dataset.get_images()) == len(import_ds.get_images())
     if task in [TaskType.OBJECT_DETECTION, TaskType.TEXT_RECOGNITION, TaskType.CLASSIFICATION]:
-        export_dir = dataset.export("autocare_dlt")
-        export_dir = Path(export_dir)
+        export_dir = Path(dataset.export("autocare_dlt"))
         import_ds = Dataset.from_autocare_dlt(
             name=f"{task}_import_autocare_dlt",
             task=task,
@@ -282,21 +278,6 @@ def test_dummy(tmpdir):
 
     with pytest.raises(ValueError):
         _total_dummy("dummy", TaskType.CLASSIFICATION, 3, 3, 0, tmpdir)
-
-
-# test dummy
-def _dummy(dataset_name, task: TaskType, image_num, category_num, unlabeled_image_num, root_dir):
-    dataset = Dataset.dummy(
-        name=dataset_name,
-        task=task,
-        image_num=image_num,
-        category_num=category_num,
-        unlabeled_image_num=unlabeled_image_num,
-        root_dir=root_dir,
-    )
-    assert len(dataset.get_images()) == image_num
-    assert len(dataset.get_categories()) == category_num
-    assert len(dataset.get_images(labeled=False)) == unlabeled_image_num
 
 
 # test coco
