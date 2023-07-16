@@ -349,9 +349,10 @@ def _import_yolo_images_labels(self, yolo_root_dir: Path, yaml_path: str, task: 
         category_name2id[category_name] = category_id + 1
         self.add_categories(
             [
-                Category.object_detection(
+                Category.new(
                     category_id=category_id + 1,
                     name=category_name,
+                    task=task,
                 )
             ]
         )

@@ -111,7 +111,7 @@ class Category(BaseField):
         Returns:
             Category: category class
         """
-        return cls(
+        return (getattr(cls, task.lower()) if task else cls)(
             category_id=category_id,
             name=name,
             supercategory=supercategory,
