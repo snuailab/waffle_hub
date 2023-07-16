@@ -1,4 +1,4 @@
-name: Waffle Hub multi-gpu(ddp) test on self-hosted runner
+name: Waffle Hub gpu test on self-hosted runner
 
 on:
   pull_request:
@@ -28,6 +28,7 @@ jobs:
           pip install ${{ matrix.pytorch-version }}
           pip install -r requirements.txt
           pip install pytest
+          pip install tensorrt==8.6.1
         shell: bash  # for Windows compatibility
       - name: Check environment
         run: |
@@ -36,4 +37,4 @@ jobs:
           pip list
       - name: Pytest tests
         shell: bash  # for Windows compatibility
-        run: python -m pytest tests/test_ddp.py -v
+        run: python -m pytest tests/test_gpu.py -v

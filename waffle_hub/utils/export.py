@@ -1,3 +1,4 @@
+import json
 from pathlib import Path
 from typing import Union
 
@@ -9,7 +10,7 @@ from waffle_hub import TaskType
 PRECISION = {
     "fp32": torch.float32,
     "fp16": torch.float16,
-    "int8": torch.int8,
+    # "int8": torch.int8,
 }
 
 
@@ -21,7 +22,7 @@ def export_onnx(
     batch_size: int = 16,
     opset_version: int = 11,
     precision: str = "fp32",
-    dynamic_batch: bool = False,
+    dynamic_batch: bool = True,
     device: str = "0",
 ) -> str:
     image_size = [image_size, image_size] if isinstance(image_size, int) else image_size
@@ -29,7 +30,7 @@ def export_onnx(
     precision = PRECISION[precision]
 
     device = torch.device(
-        f"cuda:{device}" if torch.cuda.is_available() or device != "cpu" else "cpu"
+        f"cuda:{device}" if torch.cuda.is_available() and device != "cpu" else "cpu"
     )
     model = model.to(device)
 
@@ -69,52 +70,49 @@ def export_engine(
     image_size: Union[int, list[int]] = None,
     batch_size: int = 16,
     precision: str = "fp32",
-    dynamic_batch: bool = False,
-    workspace: int = 4,
-    device: str = "0",
+    dynamic_batch: bool = True,
+    work_space_size: int = 4,
 ):
     image_size = [image_size, image_size] if isinstance(image_size, int) else image_size
 
-    precision = PRECISION[precision]
-
-    device = torch.device(
-        f"cuda:{device}" if torch.cuda.is_available() or device != "cpu" else "cpu"
-    )
-    model = model.to(device)
+    torch_precision = PRECISION[precision]
 
     logger = trt.Logger(trt.Logger.INFO)
 
     builder = trt.Builder(logger)
     config = builder.create_builder_config()
-    config.max_workspace_size = workspace * 1 << 30
+    config.max_workspace_size = work_space_size * 1 << 30
 
     flag = 1 << int(trt.NetworkDefinitionCreationFlag.EXPLICIT_BATCH)
     network = builder.create_network(flag)
     parser = trt.OnnxParser(network, logger)
-    if not parser.parse_from_file(onnx_file):
+    if not parser.parse_from_file(str(onnx_file)):
         raise RuntimeError(f"failed to load ONNX file: {onnx_file}")
 
-    inputs = [network.get_input(i) for i in range(network.num_inputs)]
-    outputs = [network.get_output(i) for i in range(network.num_outputs)]
-    for inp in inputs:
-        print(f'input "{inp.name}" with shape{inp.shape} {inp.dtype}')
-    for out in outputs:
-        print(f'output "{out.name}" with shape{out.shape} {out.dtype}')
-
     if dynamic_batch:
+        inputs = [network.get_input(i) for i in range(network.num_inputs)]
         shape = [1, 3, *image_size]
         profile = builder.create_optimization_profile()
         for inp in inputs:
             profile.set_shape(inp.name, (1, *shape[1:]), (max(1, shape[0] // 2), *shape[1:]), shape)
         config.add_optimization_profile(profile)
+    else:
+        shape = [batch_size, 3, *image_size]
 
-    if builder.platform_has_fast_fp16 and True:
+    if torch_precision == torch.float16:
         config.set_flag(trt.BuilderFlag.FP16)
 
     # Write file
-    with builder.build_engine(network, config) as engine, open(f, "wb") as t:
+    with builder.build_engine(network, config) as engine, open(str(output_path), "wb") as t:
         # Metadata
-        meta = json.dumps(self.metadata)
+        meta = json.dumps(
+            {
+                "input_size": [1, 3, *image_size],
+                "dynamic_batch": dynamic_batch,
+                "precision": precision,
+                "tensorrt_version": trt.__version__,
+            }
+        )
         t.write(len(meta).to_bytes(4, byteorder="little", signed=True))
         t.write(meta.encode())
         # Model

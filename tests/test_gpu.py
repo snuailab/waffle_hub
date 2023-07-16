@@ -4,7 +4,7 @@ from pathlib import Path
 from waffle_hub import TaskType
 from waffle_hub.dataset import Dataset
 from waffle_hub.hub import Hub
-from waffle_hub.schema.result import TrainResult
+from waffle_hub.schema.result import ExportResult, TrainResult
 
 
 def _train(hub, dataset: Dataset, image_size: int, hold: bool = True):
@@ -34,6 +34,20 @@ def _train(hub, dataset: Dataset, image_size: int, hold: bool = True):
     return result
 
 
+def _export(hub, hold: bool = True):
+    result: ExportResult = hub.export_engine(hold=hold)
+
+    if not hold:
+        assert hasattr(result, "callback")
+        while not result.callback.is_finished() and not result.callback.is_failed():
+            time.sleep(1)
+        assert result.callback.is_finished()
+        assert not result.callback.is_failed()
+
+    assert hub.onnx_file.exists()
+    assert hub.engine_file.exists()
+
+
 def test_ultralytics_segmentation(instance_segmentation_dataset: Dataset, tmpdir: Path):
     image_size = 32
     dataset = instance_segmentation_dataset
@@ -57,6 +71,7 @@ def test_ultralytics_segmentation(instance_segmentation_dataset: Dataset, tmpdir
     )
 
     _train(hub, dataset, image_size)
+    _export(hub)
 
 
 def test_ultralytics_object_detection(object_detection_dataset: Dataset, tmpdir: Path):
@@ -82,6 +97,7 @@ def test_ultralytics_object_detection(object_detection_dataset: Dataset, tmpdir:
     )
 
     _train(hub, dataset, image_size)
+    _export(hub)
 
 
 def test_ultralytics_classification(classification_dataset: Dataset, tmpdir: Path):
@@ -107,6 +123,7 @@ def test_ultralytics_classification(classification_dataset: Dataset, tmpdir: Pat
     )
 
     _train(hub, dataset, image_size)
+    _export(hub)
 
 
 # def test_transformers_classification(classification_dataset: Dataset, tmpdir: Path):

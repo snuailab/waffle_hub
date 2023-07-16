@@ -90,9 +90,9 @@ def _inference(hub, source: str, hold: bool = True):
 
 
 def _export(hub, half: bool = False, hold: bool = True):
-    result: ExportResult = hub.export(
+    result: ExportResult = hub.export_onnx(
         hold=hold,
-        half=half,
+        precision="fp32",
         device="cpu",
     )
 

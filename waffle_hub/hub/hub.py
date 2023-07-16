@@ -1403,7 +1403,8 @@ class Hub:
         image_size: Union[int, list[int]] = None,
         batch_size: int = 16,
         opset_version: int = 11,
-        half: bool = False,
+        precision: str = "fp32",
+        dynamic_batch: bool = True,
         device: str = "0",
         hold: bool = True,
     ) -> ExportResult:
@@ -1413,20 +1414,21 @@ class Hub:
             image_size (Union[int, list[int]], optional): inference image size. None for same with train_config (recommended).
             batch_size (int, optional): dynamic batch size. Defaults to 16.
             opset_version (int, optional): onnx opset version. Defaults to 11.
-            half (bool, optional): half. Defaults to False.
+            precision (str, optional): model precision. one of [fp32, fp16]. Defaults to fp32.
+            dynamic_batch (bool, optional): dynamic batch. Defaults to True.
             device (str, optional): device. "cpu" or "gpu_id". Defaults to "0".
             hold (bool, optional): hold or not.
                 If True then it holds until task finished.
                 If False then return Inferece Callback and run in background. Defaults to True.
 
         Example:
-            >>> export_result = hub.export(
+            >>> export_result = hub.export_onnx(
                 image_size=640,
                 batch_size=16,
                 opset_version=11,
             )
             # or simply use train option by passing None
-            >>> export_result = hub.export(
+            >>> export_result = hub.export_onnx(
                 ...,
                 image_size=None,  # use train option
                 ...
@@ -1439,9 +1441,110 @@ class Hub:
         """
         self.check_train_sanity()
 
-        model = self.get_model()
+        train_config = self.get_train_config()
+        image_size = image_size or train_config.image_size
 
-        export_onnx()
+        def inner(callback: ExportCallback, result: ExportResult):
+            export_onnx(
+                model=self.get_model(),
+                task=self.task,
+                output_path=self.onnx_file,
+                image_size=image_size,
+                batch_size=batch_size,
+                opset_version=opset_version,
+                precision=precision,
+                dynamic_batch=dynamic_batch,
+                device=device,
+            )
+            callback.force_finish()
+            result.export_file = str(self.onnx_file)
+
+        callback = ExportCallback(1)
+        result = ExportResult()
+        result.callback = callback
+
+        if hold:
+            inner(callback, result)
+        else:
+            thread = threading.Thread(target=inner, args=(callback, result), daemon=True)
+            callback.register_thread(thread)
+            callback.start()
+
+        return result
+
+    def export_engine(
+        self,
+        image_size: Union[int, list[int]] = None,
+        batch_size: int = 16,
+        precision: str = "fp32",
+        dynamic_batch: bool = True,
+        work_space_size: int = 4,
+        device: str = "0",
+        hold: bool = True,
+    ):
+        """Export to TensorRT engine
+
+        Args:
+            image_size (Union[int, list[int]], optional): inference image size. None for same with train_config (recommended).
+            batch_size (int, optional): dynamic batch size. Defaults to 16.
+            precision (str, optional): model precision. one of [fp32, fp16]. Defaults to fp32.
+            dynamic_batch (bool, optional): dynamic batch. Defaults to True.
+            work_space_size (int, optional): work space size. Defaults to 4.
+            device (str, optional): device. "cpu" or "gpu_id". Defaults to "0".
+            hold (bool, optional): hold or not.
+                If True then it holds until task finished.
+                If False then return Inferece Callback and run in background. Defaults to True.
+
+        Example:
+            >>> export_result = hub.export_engine(
+                image_size=640,
+                batch_size=16,
+            )
+            # or simply use train option by passing None
+            >>> export_result = hub.export_engine(
+                ...,
+                image_size=None,  # use train option
+                ...
+            )
+            >>> export_result.export_file
+            hubs/my_hub/weights/model.engine
+
+        Returns:
+            ExportResult: export result
+        """
+        self.check_train_sanity()
+
+        if device == "cpu":
+            raise RuntimeError("TensorRT engine is not supported in cpu")
+
+        train_config = self.get_train_config()
+        image_size = image_size or train_config.image_size
+
+        def inner(callback: ExportCallback, result: ExportResult):
+
+            export_onnx(
+                model=self.get_model(),
+                task=self.task,
+                output_path=self.onnx_file,
+                image_size=image_size,
+                batch_size=batch_size,
+                opset_version=11,
+                precision=precision,
+                dynamic_batch=dynamic_batch,
+                device=device,
+            )
+
+            export_engine(
+                onnx_file=self.onnx_file,
+                output_path=self.engine_file,
+                image_size=image_size,
+                batch_size=batch_size,
+                precision=precision,
+                dynamic_batch=dynamic_batch,
+                work_space_size=work_space_size,
+            )
+            callback.force_finish()
+            result.export_file = str(self.engine_file)
 
         callback = ExportCallback(1)
         result = ExportResult()
