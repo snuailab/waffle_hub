@@ -768,29 +768,34 @@ class Dataset:
         """
         ds = Dataset.new(name=name, task=task, root_dir=root_dir)
 
-        if isinstance(coco_file, list) and isinstance(coco_root_dir, list):
-            if len(coco_file) != len(coco_root_dir):
-                raise ValueError("coco_file and coco_root_dir should have same length.")
-        if not isinstance(coco_file, list) and isinstance(coco_root_dir, list):
-            raise ValueError(
-                "ambiguous input. The number of coco_file should be same or greater than coco_root_dir."
-            )
-        if not isinstance(coco_file, list):
-            coco_file = [coco_file]
-        if not isinstance(coco_root_dir, list):
-            coco_root_dir = [coco_root_dir] * len(coco_file)
+        try:
+            if isinstance(coco_file, list) and isinstance(coco_root_dir, list):
+                if len(coco_file) != len(coco_root_dir):
+                    raise ValueError("coco_file and coco_root_dir should have same length.")
+            if not isinstance(coco_file, list) and isinstance(coco_root_dir, list):
+                raise ValueError(
+                    "ambiguous input. The number of coco_file should be same or greater than coco_root_dir."
+                )
+            if not isinstance(coco_file, list):
+                coco_file = [coco_file]
+            if not isinstance(coco_root_dir, list):
+                coco_root_dir = [coco_root_dir] * len(coco_file)
 
-        coco_files = coco_file
-        coco_root_dirs = coco_root_dir
+            coco_files = coco_file
+            coco_root_dirs = coco_root_dir
 
-        import_coco(ds, coco_files, coco_root_dirs)
+            import_coco(ds, coco_files, coco_root_dirs)
 
-        if len(coco_files) == 2:
-            logger.info("copying val set to test set")
-            io.copy_file(ds.val_set_file, ds.test_set_file, create_directory=True)
+            if len(coco_files) == 2:
+                logger.info("copying val set to test set")
+                io.copy_file(ds.val_set_file, ds.test_set_file, create_directory=True)
 
-        # TODO: add unlabeled set
-        io.save_json([], ds.unlabeled_set_file, create_directory=True)
+            # TODO: add unlabeled set
+            io.save_json([], ds.unlabeled_set_file, create_directory=True)
+
+        except Exception as e:
+            ds.delete()
+            raise e
 
         return ds
 
@@ -834,29 +839,34 @@ class Dataset:
         """
         ds = Dataset.new(name=name, task=task, root_dir=root_dir)
 
-        if isinstance(coco_file, list) and isinstance(coco_root_dir, list):
-            if len(coco_file) != len(coco_root_dir):
-                raise ValueError("coco_file and coco_root_dir should have same length.")
-        if not isinstance(coco_file, list) and isinstance(coco_root_dir, list):
-            raise ValueError(
-                "ambiguous input. The number of coco_file should be same or greater than coco_root_dir."
-            )
-        if not isinstance(coco_file, list):
-            coco_file = [coco_file]
-        if not isinstance(coco_root_dir, list):
-            coco_root_dir = [coco_root_dir] * len(coco_file)
+        try:
+            if isinstance(coco_file, list) and isinstance(coco_root_dir, list):
+                if len(coco_file) != len(coco_root_dir):
+                    raise ValueError("coco_file and coco_root_dir should have same length.")
+            if not isinstance(coco_file, list) and isinstance(coco_root_dir, list):
+                raise ValueError(
+                    "ambiguous input. The number of coco_file should be same or greater than coco_root_dir."
+                )
+            if not isinstance(coco_file, list):
+                coco_file = [coco_file]
+            if not isinstance(coco_root_dir, list):
+                coco_root_dir = [coco_root_dir] * len(coco_file)
 
-        coco_files = coco_file
-        coco_root_dirs = coco_root_dir
+            coco_files = coco_file
+            coco_root_dirs = coco_root_dir
 
-        import_autocare_dlt(ds, coco_files, coco_root_dirs)
+            import_autocare_dlt(ds, coco_files, coco_root_dirs)
 
-        if len(coco_files) == 2:
-            logging.info("copying val set to test set")
-            io.copy_file(ds.val_set_file, ds.test_set_file, create_directory=True)
+            if len(coco_files) == 2:
+                logging.info("copying val set to test set")
+                io.copy_file(ds.val_set_file, ds.test_set_file, create_directory=True)
 
-        # TODO: add unlabeled set
-        io.save_json([], ds.unlabeled_set_file, create_directory=True)
+            # TODO: add unlabeled set
+            io.save_json([], ds.unlabeled_set_file, create_directory=True)
+
+        except Exception as e:
+            ds.delete()
+            raise e
 
         return ds
 
@@ -887,9 +897,14 @@ class Dataset:
             Dataset: Imported dataset.
         """
 
-        ds = Dataset(name=name, task=task, root_dir=root_dir)
+        ds = Dataset.new(name=name, task=task, root_dir=root_dir)
 
-        import_yolo(ds, yolo_root_dir, yaml_path)
+        try:
+            import_yolo(ds, yolo_root_dir, yaml_path)
+
+        except Exception as e:
+            ds.delete()
+            raise e
 
         return ds
 
@@ -923,10 +938,15 @@ class Dataset:
         """
         ds = Dataset.new(name=name, task=task, root_dir=root_dir)
 
-        import_transformers(ds, dataset_dir)
+        try:
+            import_transformers(ds, dataset_dir)
 
-        # TODO: add unlabeled set
-        io.save_json([], ds.unlabeled_set_file, create_directory=True)
+            # TODO: add unlabeled set
+            io.save_json([], ds.unlabeled_set_file, create_directory=True)
+
+        except Exception as e:
+            ds.delete()
+            raise e
 
         return ds
 
@@ -1285,7 +1305,6 @@ class Dataset:
                 if test_ratio == 0.0:
                     train_ids.extend(image_ids[:train_num])
                     val_ids.extend(image_ids[train_num:])
-                    test_ids = val_ids
                 else:
                     train_ids.extend(image_ids[:train_num])
                     val_ids.extend(image_ids[train_num : train_num + val_num])
@@ -1333,10 +1352,14 @@ class Dataset:
         if not self.train_set_file.exists():
             raise FileNotFoundError("There is no set files. Please run ds.split() first")
 
-        train_ids: list[int] = io.load_json(self.train_set_file)
-        val_ids: list[int] = io.load_json(self.val_set_file)
-        test_ids: list[int] = io.load_json(self.test_set_file)
-        unlabeled_ids: list[int] = io.load_json(self.unlabeled_set_file)
+        train_ids: list[int] = (
+            io.load_json(self.train_set_file) if self.train_set_file.exists() else []
+        )
+        val_ids: list[int] = io.load_json(self.val_set_file) if self.val_set_file.exists() else []
+        test_ids: list[int] = io.load_json(self.test_set_file) if self.test_set_file.exists() else []
+        unlabeled_ids: list[int] = (
+            io.load_json(self.unlabeled_set_file) if self.unlabeled_set_file.exists() else []
+        )
 
         return [train_ids, val_ids, test_ids, unlabeled_ids]
 

@@ -8,7 +8,6 @@ from waffle_utils.file import io
 from datasets import (
     ClassLabel,
 )
-from datasets import Dataset
 from datasets import Dataset as HFDataset
 from datasets import (
     DatasetDict,
@@ -63,7 +62,7 @@ def _export_transformers_classification(
         if len(image_ids) == 0:
             continue
 
-        dataset[split] = Dataset.from_generator(
+        dataset[split] = HFDataset.from_generator(
             lambda: _export(self.get_images(image_ids)), features=features
         )
 
@@ -140,7 +139,7 @@ def _export_transformers_detection(
         if len(image_ids) == 0:
             continue
 
-        dataset[split] = Dataset.from_generator(
+        dataset[split] = HFDataset.from_generator(
             lambda: _export(self.get_images(image_ids)), features=features
         )
 

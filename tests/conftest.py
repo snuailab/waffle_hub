@@ -100,7 +100,7 @@ def instance_segmentation_dataset(coco_path: Path, tmpdir: Path):
         coco_root_dir=coco_path / "images",
         root_dir=tmpdir,
     )
-    dataset.split(0.2, 0.2, 0.6)
+    dataset.split(0.2, 0.8)
 
     return dataset
 
@@ -114,7 +114,7 @@ def object_detection_dataset(coco_path: Path, tmpdir: Path):
         coco_root_dir=coco_path / "images",
         root_dir=tmpdir,
     )
-    dataset.split(0.2, 0.2, 0.6)
+    dataset.split(0.2, 0.8)
 
     return dataset
 
@@ -128,7 +128,7 @@ def classification_dataset(coco_path: Path, tmpdir: Path):
         coco_root_dir=coco_path / "images",
         root_dir=tmpdir,
     )
-    dataset.split(0.2, 0.2, 0.6)
+    dataset.split(0.2, 0.8)
 
     return dataset
 
