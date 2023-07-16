@@ -1,11 +1,16 @@
 import json
+import logging
 from pathlib import Path
 from typing import Union
 
-import tensorrt as trt
 import torch
 
 from waffle_hub import TaskType
+
+try:
+    import tensorrt as trt
+except ImportError:
+    logging.warning("TensorRT is not installed. Exporting engine is not available.")
 
 PRECISION = {
     "fp32": torch.float32,
