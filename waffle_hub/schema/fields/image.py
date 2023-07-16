@@ -13,6 +13,7 @@ class Image(BaseField):
         width: int,
         height: int,
         # optional
+        original_file_name: str = None,
         date_captured: str = None,
     ):
 
@@ -20,6 +21,7 @@ class Image(BaseField):
         self.file_name = file_name
         self.width = width
         self.height = height
+        self.original_file_name = original_file_name
         self.date_captured = date_captured
 
     # properties
@@ -39,7 +41,7 @@ class Image(BaseField):
         return self.__file_name
 
     @file_name.setter
-    @type_validator(str)
+    @type_validator(str, strict=False)
     def file_name(self, v):
         self.__file_name = v
 
@@ -62,6 +64,15 @@ class Image(BaseField):
         self.__height = v
 
     @property
+    def original_file_name(self):
+        return self.__original_file_name
+
+    @original_file_name.setter
+    @type_validator(str, strict=False)
+    def original_file_name(self, v):
+        self.__original_file_name = v or self.file_name
+
+    @property
     def date_captured(self):
         return self.__date_captured
 
@@ -80,6 +91,7 @@ class Image(BaseField):
         file_name: str,
         width: int,
         height: int,
+        original_file_name: str = None,
         date_captured: str = None,
         **kwargs,
     ) -> "Image":
@@ -90,6 +102,7 @@ class Image(BaseField):
             file_name (str): file name. relative file path.
             width (int): image width.
             height (int): image height.
+            original_file_name (str): original file name. relative file path.
             date_captured (str): date_captured string. "%Y-%m-%d %H:%M:%S"
 
         Returns:
@@ -109,6 +122,7 @@ class Image(BaseField):
             "file_name": self.file_name,
             "width": self.width,
             "height": self.height,
+            "original_file_name": self.original_file_name,
             "date_captured": self.date_captured,
         }
 
