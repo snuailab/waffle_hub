@@ -195,16 +195,19 @@ class AutocareDLTHub(Hub):
     def on_train_start(self, cfg: TrainConfig):
         # set data
         cfg.dataset_path: Path = Path(cfg.dataset_path)
+        train_coco_file = cfg.dataset_path / "train.json"
+        val_coco_file = cfg.dataset_path / "val.json"
+        test_coco_file = cfg.dataset_path / "test.json"
         data_config = get_data_config(
             self.DATA_TYPE_MAP[self.task],
             cfg.image_size if isinstance(cfg.image_size, list) else [cfg.image_size, cfg.image_size],
             cfg.batch_size,
             cfg.workers,
-            str(cfg.dataset_path / "train.json"),
+            str(train_coco_file),
             str(cfg.dataset_path / "images"),
-            str(cfg.dataset_path / "val.json"),
+            str(val_coco_file),
             str(cfg.dataset_path / "images"),
-            str(cfg.dataset_path / "test.json"),
+            str(test_coco_file) if test_coco_file.exists() else str(val_coco_file),
             str(cfg.dataset_path / "images"),
         )
         if self.model_type == "LicencePlateRecognition":

@@ -860,7 +860,7 @@ class Dataset:
             Dataset: Imported dataset.
         """
 
-        ds = Dataset(name=name, task=task, root_dir=root_dir)
+        ds = Dataset.new(name=name, task=task, root_dir=root_dir)
 
         try:
             import_yolo(ds, yolo_root_dir, yaml_path)
@@ -1315,10 +1315,14 @@ class Dataset:
         if not self.train_set_file.exists():
             raise FileNotFoundError("There is no set files. Please run ds.split() first")
 
-        train_ids: list[int] = io.load_json(self.train_set_file)
-        val_ids: list[int] = io.load_json(self.val_set_file)
-        test_ids: list[int] = io.load_json(self.test_set_file)
-        unlabeled_ids: list[int] = io.load_json(self.unlabeled_set_file)
+        train_ids: list[int] = (
+            io.load_json(self.train_set_file) if self.train_set_file.exists() else []
+        )
+        val_ids: list[int] = io.load_json(self.val_set_file) if self.val_set_file.exists() else []
+        test_ids: list[int] = io.load_json(self.test_set_file) if self.test_set_file.exists() else []
+        unlabeled_ids: list[int] = (
+            io.load_json(self.unlabeled_set_file) if self.unlabeled_set_file.exists() else []
+        )
 
         return [train_ids, val_ids, test_ids, unlabeled_ids]
 
