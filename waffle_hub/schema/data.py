@@ -1,5 +1,6 @@
 from dataclasses import dataclass
 
+import numpy as np
 from waffle_utils.log import datetime_now
 
 from waffle_hub.schema.base_schema import BaseSchema
@@ -35,4 +36,6 @@ class ImageInfo(BaseSchema):
     new_shape: list[int]
     input_shape: list[int]
     pad: list[int]
+    ori_image: np.ndarray = None
     image_path: str = None
+    image_rel_path: str = None
