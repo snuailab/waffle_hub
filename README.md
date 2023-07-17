@@ -55,7 +55,7 @@ hub = Hub.new(
   categories = dataset.get_category_names(),
 )
 hub.train(
-  dataset_path = export_dir,
+  dataset = dataset,
   epochs = 30,
   batch_size = 64,
   image_size=64,
