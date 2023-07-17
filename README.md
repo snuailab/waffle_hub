@@ -75,7 +75,7 @@ wd split --name mnist_classification --train-ratio 0.8 --val-ratio 0.1 --test-ra
 wd export --name mnist_classification --data-type YOLO
 
 wh new --name my_classifier --task classification --model-type yolov8 --model-size n --categories [1,2]
-wh train --name my_classifier --dataset-path datasets/mnist_classification/exports/YOLO --epochs 30 --batch-size 64 --image-size 64 --device cpu
+wh train --name my_classifier --dataset mnist_classification --epochs 30 --batch-size 64 --image-size 64 --device cpu
 wh inference --name my_classifier --source datasets/mnist_classification/exports/YOLO --draw --device cpu
 ```
 
