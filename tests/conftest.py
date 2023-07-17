@@ -91,6 +91,18 @@ def transformers_classification_path(tmp_path_factory: pytest.TempPathFactory):
     return Path(transformers_path)
 
 
+@pytest.fixture(scope="session")
+def test_video_path(tmp_path_factory: pytest.TempPathFactory):
+    url = "https://github.com/snuailab/assets/raw/main/waffle/sample_dataset/video.mp4"
+
+    tmpdir = tmp_path_factory.mktemp("test_video")
+    video_path = tmpdir / "video.mp4"
+
+    network.get_file_from_url(url, video_path, create_directory=True)
+
+    return Path(video_path)
+
+
 @pytest.fixture
 def instance_segmentation_dataset(coco_path: Path, tmpdir: Path):
     dataset: Dataset = Dataset.from_coco(
