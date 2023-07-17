@@ -5,7 +5,7 @@ See Hub documentation for more details about usage.
 
 import os
 import warnings
-from copy import deepcopy
+from collections import defaultdict
 from functools import cached_property
 from pathlib import Path
 from typing import Callable, Union
@@ -20,6 +20,8 @@ from transformers import (
     Trainer,
     TrainerCallback,
 )
+from transformers.trainer_callback import TrainerControl, TrainerState
+from transformers.training_args import TrainingArguments
 from transformers.utils import ModelOutput
 from waffle_utils.file import io
 
@@ -43,18 +45,21 @@ class CustomCallback(TrainerCallback):
     This class is necessary to obtain logs for the training.
     """
 
-    def __init__(self, trainer) -> None:
+    def __init__(self, trainer, metric_file: Union[Path, str]) -> None:
         super().__init__()
         self._trainer = trainer
+        self.metric_file = metric_file
 
-    def on_epoch_end(self, args, state, control, **kwargs):
-        if control.should_evaluate:
-            control_copy = deepcopy(control)
-            self._trainer.evaluate(
-                eval_dataset=self._trainer.train_dataset,
-                metric_key_prefix="train",
-            )
-            return control_copy
+    def on_train_end(
+        self, args: TrainingArguments, state: TrainerState, control: TrainerControl, **kwargs
+    ):
+        epoch_metric = defaultdict(list)
+        for metric in state.log_history:
+            epoch = int(metric.get("epoch"))
+            for key, value in metric.items():
+                epoch_metric[epoch].append({"tag": key, "value": value})
+        io.save_json(list(epoch_metric.values()), self.metric_file)
+        return control
 
 
 class TransformersHub(Hub):
@@ -62,6 +67,7 @@ class TransformersHub(Hub):
     MODEL_TYPES = MODEL_TYPES
     MULTI_GPU_TRAIN = False
     DEFAULT_PARAMS = DEFAULT_PARAMS
+    DEFAULT_ADVANCE_PARAMS = {}
 
     # Override
     LAST_CKPT_FILE = "weights/last_ckpt"
@@ -209,7 +215,7 @@ class TransformersHub(Hub):
             tokenizer=cfg.train_input.image_processor,
             compute_metrics=cfg.train_input.compute_metrics,
         )
-        trainer.add_callback(CustomCallback(trainer))
+        trainer.add_callback(CustomCallback(trainer, self.metric_file))
         trainer.train()
         trainer.save_model(str(self.artifact_dir / "weights" / "last_ckpt"))
         trainer._load_best_model()
@@ -218,21 +224,7 @@ class TransformersHub(Hub):
         self.train_log = trainer.state.log_history
 
     def get_metrics(self) -> list[list[dict]]:
-        metrics = []
-
-        for epoch in range(0, len(self.train_log) - 1, 3):  # last is runtime info
-
-            current_epoch_log = self.train_log[epoch]
-
-            current_epoch_log.update(self.train_log[epoch + 1])
-            current_epoch_log.update(self.train_log[epoch + 2])
-
-            epoch_metrics = []
-            for key, value in current_epoch_log.items():
-                epoch_metrics.append({"tag": key, "value": value})
-            metrics.append(epoch_metrics)
-
-        return metrics
+        return io.load_json(self.metric_file) if self.metric_file.exists() else []
 
     def on_train_end(self, cfg: TrainConfig):
         io.copy_files_to_directory(

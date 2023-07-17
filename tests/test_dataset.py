@@ -3,6 +3,7 @@ from pathlib import Path
 
 import pytest
 from waffle_utils.file.io import load_json, save_json
+from waffle_utils.file.search import get_image_files
 
 from waffle_hub import TaskType
 from waffle_hub.dataset import Dataset
@@ -168,10 +169,12 @@ def _split(dataset_name, root_dir):
     dataset.split(0.8)
     train_ids, val_ids, test_ids, unlabeled_ids = dataset.get_split_ids()
     assert len(train_ids) + len(val_ids) == len(dataset.get_images())
+    assert len(test_ids) == 0
 
     dataset.split(0.445446, 0.554554)
     train_ids, val_ids, test_ids, unlabeled_ids = dataset.get_split_ids()
     assert len(train_ids) + len(val_ids) == len(dataset.get_images())
+    assert len(test_ids) == 0
 
     dataset.split(0.4, 0.4, 0.2)
     train_ids, val_ids, test_ids, unlabeled_ids = dataset.get_split_ids()
@@ -179,11 +182,13 @@ def _split(dataset_name, root_dir):
 
     dataset.split(0.99999999999999, 0.0)
     train_ids, val_ids, test_ids, unlabeled_ids = dataset.get_split_ids()
-    assert len(dataset.get_categories()) == len(val_ids) == len(test_ids)
+    assert len(dataset.get_categories()) == len(val_ids)
+    assert len(test_ids) == 0
 
     dataset.split(0.00000000000001, 0.0)
     train_ids, val_ids, test_ids, unlabeled_ids = dataset.get_split_ids()
     assert len(dataset.get_categories()) == len(train_ids)
+    assert len(test_ids) == 0
 
     with pytest.raises(ValueError):
         dataset.split(0.0, 0.2)
@@ -197,13 +202,44 @@ def _export(dataset_name, task: TaskType, root_dir):
     dataset.split(0.05)
 
     if task in [TaskType.OBJECT_DETECTION, TaskType.INSTANCE_SEGMENTATION, TaskType.CLASSIFICATION]:
-        dataset.export("coco")
+        export_dir = Path(dataset.export("coco"))
+        import_ds = Dataset.from_coco(
+            name=f"{task}_import_coco",
+            task=task,
+            coco_file=list(export_dir.glob("*.json")),
+            coco_root_dir=export_dir / "images",
+            root_dir=root_dir,
+        )
+        assert len(dataset.get_images()) == len(import_ds.get_images())
     if task in [TaskType.OBJECT_DETECTION, TaskType.INSTANCE_SEGMENTATION, TaskType.CLASSIFICATION]:
-        dataset.export("yolo")
+        export_dir = Path(dataset.export("yolo"))
+        import_ds = Dataset.from_yolo(
+            name=f"{task}_import_yolo",
+            task=task,
+            yolo_root_dir=export_dir,
+            yaml_path=export_dir / "data.yaml" if task != TaskType.CLASSIFICATION else None,
+            root_dir=root_dir,
+        )
+        assert len(dataset.get_images()) == len(import_ds.get_images())
     if task in [TaskType.OBJECT_DETECTION, TaskType.CLASSIFICATION]:
-        dataset.export("transformers")
+        export_dir = Path(dataset.export("transformers"))
+        import_ds = Dataset.from_transformers(
+            name=f"{task}_import_transformers",
+            task=task,
+            dataset_dir=export_dir,
+            root_dir=root_dir,
+        )
+        assert len(dataset.get_images()) == len(import_ds.get_images())
     if task in [TaskType.OBJECT_DETECTION, TaskType.TEXT_RECOGNITION, TaskType.CLASSIFICATION]:
-        dataset.export("autocare_dlt")
+        export_dir = Path(dataset.export("autocare_dlt"))
+        import_ds = Dataset.from_autocare_dlt(
+            name=f"{task}_import_autocare_dlt",
+            task=task,
+            coco_file=list(export_dir.glob("*.json")),
+            coco_root_dir=export_dir / "images",
+            root_dir=root_dir,
+        )
+        assert len(dataset.get_images()) == len(import_ds.get_images())
 
 
 # test dummy
@@ -238,39 +274,6 @@ def test_dummy(tmpdir):
         TaskType.INSTANCE_SEGMENTATION,
         TaskType.TEXT_RECOGNITION,
     ]:
-        _total_dummy(f"dummy_{task}", task, 100, 5, 10, tmpdir)
-
-    with pytest.raises(ValueError):
-        _total_dummy("dummy", TaskType.CLASSIFICATION, 3, 3, 0, tmpdir)
-
-
-# test dummy
-def _dummy(dataset_name, task: TaskType, image_num, category_num, unlabeled_image_num, root_dir):
-    dataset = Dataset.dummy(
-        name=dataset_name,
-        task=task,
-        image_num=image_num,
-        category_num=category_num,
-        unlabeled_image_num=unlabeled_image_num,
-        root_dir=root_dir,
-    )
-    assert len(dataset.get_images()) == image_num
-    assert len(dataset.get_categories()) == category_num
-    assert len(dataset.get_images(labeled=False)) == unlabeled_image_num
-
-
-def _total_dummy(
-    dataset_name, task: TaskType, image_num, category_num, unlabeled_image_num, root_dir
-):
-    _dummy(dataset_name, task, image_num, category_num, unlabeled_image_num, root_dir)
-    _load(dataset_name, root_dir)
-    _clone(dataset_name, root_dir)
-    _split(dataset_name, root_dir)
-    _export(dataset_name, task, root_dir)
-
-
-def test_dummy(tmpdir):
-    for task in [TaskType.CLASSIFICATION, TaskType.OBJECT_DETECTION, TaskType.INSTANCE_SEGMENTATION]:
         _total_dummy(f"dummy_{task}", task, 100, 5, 10, tmpdir)
 
     with pytest.raises(ValueError):
@@ -328,6 +331,75 @@ def _total_coco(dataset_name, task: TaskType, coco_path, root_dir):
 )
 def test_coco(coco_path, tmpdir, task):
     _total_coco(f"coco_{task}", task, coco_path, tmpdir)
+
+
+# test ultralytics
+def test_yolo_classification(yolo_classification_path: Path, tmpdir: Path):
+    dataset_name = "yolo_classification"
+    root_dir = tmpdir
+
+    dataset = Dataset.from_yolo(
+        name=dataset_name,
+        task=TaskType.CLASSIFICATION,
+        yolo_root_dir=yolo_classification_path,
+        root_dir=root_dir,
+    )
+    train_ids, val_ids, test_ids, unlabeled_ids = dataset.get_split_ids()
+    assert len(train_ids) == 60
+    assert len(val_ids) == 20
+    assert len(test_ids) == 20
+    assert len(dataset.get_images()) == 100
+
+    _load(dataset_name, root_dir)
+    _clone(dataset_name, root_dir)
+    _split(dataset_name, root_dir)
+    _export(dataset_name, TaskType.CLASSIFICATION, root_dir)
+
+
+def test_yolo_object_detection(yolo_object_detection_path: Path, tmpdir: Path):
+    dataset_name = "yolo_object_detection"
+    root_dir = tmpdir
+
+    dataset = Dataset.from_yolo(
+        name=dataset_name,
+        task=TaskType.OBJECT_DETECTION,
+        yolo_root_dir=yolo_object_detection_path,
+        yaml_path=yolo_object_detection_path / "data.yaml",
+        root_dir=root_dir,
+    )
+    train_ids, val_ids, test_ids, unlabeled_ids = dataset.get_split_ids()
+    assert len(train_ids) == 60
+    assert len(val_ids) == 20
+    assert len(test_ids) == 20
+    assert len(dataset.get_images()) == 100
+
+    _load(dataset_name, root_dir)
+    _clone(dataset_name, root_dir)
+    _split(dataset_name, root_dir)
+    _export(dataset_name, TaskType.OBJECT_DETECTION, root_dir)
+
+
+def test_yolo_instance_segmentation(yolo_instance_segmentation_path: Path, tmpdir: Path):
+    dataset_name = "yolo_instance_segmentation"
+    root_dir = tmpdir
+
+    dataset = Dataset.from_yolo(
+        name=dataset_name,
+        task=TaskType.INSTANCE_SEGMENTATION,
+        yolo_root_dir=yolo_instance_segmentation_path,
+        yaml_path=yolo_instance_segmentation_path / "data.yaml",
+        root_dir=root_dir,
+    )
+    train_ids, val_ids, test_ids, unlabeled_ids = dataset.get_split_ids()
+    assert len(train_ids) == 60
+    assert len(val_ids) == 20
+    assert len(test_ids) == 20
+    assert len(dataset.get_images()) == 100
+
+    _load(dataset_name, root_dir)
+    _clone(dataset_name, root_dir)
+    _split(dataset_name, root_dir)
+    _export(dataset_name, TaskType.INSTANCE_SEGMENTATION, root_dir)
 
 
 # test autocare_dlt
@@ -500,3 +572,65 @@ def test_merge(coco_path, tmpdir):
     assert category_counts[1] == category_1_num
     assert category_counts[2] == category_2_num
     assert category_counts[3] == category_1_num
+
+
+def test_extract_by_images_ids(tmpdir):
+    ds = Dataset.dummy(
+        name="dummy_for_extract_by_image_ids",
+        root_dir=tmpdir,
+        task=TaskType.OBJECT_DETECTION,
+        image_num=10,
+        category_num=3,
+    )
+
+    extracted_ds = ds.extract_by_image_ids(
+        name="extracted_by_image_ids",
+        root_dir=tmpdir,
+        image_ids=[1, 2],
+    )
+
+    assert extracted_ds.dataset_dir.exists()
+    assert len(extracted_ds.get_images()) == 2
+
+
+def test_extract_by_categories(tmpdir):
+    ds = Dataset.dummy(
+        name="dummy_for_extract_by_categories",
+        root_dir=tmpdir,
+        task=TaskType.OBJECT_DETECTION,
+        image_num=10,
+        category_num=3,
+    )
+
+    extracted_ds = ds.extract_by_categories(
+        name="extracted_by_categories",
+        root_dir=tmpdir,
+        category_ids=[1, 2],
+    )
+
+    assert extracted_ds.dataset_dir.exists()
+    assert len(extracted_ds.get_categories()) == 2
+
+
+@pytest.mark.parametrize(
+    "task",
+    [
+        TaskType.OBJECT_DETECTION,
+        TaskType.CLASSIFICATION,
+        TaskType.INSTANCE_SEGMENTATION,
+        TaskType.TEXT_RECOGNITION,
+    ],
+)
+def test_draw_annotations(tmpdir, task):
+    image_num = 5
+    ds = Dataset.dummy(
+        name=f"dummy_for_draw_annotations_{task}",
+        root_dir=tmpdir,
+        task=task,
+        image_num=image_num,
+        category_num=1,
+    )
+
+    ds.draw_annotations([1, 2])
+    assert ds.draw_dir.exists()
+    assert len(get_image_files(ds.draw_dir)) == 2

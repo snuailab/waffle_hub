@@ -22,21 +22,43 @@ def coco_path(tmp_path_factory: pytest.TempPathFactory):
 
 
 @pytest.fixture(scope="session")
-def yolo_path(tmp_path_factory: pytest.TempPathFactory):
-    url = "https://raw.githubusercontent.com/snuailab/assets/main/waffle/sample_dataset/mnist_yolo_object_detection_splited.zip"
+def yolo_classification_path(tmp_path_factory: pytest.TempPathFactory):
+    url = "https://raw.githubusercontent.com/snuailab/assets/main/waffle/sample_dataset/mnist_yolo_classification.zip"
 
     tmpdir = tmp_path_factory.mktemp("yolo")
-    zip_file = tmpdir / "mnist_yolo_object_detection_splied.zip"
+    zip_file = tmpdir / "mnist_yolo_classification.zip"
     yolo_path = tmpdir / "extract"
 
     network.get_file_from_url(url, zip_file, create_directory=True)
     io.unzip(zip_file, yolo_path, create_directory=True)
 
-    info = io.load_yaml(yolo_path / "data.yaml")
-    info["path"] = str(yolo_path)
-    info["train"] = info["val"] = info["test"] = "images"
-    info["names"] = {0: "1", 1: "2"}
-    io.save_yaml(info, yolo_path / "data.yaml")
+    return Path(yolo_path)
+
+
+@pytest.fixture(scope="session")
+def yolo_object_detection_path(tmp_path_factory: pytest.TempPathFactory):
+    url = "https://raw.githubusercontent.com/snuailab/assets/main/waffle/sample_dataset/mnist_yolo_object_detection.zip"
+
+    tmpdir = tmp_path_factory.mktemp("yolo")
+    zip_file = tmpdir / "mnist_yolo_object_detection.zip"
+    yolo_path = tmpdir / "extract"
+
+    network.get_file_from_url(url, zip_file, create_directory=True)
+    io.unzip(zip_file, yolo_path, create_directory=True)
+
+    return Path(yolo_path)
+
+
+@pytest.fixture(scope="session")
+def yolo_instance_segmentation_path(tmp_path_factory: pytest.TempPathFactory):
+    url = "https://raw.githubusercontent.com/snuailab/assets/main/waffle/sample_dataset/mnist_yolo_instance_segmentation.zip"
+
+    tmpdir = tmp_path_factory.mktemp("yolo")
+    zip_file = tmpdir / "mnist_yolo_instance_segmentation.zip"
+    yolo_path = tmpdir / "extract"
+
+    network.get_file_from_url(url, zip_file, create_directory=True)
+    io.unzip(zip_file, yolo_path, create_directory=True)
 
     return Path(yolo_path)
 
@@ -78,7 +100,7 @@ def instance_segmentation_dataset(coco_path: Path, tmpdir: Path):
         coco_root_dir=coco_path / "images",
         root_dir=tmpdir,
     )
-    dataset.split(0.2, 0.2, 0.6)
+    dataset.split(0.2, 0.8)
 
     return dataset
 
@@ -92,7 +114,7 @@ def object_detection_dataset(coco_path: Path, tmpdir: Path):
         coco_root_dir=coco_path / "images",
         root_dir=tmpdir,
     )
-    dataset.split(0.2, 0.2, 0.6)
+    dataset.split(0.2, 0.8)
 
     return dataset
 
@@ -106,7 +128,7 @@ def classification_dataset(coco_path: Path, tmpdir: Path):
         coco_root_dir=coco_path / "images",
         root_dir=tmpdir,
     )
-    dataset.split(0.2, 0.2, 0.6)
+    dataset.split(0.2, 0.8)
 
     return dataset
 

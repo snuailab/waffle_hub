@@ -1,11 +1,14 @@
 import warnings
+from collections import defaultdict
+from itertools import groupby
 from pathlib import Path
 from typing import Union
 
-from waffle_utils.file import io
+import cv2
+from waffle_utils.file import io, search
 
 from waffle_hub import TaskType
-from waffle_hub.schema.fields.image import Image
+from waffle_hub.schema.fields import Annotation, Category, Image
 from waffle_hub.utils.conversion import merge_multi_segment
 
 
@@ -216,10 +219,214 @@ def export_yolo(self, export_dir: Union[str, Path]) -> str:
             "path": str(export_dir.absolute()),
             "train": "train",
             "val": "val",
-            "test": "test",
+            "test": "test" if test_ids else "val",
             "names": {category.category_id - 1: category.name for category in self.get_categories()},
         },
         export_dir / "data.yaml",
     )
 
     return str(export_dir)
+
+
+# import functions
+def _get_yolo_image_rel_paths(yolo_root_dir: Path, set_paths: list = ["train", "val", "test"]):
+    set_image_rel_path = {}
+    for set_path in set_paths:
+        set_image_rel_path[set_path] = list(
+            map(
+                lambda x: x.relative_to(yolo_root_dir),
+                search.get_image_files(yolo_root_dir / set_path),
+            )
+        )
+    return set_image_rel_path
+
+
+def _import_yolo_classification(self, yolo_root_dir: Path, *args):
+    # get image relative paths
+    set_image_rel_path = _get_yolo_image_rel_paths(yolo_root_dir, ["train", "val", "test"])
+
+    # get categories
+    category_group = groupby(set_image_rel_path["train"], lambda image_path: image_path.parts[1])
+    category_names = {k for k, _ in category_group}
+    category_name2id = {}
+    for category_id, category_name in enumerate(category_names, start=1):
+        category_name2id[category_name] = category_id
+        self.add_categories(
+            [
+                Category.classification(
+                    category_id=category_id,
+                    name=category_name,
+                )
+            ]
+        )
+
+    # convert to waffle format
+    image_id = 1
+    annotation_id = 1
+    for set_name, image_rel_paths in set_image_rel_path.items():
+        set_image_ids = []
+        for image_rel_path in image_rel_paths:
+            image_path = yolo_root_dir / image_rel_path
+            file_name = f"{image_id}{image_path.suffix}"
+
+            height, width = cv2.imread(str(image_path)).shape[:2]
+            self.add_images(
+                [
+                    Image.new(
+                        image_id=image_id,
+                        file_name=file_name,
+                        width=width,
+                        height=height,
+                        original_file_name=image_rel_path,
+                    )
+                ]
+            )
+            set_image_ids.append(image_id)
+            io.copy_file(image_path, self.raw_image_dir / file_name, create_directory=True)
+
+            category_name = image_rel_path.parts[
+                1
+            ]  # image rel path: {set_name}/{category_name}/{file_name}
+            self.add_annotations(
+                [
+                    Annotation.classification(
+                        annotation_id=annotation_id,
+                        image_id=image_id,
+                        category_id=category_name2id[category_name],
+                    )
+                ]
+            )
+
+            image_id += 1
+            annotation_id += 1
+
+        io.save_json(set_image_ids, self.set_dir / f"{set_name}.json", True)
+
+    return True
+
+
+def _parse_od_label(line: str, width: int, height: int):
+    """parse label file for od"""
+    category_id, x, y, w, h = map(float, line.split())
+    return {
+        "category_id": int(category_id) + 1,
+        "bbox": [x * width, y * height, w * width, h * height],
+    }
+
+
+def _parse_seg_label(line: str, width: int, height: int):
+    """parse label file for seg"""
+    category_id, *segment = map(float, line.split())
+    segment[::2] = [int(x * width) for x in segment[::2]]
+    segment[1::2] = [y * height for y in segment[1::2]]
+    return {
+        "category_id": int(category_id) + 1,
+        "segmentation": [segment],
+    }
+
+
+def _import_yolo_images_labels(self, yolo_root_dir: Path, yaml_path: str, task: TaskType):
+    """import function for od, seg, keypoint"""
+
+    parse_func = {
+        TaskType.OBJECT_DETECTION: _parse_od_label,
+        TaskType.INSTANCE_SEGMENTATION: _parse_seg_label,
+    }[task]
+
+    info = io.load_yaml(yaml_path)
+
+    # get image relative paths
+    set_image_rel_path = _get_yolo_image_rel_paths(
+        yolo_root_dir, list(set(map(lambda x: info.get(x, None), ["train", "val", "test"])))
+    )
+
+    # get categories
+    names = info["names"]
+    category_name2id = {}
+    if isinstance(names, list):
+        names = {category_id: category_name for category_id, category_name in enumerate(names)}
+    for category_id, category_name in names.items():
+        category_name2id[category_name] = category_id + 1
+        self.add_categories(
+            [
+                Category.new(
+                    category_id=category_id + 1,
+                    name=category_name,
+                    task=task,
+                )
+            ]
+        )
+
+    # convert to waffle format
+    image_id = 1
+    annotation_id = 1
+    for set_name, image_rel_paths in set_image_rel_path.items():
+        set_image_ids = []
+        for image_rel_path in image_rel_paths:
+            image_path = (
+                yolo_root_dir / image_rel_path
+            )  # image rel path: {set_name}/images/{file_name(.EXT)}
+            file_name = f"{image_id}{image_path.suffix}"
+
+            height, width = cv2.imread(str(image_path)).shape[:2]
+            self.add_images(
+                [
+                    Image.new(
+                        image_id=image_id,
+                        file_name=file_name,
+                        width=width,
+                        height=height,
+                        original_file_name=image_rel_path,
+                    )
+                ]
+            )
+            set_image_ids.append(image_id)
+            io.copy_file(image_path, self.raw_image_dir / file_name, create_directory=True)
+
+            label_path = image_rel_path.with_suffix(
+                ".txt"
+            )  # label rel path: {set_name}/labels/{file_name(.txt)}
+            label_parts = list(label_path.parts)
+            label_parts[1] = "labels"
+            label_path = yolo_root_dir / Path(*label_parts)
+            with label_path.open("r") as f:
+                lines = f.readlines()
+
+            for line in lines:
+                annotation = parse_func(line, width, height)
+                self.add_annotations(
+                    [
+                        Annotation.new(
+                            annotation_id=annotation_id,
+                            image_id=image_id,
+                            task=task,
+                            **annotation,
+                        )
+                    ]
+                )
+                annotation_id += 1
+            image_id += 1
+
+        io.save_json(set_image_ids, self.set_dir / f"{set_name}.json", True)
+
+
+def import_yolo(self, yolo_root_dir: str, yaml_path: str):
+    """
+    Import YOLO dataset.
+
+    Args:
+        yaml_path (str): Path to the yaml file.
+    """
+    if self.task == TaskType.OBJECT_DETECTION:
+        _import = _import_yolo_images_labels
+    elif self.task == TaskType.CLASSIFICATION:
+        _import = _import_yolo_classification
+    elif self.task == TaskType.INSTANCE_SEGMENTATION:
+        _import = _import_yolo_images_labels
+    else:
+        raise ValueError(f"Unsupported task: {self.task}")
+
+    _import(self, Path(yolo_root_dir), yaml_path, self.task)
+
+    # TODO: add unlabeled set
+    io.save_json([], self.unlabeled_set_file, create_directory=True)

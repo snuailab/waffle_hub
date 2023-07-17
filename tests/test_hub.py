@@ -1,6 +1,9 @@
+import json
+import tempfile
 import time
 from pathlib import Path
 
+import pytest
 import torch
 
 from waffle_hub import TaskType
@@ -14,7 +17,7 @@ from waffle_hub.schema.result import (
 )
 
 
-def _train(hub, dataset: Dataset, image_size: int, hold: bool = True):
+def _train(hub, dataset: Dataset, image_size: int, advance_params: dict = None, hold: bool = True):
     result: TrainResult = hub.train(
         dataset=dataset,
         epochs=1,
@@ -23,6 +26,7 @@ def _train(hub, dataset: Dataset, image_size: int, hold: bool = True):
         pretrained_model=None,
         device="cpu",
         workers=0,
+        advance_params=advance_params,
         hold=hold,
     )
 
@@ -136,9 +140,9 @@ def _util(hub):
     assert isinstance(hub_loaded, type(hub))
 
 
-def _total(hub, dataset: Dataset, image_size: int, hold: bool = True):
+def _total(hub, dataset: Dataset, image_size: int, advance_params: dict = None, hold: bool = True):
 
-    _train(hub, dataset, image_size, hold=hold)
+    _train(hub, dataset, image_size, advance_params=advance_params, hold=hold)
     _evaluate(hub, dataset, hold=hold)
     _inference(hub, dataset.raw_image_dir, hold=hold)
     _export(hub, half=False, hold=hold)
@@ -198,6 +202,44 @@ def test_ultralytics_object_detection(object_detection_dataset: Dataset, tmpdir:
     _total(hub, dataset, image_size)
 
 
+def test_ultralytics_object_detection_advance_params(
+    object_detection_dataset: Dataset, tmpdir: Path
+):
+    image_size = 32
+    dataset = object_detection_dataset
+
+    # test hub
+    name = "test_det_adv"
+    hub = Hub.new(
+        name=name,
+        backend="ultralytics",
+        task=TaskType.OBJECT_DETECTION,
+        model_type="yolov8",
+        model_size="n",
+        categories=dataset.get_category_names(),
+        root_dir=tmpdir,
+    )
+    hub = Hub.load(name=name, root_dir=tmpdir)
+    hub: Hub = Hub.from_model_config(
+        name=name + "_from_model_config",
+        model_config_file=tmpdir / name / Hub.MODEL_CONFIG_FILE,
+        root_dir=tmpdir,
+    )
+
+    hub.get_default_advance_train_params()
+
+    _total(hub, dataset, image_size, {"box": 4, "cls": 1})
+    hub.delete_artifact()
+
+    with open(str(tmpdir / "adv.json"), "w") as f:
+        json.dump({"box": 4, "cls": 2}, f)
+    _total(hub, dataset, image_size, str(tmpdir / "adv.json"))
+    hub.delete_artifact()
+
+    with pytest.raises(ValueError):
+        _total(hub, dataset, image_size, {"box": 4, "dummy_adv_param": 2})
+
+
 def test_ultralytics_classification(classification_dataset: Dataset, tmpdir: Path):
     image_size = 32
     dataset = classification_dataset
@@ -236,31 +278,6 @@ def test_transformers_object_detection(object_detection_dataset: Dataset, tmpdir
         model_type="YOLOS",
         model_size="tiny",
         categories=object_detection_dataset.get_category_names(),
-        root_dir=tmpdir,
-    )
-    hub = Hub.load(name=name, root_dir=tmpdir)
-    hub: Hub = Hub.from_model_config(
-        name=name + "_from_model_config",
-        model_config_file=tmpdir / name / Hub.MODEL_CONFIG_FILE,
-        root_dir=tmpdir,
-    )
-
-    _total(hub, dataset, image_size)
-
-
-def test_transformers_classification(classification_dataset: Dataset, tmpdir: Path):
-    image_size = 224
-    dataset = classification_dataset
-
-    # test hub
-    name = "test_cls"
-    hub = Hub.new(
-        name=name,
-        backend="transformers",
-        task=TaskType.CLASSIFICATION,
-        model_type="ViT",
-        model_size="tiny",
-        categories=classification_dataset.get_category_names(),
         root_dir=tmpdir,
     )
     hub = Hub.load(name=name, root_dir=tmpdir)
@@ -327,18 +344,6 @@ def test_autocare_dlt_classification(classification_dataset: Dataset, tmpdir: Pa
     image_size = 32
     dataset = classification_dataset
 
-    # temporal solution
-    super_cat = [[c.supercategory, c.name] for c in dataset.get_categories()]
-    super_cat_dict = {}
-    for super_cat, cat in super_cat:
-        if super_cat not in super_cat_dict:
-            super_cat_dict[super_cat] = []
-        super_cat_dict[super_cat].append(cat)
-    super_cat_dict_list = []
-
-    for super_cat, cat in super_cat_dict.items():
-        super_cat_dict_list.append({super_cat: cat})
-
     # test hub
     name = "test_cls"
     hub = Hub.new(
@@ -347,7 +352,7 @@ def test_autocare_dlt_classification(classification_dataset: Dataset, tmpdir: Pa
         task=TaskType.CLASSIFICATION,
         model_type="Classifier",
         model_size="s",
-        categories=super_cat_dict_list,
+        categories=dataset.get_categories(),
         root_dir=tmpdir,
     )
     hub = Hub.load(name=name, root_dir=tmpdir)
@@ -372,7 +377,82 @@ def test_autocare_dlt_text_recognition(text_recognition_dataset: Dataset, tmpdir
         task=TaskType.TEXT_RECOGNITION,
         model_type="TextRecognition",
         model_size="s",
-        categories=dataset.get_category_names(),
+        categories=dataset.get_categories(),
+        root_dir=tmpdir,
+    )
+    hub = Hub.load(name=name, root_dir=tmpdir)
+    hub: Hub = Hub.from_model_config(
+        name=name + "_from_model_config",
+        model_config_file=tmpdir / name / Hub.MODEL_CONFIG_FILE,
+        root_dir=tmpdir,
+    )
+
+    _total(hub, dataset, image_size)
+
+
+def test_ultralytics_classification_without_category(classification_dataset: Dataset, tmpdir: Path):
+    image_size = 32
+    dataset = classification_dataset
+
+    # test hub
+    name = "test_cls"
+    hub = Hub.new(
+        name=name,
+        backend="ultralytics",
+        task=TaskType.CLASSIFICATION,
+        model_type="yolov8",
+        model_size="n",
+        # categories=classification_dataset.get_category_names(),  # auto detect
+        root_dir=tmpdir,
+    )
+    hub = Hub.load(name=name, root_dir=tmpdir)
+    hub: Hub = Hub.from_model_config(
+        name=name + "_from_model_config",
+        model_config_file=tmpdir / name / Hub.MODEL_CONFIG_FILE,
+        root_dir=tmpdir,
+    )
+
+    _total(hub, dataset, image_size)
+
+
+def test_autocare_dlt_classification_without_category(classification_dataset: Dataset, tmpdir: Path):
+    image_size = 32
+    dataset = classification_dataset
+
+    # test hub
+    name = "test_cls"
+    hub = Hub.new(
+        name=name,
+        backend="autocare_dlt",
+        task=TaskType.CLASSIFICATION,
+        model_type="Classifier",
+        model_size="s",
+        # categories=dataset.get_categories(),
+        root_dir=tmpdir,
+    )
+    hub = Hub.load(name=name, root_dir=tmpdir)
+    hub: Hub = Hub.from_model_config(
+        name=name + "_from_model_config",
+        model_config_file=tmpdir / name / Hub.MODEL_CONFIG_FILE,
+        root_dir=tmpdir,
+    )
+
+    _total(hub, dataset, image_size)
+
+
+def test_transformers_classification(classification_dataset: Dataset, tmpdir: Path):
+    image_size = 224
+    dataset = classification_dataset
+
+    # test hub
+    name = "test_cls"
+    hub = Hub.new(
+        name=name,
+        backend="transformers",
+        task=TaskType.CLASSIFICATION,
+        model_type="ViT",
+        model_size="tiny",
+        # categories=classification_dataset.get_category_names(),
         root_dir=tmpdir,
     )
     hub = Hub.load(name=name, root_dir=tmpdir)

@@ -46,16 +46,17 @@ def test_dataset_from_coco(test_dir: Path):
 
 
 def test_dataset_from_yolo(test_dir: Path):
-    url = "https://raw.githubusercontent.com/snuailab/assets/main/waffle/sample_dataset/mnist_yolo_object_detection_splited.zip"
+    url = "https://raw.githubusercontent.com/snuailab/assets/main/waffle/sample_dataset/mnist_yolo_object_detection.zip"
     yolo_dir = test_dir / "datasets" / "mnist_yolo"
 
     get_file_from_url(url, str(test_dir), True)
-    unzip(str(test_dir / "mnist_yolo_object_detection_splited.zip"), yolo_dir)
+    unzip(str(test_dir / "mnist_yolo_object_detection.zip"), yolo_dir)
 
     cmd = f"python -m waffle_hub.dataset.cli from_yolo \
         --name from_yolo \
         --root-dir {test_dir / 'datasets'} \
         --task object_detection \
+        --yolo-root-dir {yolo_dir} \
         --yaml-path {yolo_dir / 'data.yaml'} \
     "
     ret = run_cli(cmd)
@@ -218,6 +219,42 @@ def test_hub_train(test_dir: Path):
         --seed 0 \
         --verbose \
     '
+    ret = run_cli(cmd)
+    assert ret.returncode == 0
+    assert (test_dir / "hubs" / "test" / "artifacts").exists()
+
+
+def test_hub_train_advance_params(test_dir: Path):
+    cmd = f'python -m waffle_hub.hub.cli new \
+        --backend ultralytics \
+        --root-dir {test_dir / "hubs"} \
+        --name test_adv \
+        --task classification \
+        --model-type yolov8 \
+        --model-size n \
+        --categories [1,2] \
+    '
+    ret = run_cli(cmd)
+    assert ret.returncode == 0
+    assert (test_dir / "hubs" / "test").exists()
+
+    cmd = (
+        f'python -m waffle_hub.hub.cli train \
+        --root-dir {test_dir / "hubs"} \
+        --name test_adv \
+        --dataset {test_dir / "datasets" / "from_coco"} \
+        --epochs 1 \
+        --batch-size 4 \
+        --image-size 16 \
+        --learning-rate 0.001 \
+        --letter-box \
+        --device cpu \
+        --workers 0 \
+        --seed 0 \
+        --verbose \
+    '
+        + ' --advance_params "{box: 3}"'
+    )
     ret = run_cli(cmd)
     assert ret.returncode == 0
     assert (test_dir / "hubs" / "test" / "artifacts").exists()

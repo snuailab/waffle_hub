@@ -136,6 +136,7 @@ hubs/
 runs/
 .idea/
 .vscode/
+mlruns/
 
 *.pt
 *.pth

@@ -4,6 +4,7 @@ from typing import Union
 import cv2
 import numpy as np
 import torch
+from natsort import natsorted
 from torchvision import transforms as T
 from waffle_utils.file import io
 
@@ -18,11 +19,13 @@ def get_images(d, recursive: bool = True) -> list[str]:
     for ext in ["png", "jpg", "jpeg", "bmp", "tif", "tiff"]:
         image_paths += list(Path(d).glob(exp.lower() + "." + ext))
         image_paths += list(Path(d).glob(exp.upper() + "." + ext))
-    return list(
-        set(
-            map(
-                str,
-                image_paths,
+    return natsorted(
+        list(
+            set(
+                map(
+                    str,
+                    image_paths,
+                )
             )
         )
     )
@@ -103,12 +106,13 @@ class ImageDataset:
         image_dir: str,
         image_size: Union[int, list[int]],
         letter_box: bool = False,
+        recursive: bool = True,
     ):
         self.image_dir = image_dir
         if Path(self.image_dir).is_file():
             self.image_paths = [self.image_dir]
         else:
-            self.image_paths = get_images(self.image_dir)
+            self.image_paths = get_images(self.image_dir, recursive=recursive)
 
         self.transform = get_image_transform(image_size, letter_box)
 

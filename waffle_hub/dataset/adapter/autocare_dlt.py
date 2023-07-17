@@ -1,9 +1,14 @@
+import logging
+import warnings
 from pathlib import Path
 from typing import Union
 
+import tqdm
+from pycocotools.coco import COCO
 from waffle_utils.file import io
 
 from waffle_hub import TaskType
+from waffle_hub.schema.fields import Annotation, Category, Image
 from waffle_hub.utils.conversion import convert_rle_to_polygon
 
 
@@ -95,3 +100,105 @@ def export_autocare_dlt(self, export_dir: Union[str, Path]) -> str:
         raise ValueError(f"Unsupported task type: {self.task}")
 
     return str(export_dir)
+
+
+def import_autocare_dlt(self, coco_files: list[str], coco_root_dirs: list[str]):
+    """
+    Import dataset from Autocare DLT format
+
+    Args:
+        coco_files (list[str]): List of coco files
+        coco_root_dirs (list[str]): List of coco root directories
+    """
+    if len(coco_files) == 1:
+        set_names = [None]
+    elif len(coco_files) == 2:
+        set_names = ["train", "val"]
+    elif len(coco_files) == 3:
+        set_names = ["train", "val", "test"]
+    else:
+        raise ValueError("coco_file should have 1, 2, or 3 files.")
+
+    cocos = []
+    for coco_file in coco_files:
+        coco_dict = io.load_json(coco_file)
+        for ann in coco_dict["annotations"]:
+            if "category_id" not in ann:
+                ann["category_id"] = -1  # dummy category_id to use COCO
+        coco = COCO()
+        coco.dataset = coco_dict
+        coco.createIndex()
+        cocos.append(coco)
+
+    # categories should be same between coco files
+    categories = cocos[0].loadCats(cocos[0].getCatIds())
+    for coco in cocos[1:]:
+        if categories != coco.loadCats(coco.getCatIds()):
+            raise ValueError("categories should be same between coco files.")
+
+    coco_cat_id_to_waffle_cat_id = {}
+    for i, category in enumerate(categories, start=1):
+        coco_category_id = category.pop("id")
+        coco_cat_id_to_waffle_cat_id[coco_category_id] = i
+        self.add_categories([Category.from_dict({**category, "category_id": i}, task=self.task)])
+
+    # import coco dataset
+    total_length = sum([len(coco.getImgIds()) for coco in cocos])
+    logging.info(f"Importing coco dataset. Total length: {total_length}")
+    pgbar = tqdm.tqdm(total=total_length, desc="Importing coco dataset")
+
+    image_id = 1
+    annotation_id = 1
+
+    # parse coco annotation file
+    for coco, coco_root_dir, set_name in tqdm.tqdm(zip(cocos, coco_root_dirs, set_names)):
+
+        image_ids = []
+        for coco_image_id, annotation_dicts in coco.imgToAnns.items():
+            if len(annotation_dicts) == 0:
+                warnings.warn(f"image_id {coco_image_id} has no annotations.")
+                continue
+
+            image_dict = coco.loadImgs(coco_image_id)[0]
+            image_dict.pop("id")
+
+            file_name = image_dict.pop("file_name")
+            image_path = Path(coco_root_dir) / file_name
+            if not image_path.exists():
+                raise FileNotFoundError(f"{image_path} does not exist.")
+
+            if set_name:
+                file_name = f"{set_name}/{file_name}"
+
+            self.add_images(
+                [Image.from_dict({**image_dict, "image_id": image_id, "file_name": file_name})]
+            )
+            io.copy_file(image_path, self.raw_image_dir / file_name, create_directory=True)
+
+            for annotation_dict in annotation_dicts:
+                annotation_dict.pop("id")
+                self.add_annotations(
+                    [
+                        Annotation.from_dict(
+                            {
+                                **annotation_dict,
+                                "image_id": image_id,
+                                "annotation_id": annotation_id,
+                                "category_id": coco_cat_id_to_waffle_cat_id[
+                                    annotation_dict["category_id"]
+                                ],
+                            },
+                            task=self.task,
+                        )
+                    ]
+                )
+                annotation_id += 1
+
+            image_ids.append(image_id)
+            image_id += 1
+            pgbar.update(1)
+
+        if set_name:
+            io.save_json(image_ids, self.set_dir / f"{set_name}.json", create_directory=True)
+
+    pgbar.close()

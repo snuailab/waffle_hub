@@ -244,7 +244,7 @@ class Annotation(BaseField):
         Returns:
             Annotation: annotation class
         """
-        return cls(
+        return (getattr(cls, task.lower()) if task else cls)(
             annotation_id=annotation_id,
             image_id=image_id,
             category_id=category_id,

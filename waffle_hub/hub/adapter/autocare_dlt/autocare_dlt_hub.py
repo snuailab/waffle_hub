@@ -35,6 +35,7 @@ class AutocareDLTHub(Hub):
     MODEL_TYPES = MODEL_TYPES
     MULTI_GPU_TRAIN = False
     DEFAULT_PARAMS = DEFAULT_PARAMS
+    DEFAULT_ADVANCE_PARAMS = {}
 
     DATA_TYPE_MAP = DATA_TYPE_MAP
     WEIGHT_PATH = WEIGHT_PATH
@@ -107,24 +108,6 @@ class AutocareDLTHub(Hub):
             categories=categories,
             root_dir=root_dir,
         )
-
-    @property
-    def categories(self) -> list[dict]:
-        return self.__categories
-
-    @categories.setter
-    @type_validator(list)
-    def categories(self, v):
-        if isinstance(v[0], str):
-            v = [{"supercategory": "object", "name": n} for n in v]
-        elif isinstance(v[0], dict) and "supercategory" not in v[0]:
-            # TODO: Temporal solution for DLT classification: Not supported multi-task yet.
-            v_ = []
-            for k, cls in v[0].items():
-                for c in cls:
-                    v_.append({"supercategory": k, "name": c})
-            v = v_
-        self.__categories = v
 
     # Hub Utils
     def get_preprocess(self, *args, **kwargs):
@@ -212,16 +195,19 @@ class AutocareDLTHub(Hub):
     def on_train_start(self, cfg: TrainConfig):
         # set data
         cfg.dataset_path: Path = Path(cfg.dataset_path)
+        train_coco_file = cfg.dataset_path / "train.json"
+        val_coco_file = cfg.dataset_path / "val.json"
+        test_coco_file = cfg.dataset_path / "test.json"
         data_config = get_data_config(
             self.DATA_TYPE_MAP[self.task],
             cfg.image_size if isinstance(cfg.image_size, list) else [cfg.image_size, cfg.image_size],
             cfg.batch_size,
             cfg.workers,
-            str(cfg.dataset_path / "train.json"),
+            str(train_coco_file),
             str(cfg.dataset_path / "images"),
-            str(cfg.dataset_path / "val.json"),
+            str(val_coco_file),
             str(cfg.dataset_path / "images"),
-            str(cfg.dataset_path / "test.json"),
+            str(test_coco_file) if test_coco_file.exists() else str(val_coco_file),
             str(cfg.dataset_path / "images"),
         )
         if self.model_type == "LicencePlateRecognition":
@@ -229,11 +215,21 @@ class AutocareDLTHub(Hub):
 
         cfg.data_config = self.artifact_dir / "data.json"
         io.save_json(data_config, cfg.data_config, create_directory=True)
-        categories = (
-            self.categories
-            if self._Hub__task == TaskType.CLASSIFICATION
-            else [x["name"] for x in self.categories]
-        )
+
+        if self.task == TaskType.CLASSIFICATION:
+            super_cat = [[c.supercategory, c.name] for c in self.categories]
+            super_cat_dict = {}
+            for super_cat, cat in super_cat:
+                if super_cat not in super_cat_dict:
+                    super_cat_dict[super_cat] = []
+                super_cat_dict[super_cat].append(cat)
+
+            categories = []
+            for super_cat, cat in super_cat_dict.items():
+                categories.append({super_cat: cat})
+
+        else:
+            categories = self.get_category_names()
 
         model_config = get_model_config(
             self.model_type,

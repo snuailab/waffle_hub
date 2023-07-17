@@ -9,6 +9,12 @@ class BaseField(ABC):
     def __init__(self):
         pass
 
+    def __repr__(self) -> str:
+        return f"{self.__class__.__name__}({', '.join([f'{k}={v}' for k, v in self.to_dict().items()])})"
+
+    def __str__(self) -> str:
+        return self.__repr__()
+
     @abstractmethod
     def to_dict(self):
         pass
@@ -51,3 +57,6 @@ class BaseField(ABC):
         """
         d: dict = io.load_json(f)
         return cls.from_dict(d, task)
+
+    def __getitem__(self, key):
+        return getattr(self, key)

@@ -14,7 +14,7 @@ import threading
 import time
 import warnings
 from functools import cached_property
-from pathlib import Path
+from pathlib import Path, PurePath
 from typing import Union
 
 import cpuinfo
@@ -36,6 +36,7 @@ from waffle_hub.schema.configs import (
     TrainConfig,
 )
 from waffle_hub.schema.data import ImageInfo
+from waffle_hub.schema.fields import Category
 from waffle_hub.schema.result import (
     EvaluateResult,
     ExportResult,
@@ -51,6 +52,7 @@ from waffle_hub.utils.callback import (
 from waffle_hub.utils.data import ImageDataset, LabeledDataset, get_image_transform
 from waffle_hub.utils.draw import draw_results
 from waffle_hub.utils.evaluate import evaluate_function
+from waffle_hub.utils.metric_logger import MetricLogger
 
 logger = logging.getLogger(__name__)
 
@@ -71,6 +73,8 @@ class Hub:
     EXPORT_DIR = Path("exports")
 
     DRAW_DIR = Path("draws")
+
+    TRAIN_LOG_DIR = Path("logs")
 
     # config files
     CONFIG_DIR = Path("configs")
@@ -99,7 +103,7 @@ class Hub:
         task: Union[str, TaskType] = None,
         model_type: str = None,
         model_size: str = None,
-        categories: Union[list[dict], list] = None,
+        categories: list[Union[str, int, float, dict, Category]] = None,
         root_dir: str = None,
     ):
         if self.BACKEND_NAME is None:
@@ -118,31 +122,13 @@ class Hub:
         self.task: str = task
         self.model_type: str = model_type
         self.model_size: str = model_size
-        self.categories: list[dict] = categories
+        self.categories: list[Category] = categories
         self.root_dir: Path = root_dir
 
         self.backend: str = backend
         self.version: str = version
 
-        # check task supports
-        if self.task not in self.MODEL_TYPES:
-            io.remove_directory()
-            raise ValueError(f"{self.task} is not supported with {self.backend}")
-
-        try:
-            # save model config
-            model_config = ModelConfig(
-                name=self.name,
-                backend=self.backend,
-                version=self.version,
-                task=self.task,
-                model_type=self.model_type,
-                model_size=self.model_size,
-                categories=self.categories,
-            )
-            model_config.save_yaml(self.model_config_file)
-        except Exception as e:
-            raise e
+        self.save_model_config()
 
     def __repr__(self):
         return self.get_model_config().__repr__()
@@ -242,7 +228,8 @@ class Hub:
             raise ValueError(f"{task} is not supported with {backend}")
         if model_type not in hub.MODEL_TYPES[task]:
             raise ValueError(f"{model_type} is not supported with {backend}")
-        return hub.MODEL_TYPES[task][model_type]
+        model_sizes = hub.MODEL_TYPES[task][model_type]
+        return model_sizes if isinstance(model_sizes, list) else list(model_sizes.keys())
 
     @classmethod
     def get_default_train_params(
@@ -300,24 +287,35 @@ class Hub:
         Returns:
             Hub: Hub instance
         """
+        root_dir = Hub.parse_root_dir(root_dir)
+
         if name in cls.get_hub_list(root_dir):
-            raise ValueError(f"{name} already exists. Try another name.")
+            raise FileExistsError(f"{name} already exists. Try another name.")
 
-        backend = backend if backend else cls.get_available_backends()[0]
-        task = str(task).upper() if task else cls.get_available_tasks(backend)[0]
-        model_type = model_type if model_type else cls.get_available_model_types(backend, task)[0]
-        model_size = (
-            model_size if model_size else cls.get_available_model_sizes(backend, task, model_type)[0]
-        )
+        try:
+            backend = backend if backend else cls.get_available_backends()[0]
+            task = str(task).upper() if task else cls.get_available_tasks(backend)[0]
+            model_type = (
+                model_type if model_type else cls.get_available_model_types(backend, task)[0]
+            )
+            model_size = (
+                model_size
+                if model_size
+                else cls.get_available_model_sizes(backend, task, model_type)[0]
+            )
 
-        return cls.get_hub_class(backend)(
-            name=name,
-            task=task,
-            model_type=model_type,
-            model_size=model_size,
-            categories=categories,
-            root_dir=root_dir,
-        )
+            return cls.get_hub_class(backend)(
+                name=name,
+                task=task,
+                model_type=model_type,
+                model_size=model_size,
+                categories=categories,
+                root_dir=root_dir,
+            )
+        except Exception as e:
+            if (root_dir / name).exists():
+                io.remove_directory(root_dir / name)
+            raise e
 
     @classmethod
     def load(cls, name: str, root_dir: str = None) -> "Hub":
@@ -357,17 +355,23 @@ class Hub:
         Returns:
             Hub: New Hub instance
         """
-        if name in cls.get_hub_list(root_dir):
-            raise ValueError(f"{name} already exists. Try another name.")
+        root_dir = Hub.parse_root_dir(root_dir)
+        try:
+            if name in cls.get_hub_list(root_dir):
+                raise ValueError(f"{name} already exists. Try another name.")
 
-        model_config = io.load_yaml(model_config_file)
-        return cls.new(
-            **{
-                **model_config,
-                "name": name,
-                "root_dir": root_dir,
-            }
-        )
+            model_config = io.load_yaml(model_config_file)
+            return cls.new(
+                **{
+                    **model_config,
+                    "name": name,
+                    "root_dir": root_dir,
+                }
+            )
+        except Exception as e:
+            if (root_dir / name).exists():
+                io.remove_directory(root_dir / name)
+            raise e
 
     @classmethod
     def get_hub_list(cls, root_dir: str = None) -> list[str]:
@@ -485,16 +489,44 @@ class Hub:
         self.__version = v
 
     @property
-    def categories(self) -> list[dict]:
+    def categories(self) -> list[Category]:
         return self.__categories
 
     @categories.setter
     @type_validator(list)
     def categories(self, v):
-        if v is None:
-            raise ValueError("Categories must be specified.")
-        if not isinstance(v[0], dict):
-            v = [{"supercategory": "object", "name": str(n)} for n in v]
+        if v is None or len(v) == 0:
+            warnings.warn(
+                "Categories is not specified.\n"
+                + "It follows the categories of Dataset when the training starts."
+            )
+            v = []
+        elif isinstance(v[0], dict):
+            v = [
+                getattr(Category, self.task.lower())(
+                    **{
+                        **category,
+                        "category_id": category.get("category_id", i),
+                    }
+                )
+                for i, category in enumerate(v, start=1)
+            ]
+        elif isinstance(v[0], (str, int, float)):
+            v = [
+                getattr(Category, self.task.lower())(
+                    category_id=i,
+                    supercategory="object",
+                    name=str(category),
+                )
+                for i, category in enumerate(v, start=1)
+            ]
+            warnings.warn(
+                "Super category is not specified. It may cause unexpected errors in some backends.\n"
+                + "To avoid this warning, please specify category as a list of dictionary or Category"
+            )
+        elif isinstance(v[0], Category):
+            pass
+
         self.__categories = v
 
     @cached_property
@@ -526,6 +558,11 @@ class Hub:
     def draw_dir(self) -> Path:
         """Draw Results Directory"""
         return self.inference_dir / Hub.DRAW_DIR
+
+    @cached_property
+    def train_log_dir(self) -> Path:
+        """Train Logs Directory"""
+        return self.hub_dir / Hub.TRAIN_LOG_DIR
 
     @cached_property
     def train_config_file(self) -> Path:
@@ -600,6 +637,43 @@ class Hub:
             ModelConfig: model config
         """
         return ModelConfig.load(self.model_config_file)
+
+    def save_model_config(self):
+        """Save ModelConfig."""
+        ModelConfig(
+            name=self.name,
+            backend=self.backend,
+            version=self.version,
+            task=self.task,
+            model_type=self.model_type,
+            model_size=self.model_size,
+            categories=list(map(lambda x: x.to_dict(), self.categories)),
+        ).save_yaml(self.model_config_file)
+
+    def get_default_advance_train_params(
+        self, task: str = None, model_type: str = None, model_size: str = None
+    ) -> dict:
+        """
+        Get default train advance params
+
+        Args:
+            task (str): Task name
+            model_type (str): Model type
+            model_size (str): Model size
+
+        Raises:
+            ModuleNotFoundError: If backend is not supported
+
+        Returns:
+            dict: Default train advance params
+        """
+        raise NotImplementedError(f"{self.backend} does not support advance_params argument.")
+
+    def get_categories(self) -> list[Category]:
+        return self.categories
+
+    def get_category_names(self) -> list[str]:
+        return [category.name for category in self.categories]
 
     # get results
     def get_metrics(self) -> list[list[dict]]:
@@ -778,6 +852,7 @@ class Hub:
         device: str = "0",
         workers: int = 2,
         seed: int = 0,
+        advance_params: Union[dict, str] = None,
         verbose: bool = True,
         hold: bool = True,
     ) -> TrainResult:
@@ -796,6 +871,7 @@ class Hub:
                 "cpu" or "gpu_id" or comma seperated "gpu_ids". Defaults to "0".
             workers (int, optional): number of workers. Defaults to 2.
             seed (int, optional): random seed. Defaults to 0.
+            advance_params (Union[dict, str], optional): advance params dictionary or file (yaml, json) path. Defaults to None.
             verbose (bool, optional): verbose. Defaults to True.
             hold (bool, optional): hold process. Defaults to True.
 
@@ -830,6 +906,14 @@ class Hub:
 
         def inner(callback: TrainCallback, result: TrainResult):
             try:
+                metric_logger = MetricLogger(
+                    name=self.name,
+                    log_dir=self.train_log_dir,
+                    func=self.get_metrics,
+                    interval=10,
+                    prefix="waffle",
+                )
+                metric_logger.start()
                 self.before_train(cfg)
                 self.on_train_start(cfg)
                 self.save_train_config(cfg)
@@ -844,7 +928,13 @@ class Hub:
                     workers=cfg.workers,
                 )
                 self.after_train(cfg, result)
+                metric_logger.stop()
+
                 callback.force_finish()
+            except FileExistsError as e:
+                callback.force_finish()
+                callback.set_failed()
+                raise e
             except Exception as e:
                 if self.artifact_dir.exists():
                     io.remove_directory(self.artifact_dir)
@@ -852,6 +942,7 @@ class Hub:
                 callback.set_failed()
                 raise e
 
+        # parse dataset
         if isinstance(dataset, (str, Path)):
             if Path(dataset).exists():
                 dataset = Path(dataset)
@@ -863,16 +954,30 @@ class Hub:
             else:
                 raise FileNotFoundError(f"Dataset {dataset} is not exist.")
 
+        ## check task match
         if dataset.task.upper() != self.task.upper():
             raise ValueError(
                 f"Dataset task is not matched with hub task. Dataset task: {dataset.task}, Hub task: {self.task}"
             )
 
+        ## check category match
+        if not self.categories:
+            self.categories = dataset.get_categories()
+            self.save_model_config()
+        elif set(dataset.get_category_names()) != set(self.get_category_names()):
+            raise ValueError(
+                "Dataset categories are not matched with hub categories. \n"
+                + f"Dataset categories: {dataset.get_category_names()}, Hub categories: {self.get_category_names()}"
+            )
+
+        ## convert dataset to backend format if not exist
         export_dir = dataset.export_dir / EXPORT_MAP[self.backend.upper()]
         if not export_dir.exists():
+            logger.info(f"[Dataset] Exporting dataset to {self.backend} format...")
             export_dir = dataset.export(self.backend)
-            logger.info(f"Dataset exported to {export_dir}")
+            logger.info("[Dataset] Exporting done.")
 
+        # parse train config
         cfg = TrainConfig(
             dataset_path=export_dir,
             epochs=epochs,
@@ -884,10 +989,11 @@ class Hub:
             device=device,
             workers=workers,
             seed=seed,
+            advance_params=advance_params if advance_params else {},
             verbose=verbose,
         )
 
-        # overwrite train config with default config
+        ## overwrite train config with default config
         for k, v in cfg.to_dict().items():
             if v is None:
                 field_value = getattr(
@@ -895,10 +1001,39 @@ class Hub:
                 )
                 setattr(cfg, k, field_value)
 
+        ## overwrite train advance config
+        if cfg.advance_params:
+            if isinstance(cfg.advance_params, (str, PurePath)):
+                # check if it is yaml or json
+                if Path(cfg.advance_params).exists():
+                    if Path(cfg.advance_params).suffix in [".yaml", ".yml"]:
+                        cfg.advance_params = io.load_yaml(cfg.advance_params)
+                    elif Path(cfg.advance_params).suffix in [".json"]:
+                        cfg.advance_params = io.load_json(cfg.advance_params)
+                    else:
+                        raise ValueError(
+                            f"Advance parameter file should be yaml or json. {cfg.advance_params}"
+                        )
+                else:
+                    raise FileNotFoundError(f"Advance parameter file is not exist.")
+            elif not isinstance(cfg.advance_params, dict):
+                raise ValueError(
+                    f"Advance parameter should be dictionary or file path. {cfg.advance_params}"
+                )
+
+            default_advance_param = self.get_default_advance_train_params()
+            for key in cfg.advance_params.keys():
+                if key not in default_advance_param:
+                    raise ValueError(
+                        f"Advance parameter {key} is not supported.\n"
+                        + f"Supported parameters: {list(default_advance_param.keys())}"
+                    )
+
         callback = TrainCallback(cfg.epochs + 1, self.get_metrics)
         result = TrainResult()
         result.callback = callback
 
+        # TODO: hold arguemnt will be deprecated
         if hold:
             inner(callback, result)
         else:
