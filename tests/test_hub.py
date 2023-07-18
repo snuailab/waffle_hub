@@ -152,7 +152,9 @@ def _total(hub, dataset: Dataset, image_size: int, advance_params: dict = None, 
     _util(hub)
 
 
-def test_ultralytics_segmentation(instance_segmentation_dataset: Dataset, tmpdir: Path):
+def test_ultralytics_segmentation(
+    instance_segmentation_dataset: Dataset, tmpdir: Path, test_video_path: Path
+):
     image_size = 32
     dataset = instance_segmentation_dataset
 
@@ -175,9 +177,12 @@ def test_ultralytics_segmentation(instance_segmentation_dataset: Dataset, tmpdir
     )
 
     _total(hub, dataset, image_size)
+    _inference(hub, test_video_path, hold=False)
 
 
-def test_ultralytics_object_detection(object_detection_dataset: Dataset, tmpdir: Path):
+def test_ultralytics_object_detection(
+    object_detection_dataset: Dataset, tmpdir: Path, test_video_path: Path
+):
     image_size = 32
     dataset = object_detection_dataset
 
@@ -200,6 +205,7 @@ def test_ultralytics_object_detection(object_detection_dataset: Dataset, tmpdir:
     )
 
     _total(hub, dataset, image_size)
+    _inference(hub, test_video_path, hold=False)
 
 
 def test_ultralytics_object_detection_advance_params(
@@ -240,7 +246,9 @@ def test_ultralytics_object_detection_advance_params(
         _total(hub, dataset, image_size, {"box": 4, "dummy_adv_param": 2})
 
 
-def test_ultralytics_classification(classification_dataset: Dataset, tmpdir: Path):
+def test_ultralytics_classification(
+    classification_dataset: Dataset, tmpdir: Path, test_video_path: Path
+):
     image_size = 32
     dataset = classification_dataset
 
@@ -263,6 +271,7 @@ def test_ultralytics_classification(classification_dataset: Dataset, tmpdir: Pat
     )
 
     _total(hub, dataset, image_size)
+    _inference(hub, test_video_path, hold=False)
 
 
 def test_transformers_object_detection(object_detection_dataset: Dataset, tmpdir: Path):

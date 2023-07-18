@@ -20,7 +20,7 @@ class TrainConfig(BaseSchema):
     dataset_path: str = None
     epochs: int = None
     batch_size: int = None
-    image_size: Union[int, list[int]] = None
+    image_size: list[int] = None
     learning_rate: float = None
     letter_box: bool = None
     pretrained_model: str = None
@@ -36,7 +36,7 @@ class EvaluateConfig(BaseSchema):
     dataset_name: str = None
     set_name: str = None
     batch_size: int = None
-    image_size: Union[int, list[int]] = None
+    image_size: list[int] = None
     letter_box: bool = None
     confidence_threshold: float = None
     iou_threshold: float = None
@@ -50,9 +50,10 @@ class EvaluateConfig(BaseSchema):
 @dataclass
 class InferenceConfig(BaseSchema):
     source: str = None
+    source_type: str = None
     batch_size: int = None
     recursive: bool = None
-    image_size: Union[int, list[int]] = None
+    image_size: list[int] = None
     letter_box: bool = None
     confidence_threshold: float = None
     iou_threshold: float = None
@@ -60,6 +61,7 @@ class InferenceConfig(BaseSchema):
     workers: int = None
     device: str = None
     draw: bool = None
+    show: bool = None
 
 
 @dataclass

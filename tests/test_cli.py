@@ -264,7 +264,7 @@ def test_hub_inference(test_dir: Path):
     cmd = f'python -m waffle_hub.hub.cli inference \
         --root-dir {test_dir / "hubs"} \
         --name test \
-        --source {test_dir / "datasets" / "mnist" / "exports" / "YOLO" / "test" / "images" } \
+        --source {test_dir / "datasets" / "from_coco" / "raw"} \
         --confidence-threshold 0.25 \
         --device cpu \
         --workers 0 \

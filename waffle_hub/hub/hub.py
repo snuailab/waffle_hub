@@ -49,7 +49,12 @@ from waffle_hub.utils.callback import (
     InferenceCallback,
     TrainCallback,
 )
-from waffle_hub.utils.data import ImageDataset, LabeledDataset, get_image_transform
+from waffle_hub.utils.data import (
+    IMAGE_EXTS,
+    VIDEO_EXTS,
+    get_dataset_class,
+    get_image_transform,
+)
 from waffle_hub.utils.draw import draw_results
 from waffle_hub.utils.evaluate import evaluate_function
 from waffle_hub.utils.metric_logger import MetricLogger
@@ -982,7 +987,7 @@ class Hub:
             dataset_path=export_dir,
             epochs=epochs,
             batch_size=batch_size,
-            image_size=image_size,
+            image_size=image_size if isinstance(image_size, list) else [image_size, image_size],
             learning_rate=learning_rate,
             letter_box=letter_box,
             pretrained_model=pretrained_model,
@@ -1048,12 +1053,7 @@ class Hub:
         raise NotImplementedError
 
     def before_evaluate(self, cfg: EvaluateConfig):
-        # overwrite training config
-        train_config = self.get_train_config()
-        if cfg.image_size is None:
-            cfg.image_size = train_config.image_size
-        if cfg.letter_box is None:
-            cfg.letter_box = train_config.letter_box
+        pass
 
     def on_evaluate_start(self, cfg: EvaluateConfig):
         pass
@@ -1064,7 +1064,7 @@ class Hub:
         model = self.get_model().to(device)
 
         dataset = Dataset.load(cfg.dataset_name, cfg.dataset_root_dir)
-        dataloader = LabeledDataset(
+        dataloader = get_dataset_class("dataset")(
             dataset,
             cfg.image_size,
             letter_box=cfg.letter_box,
@@ -1197,11 +1197,18 @@ class Hub:
             else:
                 raise FileNotFoundError(f"Dataset {dataset} is not exist.")
 
+        # overwrite training config
+        train_config = self.get_train_config()
+        if image_size is None:
+            image_size = train_config.image_size
+        if letter_box is None:
+            letter_box = train_config.letter_box
+
         cfg = EvaluateConfig(
             dataset_name=dataset.name,
             set_name=set_name,
             batch_size=batch_size,
-            image_size=image_size,
+            image_size=image_size if isinstance(image_size, list) else [image_size, image_size],
             letter_box=letter_box,
             confidence_threshold=confidence_threshold,
             iou_threshold=iou_threshold,
@@ -1227,25 +1234,31 @@ class Hub:
 
     # inference hooks
     def before_inference(self, cfg: InferenceConfig):
-        # overwrite training config
-        train_config = self.get_train_config()
-        if cfg.image_size is None:
-            cfg.image_size = train_config.image_size
-        if cfg.letter_box is None:
-            cfg.letter_box = train_config.letter_box
+        pass
 
     def on_inference_start(self, cfg: InferenceConfig):
         pass
 
     def inferencing(self, cfg: InferenceConfig, callback: InferenceCallback) -> str:
         device = cfg.device
-
         model = self.get_model().to(device)
-        dataloader = ImageDataset(
-            cfg.source, cfg.image_size, letter_box=cfg.letter_box
-        ).get_dataloader(cfg.batch_size, cfg.workers)
-
         result_parser = get_parser(self.task)(**cfg.to_dict(), categories=self.categories)
+
+        if cfg.source_type == "image":
+            dataset = get_dataset_class(cfg.source_type)(
+                cfg.source, cfg.image_size, letter_box=cfg.letter_box, recursive=cfg.recursive
+            )
+            dataloader = dataset.get_dataloader(cfg.batch_size, cfg.workers)
+        elif cfg.source_type == "video":
+            dataset = get_dataset_class(cfg.source_type)(
+                cfg.source, cfg.image_size, letter_box=cfg.letter_box
+            )
+            dataloader = dataset.get_dataloader(cfg.batch_size, cfg.workers)
+        else:
+            raise ValueError(f"Invalid source type: {cfg.source_type}")
+
+        if cfg.draw and cfg.source_type == "video":
+            writer = None
 
         results = []
         callback._total_steps = len(dataloader) + 1
@@ -1255,22 +1268,41 @@ class Hub:
             result_batch = model(images.to(device))
             result_batch = result_parser(result_batch, image_infos)
             for result, image_info in zip(result_batch, image_infos):
-                image_path = image_info.image_path
 
-                relpath = Path(image_path).relative_to(cfg.source)
-                results.append({str(relpath): [res.to_dict() for res in result]})
+                results.append({str(image_info.image_rel_path): [res.to_dict() for res in result]})
 
                 if cfg.draw:
                     draw = draw_results(
-                        image_path,
+                        image_info.ori_image,
                         result,
                         names=[x["name"] for x in self.categories],
                     )
-                    draw_path = self.draw_dir / relpath.with_suffix(".png")
+                    draw_path = self.draw_dir / Path(image_info.image_rel_path).with_suffix(".png")
                     io.make_directory(draw_path.parent)
                     cv2.imwrite(str(draw_path), draw)
 
+                if cfg.draw and cfg.source_type == "video":
+                    if writer is None:
+                        h, w = draw.shape[:2]
+                        writer = cv2.VideoWriter(
+                            str(self.inference_dir / Path(cfg.source).with_suffix(".mp4").name),
+                            cv2.VideoWriter_fourcc(*"mp4v"),
+                            dataset.fps,
+                            (w, h),
+                        )
+                    writer.write(draw)
+
+                if cfg.show:
+                    cv2.imshow("result", draw)
+                    cv2.waitKey(0)
+
             callback.update(i)
+
+        if cfg.draw and cfg.source_type == "video":
+            writer.release()
+
+        if cfg.show:
+            cv2.destroyAllWindows()
 
         io.save_json(
             results,
@@ -1288,7 +1320,7 @@ class Hub:
 
     def inference(
         self,
-        source: str,
+        source: Union[str, Dataset],
         recursive: bool = True,
         image_size: Union[int, list[int]] = None,
         letter_box: bool = None,
@@ -1299,12 +1331,13 @@ class Hub:
         workers: int = 2,
         device: str = "0",
         draw: bool = False,
+        show: bool = False,
         hold: bool = True,
     ) -> InferenceResult:
         """Start Inference
 
         Args:
-            source (str): source directory
+            source (str): image directory or image path or video path.
             recursive (bool, optional): recursive. Defaults to True.
             image_size (Union[int, list[int]], optional): image size. None for using training config. Defaults to None.
             letter_box (bool, optional): letter box. None for using training config. Defaults to None.
@@ -1315,6 +1348,7 @@ class Hub:
             workers (int, optional): workers. Defaults to 2.
             device (str, optional): device. "cpu" or "gpu_id". Defaults to "0".
             draw (bool, optional): draw. Defaults to False.
+            show (bool, optional): show. Defaults to False.
             hold (bool, optional): hold. Defaults to True.
 
 
@@ -1363,18 +1397,53 @@ class Hub:
                 callback.set_failed()
                 raise e
 
+        # image_dir, image_path, video_path, dataset_name, dataset
+        if isinstance(source, (str, Path)):
+            if Path(source).exists():
+                source = Path(source)
+                if source.is_dir():
+                    source = source.absolute()
+                    source_type = "image"
+                elif source.suffix in IMAGE_EXTS:
+                    source = [source.absolute()]
+                    source_type = "image"
+                elif source.suffix in VIDEO_EXTS:
+                    source = str(source.absolute())
+                    source_type = "video"
+                else:
+                    raise ValueError(
+                        f"Invalid source: {source}\n"
+                        + "Please use image directory or image path or video path."
+                    )
+            else:
+                raise FileNotFoundError(f"Source {source} is not exist.")
+        else:
+            raise ValueError(
+                f"Invalid source: {source}\n"
+                + "Please use image directory or image path or video path."
+            )
+
+        # overwrite training config
+        train_config = self.get_train_config()
+        if image_size is None:
+            image_size = train_config.image_size
+        if letter_box is None:
+            letter_box = train_config.letter_box
+
         cfg = InferenceConfig(
             source=source,
+            source_type=source_type,
             batch_size=batch_size,
             recursive=recursive,
-            image_size=image_size,
+            image_size=image_size if isinstance(image_size, list) else [image_size, image_size],
             letter_box=letter_box,
             confidence_threshold=confidence_threshold,
             iou_threshold=iou_threshold,
             half=half,
             workers=workers,
             device="cpu" if device == "cpu" else f"cuda:{device}",
-            draw=draw,
+            draw=draw or show,
+            show=show,
         )
 
         callback = InferenceCallback(100)  # dummy step
@@ -1392,11 +1461,7 @@ class Hub:
 
     # Export Hook
     def before_export(self, cfg: ExportConfig):
-
-        # overwrite training config
-        train_config = self.get_train_config()
-        if cfg.image_size is None:
-            cfg.image_size = train_config.image_size
+        pass
 
     def on_export_start(self, cfg: ExportConfig):
         pass
@@ -1497,8 +1562,13 @@ class Hub:
                 callback.set_failed()
                 raise e
 
+        # overwrite training config
+        train_config = self.get_train_config()
+        if image_size is None:
+            image_size = train_config.image_size
+
         cfg = ExportConfig(
-            image_size=image_size,
+            image_size=image_size if isinstance(image_size, list) else [image_size, image_size],
             batch_size=batch_size,
             opset_version=opset_version,
             half=half,
