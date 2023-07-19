@@ -987,7 +987,7 @@ class Hub:
             dataset_path=export_dir,
             epochs=epochs,
             batch_size=batch_size,
-            image_size=image_size if isinstance(image_size, list) else [image_size, image_size],
+            image_size=image_size,
             learning_rate=learning_rate,
             letter_box=letter_box,
             pretrained_model=pretrained_model,
@@ -1005,6 +1005,7 @@ class Hub:
                     self.DEFAULT_PARAMS[self.task][self.model_type][self.model_size], k
                 )
                 setattr(cfg, k, field_value)
+        cfg.image_size = cfg.image_size if isinstance(cfg.image_size, list) else [cfg.image_size, cfg.image_size]
 
         ## overwrite train advance config
         if cfg.advance_params:
