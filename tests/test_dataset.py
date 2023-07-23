@@ -150,8 +150,23 @@ def test_dataset(tmpdir):
     assert not Path(dataset.dataset_dir).exists()
 
 
-def _load(dataset_name, root_dir):
-    Dataset.load(dataset_name, root_dir=root_dir)
+def _index(dataset_name, root_dir):
+    dataset = Dataset.load(dataset_name, root_dir=root_dir)
+
+    assert len(dataset.image_dict) == len(dataset.get_images())
+    assert len(dataset.unlabeled_image_dict) == len(dataset.get_images(labeled=False))
+    assert len(dataset.annotation_dict) == len(dataset.get_annotations())
+    assert len(dataset.prediction_dict) == len(dataset.get_predictions())
+    assert len(dataset.category_dict) == len(dataset.get_categories())
+
+    assert sum(map(len, dataset.image_to_annotations.values())) == len(dataset.get_annotations())
+    assert sum(map(len, dataset.image_to_predictions.values())) == len(dataset.get_predictions())
+    assert len(dataset.annotation_to_image.values()) == len(dataset.get_annotations())
+    assert len(dataset.prediction_to_image.values()) == len(dataset.get_predictions())
+    # assert sum(map(len, dataset.category_to_images.values())) == len(dataset.get_images())
+    assert len(dataset.category_name_to_category) == len(dataset.get_categories())
+    assert sum(map(len, dataset.category_to_annotations.values())) == len(dataset.get_annotations())
+    assert sum(map(len, dataset.category_to_predictions.values())) == len(dataset.get_predictions())
 
 
 def _clone(dataset_name, root_dir):
@@ -261,7 +276,7 @@ def _total_dummy(
     dataset_name, task: TaskType, image_num, category_num, unlabeled_image_num, root_dir
 ):
     _dummy(dataset_name, task, image_num, category_num, unlabeled_image_num, root_dir)
-    _load(dataset_name, root_dir)
+    _index(dataset_name, root_dir)
     _clone(dataset_name, root_dir)
     _split(dataset_name, root_dir)
     _export(dataset_name, task, root_dir)
@@ -320,7 +335,7 @@ def _from_coco(dataset_name, task: TaskType, coco_path, root_dir):
 
 def _total_coco(dataset_name, task: TaskType, coco_path, root_dir):
     _from_coco(dataset_name, task, coco_path, root_dir)
-    _load(dataset_name, root_dir)
+    _index(dataset_name, root_dir)
     _clone(dataset_name, root_dir)
     _split(dataset_name, root_dir)
     _export(dataset_name, task, root_dir)
@@ -350,7 +365,7 @@ def test_yolo_classification(yolo_classification_path: Path, tmpdir: Path):
     assert len(test_ids) == 20
     assert len(dataset.get_images()) == 100
 
-    _load(dataset_name, root_dir)
+    _index(dataset_name, root_dir)
     _clone(dataset_name, root_dir)
     _split(dataset_name, root_dir)
     _export(dataset_name, TaskType.CLASSIFICATION, root_dir)
@@ -373,7 +388,7 @@ def test_yolo_object_detection(yolo_object_detection_path: Path, tmpdir: Path):
     assert len(test_ids) == 20
     assert len(dataset.get_images()) == 100
 
-    _load(dataset_name, root_dir)
+    _index(dataset_name, root_dir)
     _clone(dataset_name, root_dir)
     _split(dataset_name, root_dir)
     _export(dataset_name, TaskType.OBJECT_DETECTION, root_dir)
@@ -396,7 +411,7 @@ def test_yolo_instance_segmentation(yolo_instance_segmentation_path: Path, tmpdi
     assert len(test_ids) == 20
     assert len(dataset.get_images()) == 100
 
-    _load(dataset_name, root_dir)
+    _index(dataset_name, root_dir)
     _clone(dataset_name, root_dir)
     _split(dataset_name, root_dir)
     _export(dataset_name, TaskType.INSTANCE_SEGMENTATION, root_dir)
@@ -416,7 +431,7 @@ def _from_autocare_dlt(dataset_name, task: TaskType, coco_path, root_dir):
 
 def _total_autocare_dlt(dataset_name, task: TaskType, coco_path, root_dir):
     _from_autocare_dlt(dataset_name, task, coco_path, root_dir)
-    _load(dataset_name, root_dir)
+    _index(dataset_name, root_dir)
     _clone(dataset_name, root_dir)
     _split(dataset_name, root_dir)
     _export(dataset_name, task, root_dir)
@@ -446,7 +461,7 @@ def _from_transformers(dataset_name, task: TaskType, transformers_path, root_dir
 
 def _total_transformers(dataset_name, task: TaskType, transformers_path, root_dir):
     _from_transformers(dataset_name, task, transformers_path, root_dir)
-    _load(dataset_name, root_dir)
+    _index(dataset_name, root_dir)
     _clone(dataset_name, root_dir)
     _split(dataset_name, root_dir)
     _export(dataset_name, task, root_dir)
