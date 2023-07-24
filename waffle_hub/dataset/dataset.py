@@ -363,6 +363,12 @@ class Dataset:
         return self.__category_to_images
 
     @property
+    def category_to_unique_images(self) -> dict[int, list[Image]]:
+        if not hasattr(self, "__category_to_unique_images"):
+            self.create_index()
+        return self.__category_to_unique_images
+
+    @property
     def category_name_to_category(self) -> dict[str, Category]:
         if not hasattr(self, "__category_name_to_category"):
             self.create_index()
@@ -709,7 +715,7 @@ class Dataset:
                         new_category.category_id = new_category_id
                         merged_ds.add_categories([new_category])
 
-                for image_id, annotations in src_ds.get_image_to_annotations().items():
+                for image_id, annotations in src_ds.image_to_annotations.items():
                     image = src_ds.get_images([image_id])[0]
 
                     # merge - images
@@ -1221,55 +1227,16 @@ class Dataset:
         else:
             return [Annotation.from_json(f, self.task) for f in self.prediction_dir.glob("*/*.json")]
 
-    def get_image_to_annotations(self) -> dict[int, list[Annotation]]:
-        image_to_annotations = defaultdict(list)
-        for annotation in self.get_annotations():
-            image_to_annotations[annotation.image_id].append(annotation)
-        return dict(image_to_annotations)
-
-    def get_category_to_annotations(self) -> dict[int, list[Annotation]]:
-        category_to_annotations = defaultdict(list)
-        category_name_to_id = {
-            category.name: category.category_id for category in self.get_categories()
-        }
-        for annotation in self.get_annotations():
-            if self.task == TaskType.TEXT_RECOGNITION:
-                texts = annotation.caption
-                characters = set(texts)
-                for char in characters:
-                    category_to_annotations[category_name_to_id[char]].append(annotation)
-            else:
-                category_to_annotations[annotation.category_id].append(annotation)
-        return dict(category_to_annotations)
-
-    def get_category_to_images(self) -> dict[int, list[Image]]:
-        category_to_images = category_to_images = {c.category_id: [] for c in self.get_categories()}
-        category_name_to_id = {
-            category.name: category.category_id for category in self.get_categories()
-        }
-        for image_id, annotations in self.get_image_to_annotations().items():
-            image = self.get_images([image_id])[0]
-            if self.task == TaskType.TEXT_RECOGNITION:
-                texts = map(lambda a: a.caption, annotations)
-                character_count = Counter("".join(texts))
-                for k in character_count:
-                    category_to_images[category_name_to_id[k]].append(image)
-            else:
-                category_ids = map(lambda a: a.category_id, annotations)
-                category_count = Counter(category_ids)
-                category_to_images[category_count.most_common(1)[0][0]].append(image)
-        return dict(category_to_images)
-
     def get_num_images_per_category(self) -> dict[int, int]:
         self.num_images_per_category = {
-            category_id: len(images) for category_id, images in self.get_category_to_images().items()
+            category_id: len(images) for category_id, images in self.category_to_images.items()
         }
         return self.num_images_per_category
 
     def get_num_annotations_per_category(self) -> dict[int, int]:
         num_annotations_per_category = {
             category_id: len(annotations)
-            for category_id, annotations in self.get_category_to_annotations().items()
+            for category_id, annotations in self.category_to_annotations.items()
         }
         return num_annotations_per_category
 
@@ -1285,6 +1252,7 @@ class Dataset:
         self.__annotation_to_image = OrderedDict()
         self.__prediction_to_image = OrderedDict()
         self.__category_to_images = OrderedDict()
+        self.__category_to_unique_images = OrderedDict()
         self.__category_name_to_category = OrderedDict()
         self.__category_to_annotations = OrderedDict()
         self.__category_to_predictions = OrderedDict()
@@ -1321,6 +1289,7 @@ class Dataset:
         for category in self.get_categories():
             self.__category_dict[category.category_id] = category  # category_id: category
             self.__category_name_to_category[category.name] = category  # category_name: category
+            self.__category_to_unique_images[category.category_id] = []  # category_id: image
             self.__category_to_images[category.category_id] = set()
             self.__category_to_annotations[category.category_id] = []
 
@@ -1340,6 +1309,25 @@ class Dataset:
                 self.__category_to_images[annotation.category_id].add(
                     self.__annotation_to_image[annotation.annotation_id]
                 )  # category_id: {images}
+
+        for image_id, annotations in self.__image_to_annotations.items():
+            if self.task == TaskType.TEXT_RECOGNITION:
+                most_common_category = Counter(
+                    sum([list(annotation.caption) for annotation in annotations], [])
+                ).most_common(1)[0][0]
+                most_common_category_id = self.__category_name_to_category[
+                    most_common_category
+                ].category_id
+                self.__category_to_unique_images[most_common_category_id].append(
+                    self.__image_dict[image_id]
+                )
+            else:
+                most_common_category_id = Counter(
+                    [annotation.category_id for annotation in annotations]
+                ).most_common(1)[0][0]
+                self.__category_to_unique_images[most_common_category_id].append(
+                    self.__image_dict[image_id]
+                )
 
         for category_id, images in self.__category_to_images.items():
             self.__category_to_images[category_id] = list(images)
@@ -1482,7 +1470,7 @@ class Dataset:
             val_ids = []
             test_ids = []
 
-            for category_id, images in self.get_category_to_images().items():
+            for category_id, images in self.__category_to_unique_images.items():
                 image_num = len(images)
                 image_ids = list(map(lambda x: x.image_id, images))
                 random.shuffle(image_ids)
