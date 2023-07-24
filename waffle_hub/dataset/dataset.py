@@ -4,7 +4,7 @@ import os
 import random
 import shutil
 import warnings
-from collections import Counter, defaultdict
+from collections import Counter, OrderedDict, defaultdict
 from functools import cached_property
 from pathlib import Path
 from tempfile import mkdtemp
@@ -301,60 +301,93 @@ class Dataset:
     def unlabeled_set_file(self) -> Path:
         return self.set_dir / Dataset.UNLABELED_SET_FILE_NAME
 
+    # dataset indexes
+    @property
+    def image_dict(self) -> dict[int, Image]:
+        if not hasattr(self, "__image_dict"):
+            self.create_index()
+        return self.__image_dict
+
+    @property
+    def unlabeled_image_dict(self) -> dict[int, Image]:
+        if not hasattr(self, "__unlabeled_image_dict"):
+            self.create_index()
+        return self.__unlabeled_image_dict
+
+    @property
+    def annotation_dict(self) -> dict[int, Annotation]:
+        if not hasattr(self, "__annotation_dict"):
+            self.create_index()
+        return self.__annotation_dict
+
+    @property
+    def prediction_dict(self) -> dict[int, Annotation]:
+        if not hasattr(self, "__prediction_dict"):
+            self.create_index()
+        return self.__prediction_dict
+
+    @property
+    def category_dict(self) -> dict[int, Category]:
+        if not hasattr(self, "__category_dict"):
+            self.create_index()
+        return self.__category_dict
+
+    @property
+    def image_to_annotations(self) -> dict[int, list[Annotation]]:
+        if not hasattr(self, "__image_to_annotations"):
+            self.create_index()
+        return self.__image_to_annotations
+
+    @property
+    def image_to_predictions(self) -> dict[int, list[Annotation]]:
+        if not hasattr(self, "__image_to_predictions"):
+            self.create_index()
+        return self.__image_to_predictions
+
+    @property
+    def annotation_to_image(self) -> dict[int, Image]:
+        if not hasattr(self, "__annotation_to_image"):
+            self.create_index()
+        return self.__annotation_to_image
+
+    @property
+    def prediction_to_image(self) -> dict[int, Image]:
+        if not hasattr(self, "__prediction_to_image"):
+            self.create_index()
+        return self.__prediction_to_image
+
+    @property
+    def category_to_images(self) -> dict[int, list[Image]]:
+        if not hasattr(self, "__category_to_images"):
+            self.create_index()
+        return self.__category_to_images
+
+    @property
+    def category_to_unique_images(self) -> dict[int, list[Image]]:
+        if not hasattr(self, "__category_to_unique_images"):
+            self.create_index()
+        return self.__category_to_unique_images
+
+    @property
+    def category_name_to_category(self) -> dict[str, Category]:
+        if not hasattr(self, "__category_name_to_category"):
+            self.create_index()
+        return self.__category_name_to_category
+
+    @property
+    def category_to_annotations(self) -> dict[int, list[Annotation]]:
+        if not hasattr(self, "__category_to_annotations"):
+            self.create_index()
+        return self.__category_to_annotations
+
+    @property
+    def category_to_predictions(self) -> dict[int, list[Annotation]]:
+        if not hasattr(self, "__category_to_predictions"):
+            self.create_index()
+        return self.__category_to_predictions
+
     def get_category_names(self) -> list[str]:
         return [category.name for category in self.categories]
-
-    def get_image_to_annotations(self) -> dict[int, list[Annotation]]:
-        image_to_annotations = defaultdict(list)
-        for annotation in self.get_annotations():
-            image_to_annotations[annotation.image_id].append(annotation)
-        return dict(image_to_annotations)
-
-    def get_category_to_annotations(self) -> dict[int, list[Annotation]]:
-        category_to_annotations = defaultdict(list)
-        category_name_to_id = {
-            category.name: category.category_id for category in self.get_categories()
-        }
-        for annotation in self.get_annotations():
-            if self.task == TaskType.TEXT_RECOGNITION:
-                texts = annotation.caption
-                characters = set(texts)
-                for char in characters:
-                    category_to_annotations[category_name_to_id[char]].append(annotation)
-            else:
-                category_to_annotations[annotation.category_id].append(annotation)
-        return dict(category_to_annotations)
-
-    def get_category_to_images(self) -> dict[int, list[Image]]:
-        category_to_images = category_to_images = {c.category_id: [] for c in self.get_categories()}
-        category_name_to_id = {
-            category.name: category.category_id for category in self.get_categories()
-        }
-        for image_id, annotations in self.get_image_to_annotations().items():
-            image = self.get_images([image_id])[0]
-            if self.task == TaskType.TEXT_RECOGNITION:
-                texts = map(lambda a: a.caption, annotations)
-                character_count = Counter("".join(texts))
-                for k in character_count:
-                    category_to_images[category_name_to_id[k]].append(image)
-            else:
-                category_ids = map(lambda a: a.category_id, annotations)
-                category_count = Counter(category_ids)
-                category_to_images[category_count.most_common(1)[0][0]].append(image)
-        return dict(category_to_images)
-
-    def get_num_images_per_category(self) -> dict[int, int]:
-        self.num_images_per_category = {
-            category_id: len(images) for category_id, images in self.get_category_to_images().items()
-        }
-        return self.num_images_per_category
-
-    def get_num_annotations_per_category(self) -> dict[int, int]:
-        num_annotations_per_category = {
-            category_id: len(annotations)
-            for category_id, annotations in self.get_category_to_annotations().items()
-        }
-        return num_annotations_per_category
 
     # factories
     @classmethod
@@ -444,6 +477,7 @@ class Dataset:
             io.copy_files_to_directory(src_ds.dataset_dir, ds.dataset_dir, create_directory=True)
             ds.save_dataset_info()
 
+            ds.create_index()
             return ds
         except Exception as e:
             if (root_dir / name).exists():
@@ -581,6 +615,7 @@ class Dataset:
             ds.delete()
             raise e
 
+        ds.create_index()
         return ds
 
     @classmethod
@@ -609,7 +644,10 @@ class Dataset:
         if not dataset_info_file.exists():
             raise FileNotFoundError(f"{dataset_info_file} has not been created.")
         dataset_info = DatasetInfo.load(dataset_info_file)
-        return cls(**dataset_info.to_dict(), root_dir=root_dir)
+
+        ds = cls(**dataset_info.to_dict(), root_dir=root_dir)
+        ds.create_index()
+        return ds
 
     @classmethod
     def merge(
@@ -677,7 +715,7 @@ class Dataset:
                         new_category.category_id = new_category_id
                         merged_ds.add_categories([new_category])
 
-                for image_id, annotations in src_ds.get_image_to_annotations().items():
+                for image_id, annotations in src_ds.image_to_annotations.items():
                     image = src_ds.get_images([image_id])[0]
 
                     # merge - images
@@ -721,7 +759,9 @@ class Dataset:
                 io.remove_directory(merged_ds.dataset_dir)
             raise e
 
-        return Dataset.load(name, root_dir)
+        ds = Dataset.load(name, root_dir)
+        ds.create_index()
+        return ds
 
     @classmethod
     def from_coco(
@@ -797,6 +837,7 @@ class Dataset:
             ds.delete()
             raise e
 
+        ds.create_index()
         return ds
 
     @classmethod
@@ -868,6 +909,7 @@ class Dataset:
             ds.delete()
             raise e
 
+        ds.create_index()
         return ds
 
     @classmethod
@@ -906,6 +948,7 @@ class Dataset:
             ds.delete()
             raise e
 
+        ds.create_index()
         return ds
 
     @classmethod
@@ -948,6 +991,7 @@ class Dataset:
             ds.delete()
             raise e
 
+        ds.create_index()
         return ds
 
     @classmethod
@@ -992,6 +1036,7 @@ class Dataset:
         finally:
             shutil.rmtree(temp_dir)
 
+        ds.create_index()
         return ds
 
     @classmethod
@@ -1182,24 +1227,145 @@ class Dataset:
         else:
             return [Annotation.from_json(f, self.task) for f in self.prediction_dir.glob("*/*.json")]
 
+    def get_num_images_per_category(self) -> dict[int, int]:
+        self.num_images_per_category = {
+            category_id: len(images) for category_id, images in self.category_to_images.items()
+        }
+        return self.num_images_per_category
+
+    def get_num_annotations_per_category(self) -> dict[int, int]:
+        num_annotations_per_category = {
+            category_id: len(annotations)
+            for category_id, annotations in self.category_to_annotations.items()
+        }
+        return num_annotations_per_category
+
+    def create_index(self):
+        """Create index for faster search."""
+        self.__image_dict = OrderedDict()
+        self.__unlabeled_image_dict = OrderedDict()
+        self.__annotation_dict = OrderedDict()
+        self.__prediction_dict = OrderedDict()
+        self.__category_dict = OrderedDict()
+        self.__image_to_annotations = OrderedDict()
+        self.__image_to_predictions = OrderedDict()
+        self.__annotation_to_image = OrderedDict()
+        self.__prediction_to_image = OrderedDict()
+        self.__category_to_images = OrderedDict()
+        self.__category_to_unique_images = OrderedDict()
+        self.__category_name_to_category = OrderedDict()
+        self.__category_to_annotations = OrderedDict()
+        self.__category_to_predictions = OrderedDict()
+
+        logger.info("Creating index for faster search")
+
+        for image in self.get_images():
+            self.__image_dict[image.image_id] = image  # image_id: image
+            self.__image_to_annotations[image.image_id] = []
+            self.__image_to_predictions[image.image_id] = []
+
+        for annotation in self.get_annotations():
+            self.__annotation_dict[
+                annotation.annotation_id
+            ] = annotation  # annotation_id: annotation
+            self.__image_to_annotations[annotation.image_id].append(
+                annotation
+            )  # image_id: [annotations]
+            self.__annotation_to_image[annotation.annotation_id] = self.__image_dict[
+                annotation.image_id
+            ]  # annotation_id: image
+
+        for prediction in self.get_predictions():
+            self.__prediction_dict[
+                prediction.annotation_id
+            ] = prediction  # annotation_id: prediction
+            self.__image_to_predictions[prediction.image_id].append(
+                prediction
+            )  # image_id: [predictions]
+            self.__prediction_to_image[prediction.annotation_id] = self.__image_dict[
+                prediction.image_id
+            ]  # prediction_id: image
+
+        for category in self.get_categories():
+            self.__category_dict[category.category_id] = category  # category_id: category
+            self.__category_name_to_category[category.name] = category  # category_name: category
+            self.__category_to_unique_images[category.category_id] = []  # category_id: image
+            self.__category_to_images[category.category_id] = set()
+            self.__category_to_annotations[category.category_id] = []
+
+        for annotation in self.__annotation_dict.values():
+            if self.task == TaskType.TEXT_RECOGNITION:
+                chars = set(annotation.caption)
+                for char in chars:
+                    category_id = self.__category_name_to_category[char].category_id
+                    self.__category_to_annotations[category_id].append(annotation)
+                    self.__category_to_images[category_id].add(
+                        self.__annotation_to_image[annotation.annotation_id]
+                    )
+            else:
+                self.__category_to_annotations[annotation.category_id].append(
+                    annotation
+                )  # category_id: [annotations]
+                self.__category_to_images[annotation.category_id].add(
+                    self.__annotation_to_image[annotation.annotation_id]
+                )  # category_id: {images}
+
+        for image_id, annotations in self.__image_to_annotations.items():
+            if self.task == TaskType.TEXT_RECOGNITION:
+                most_common_category = Counter(
+                    sum([list(annotation.caption) for annotation in annotations], [])
+                ).most_common(1)[0][0]
+                most_common_category_id = self.__category_name_to_category[
+                    most_common_category
+                ].category_id
+                self.__category_to_unique_images[most_common_category_id].append(
+                    self.__image_dict[image_id]
+                )
+            else:
+                most_common_category_id = Counter(
+                    [annotation.category_id for annotation in annotations]
+                ).most_common(1)[0][0]
+                self.__category_to_unique_images[most_common_category_id].append(
+                    self.__image_dict[image_id]
+                )
+
+        for category_id, images in self.__category_to_images.items():
+            self.__category_to_images[category_id] = list(images)
+
+        for prediction in self.__prediction_dict.values():
+            self.__category_to_predictions[prediction.category_id].append(
+                prediction
+            )  # category_id: [predictions]
+
+        for image in self.get_images(labeled=False):
+            self.__unlabeled_image_dict[image.image_id] = image  # unlabeled_image_id: image
+
+        logger.info("Creating index done")
+
     # add
-    def add_images(self, images: list[Image]):
+    def add_images(self, images: Union[Image, list[Image]]):
         """Add "Image"s to dataset.
 
         Args:
-            images (list[Image]): list of "Image"s
+            images (Union[Image, list[Image]]): list of "Image"s
         """
+        if not isinstance(images, list):
+            images = [images]
+
         for item in images:
             item_id = item.image_id
             item_path = self.image_dir / f"{item_id}.json"
             io.save_json(item.to_dict(), item_path)
 
-    def add_categories(self, categories: list[Category]):
+    def add_categories(self, categories: Union[Category, list[Category]]):
         """Add "Category"s to dataset.
 
         Args:
-            categories (list[Category]): list of "Category"s
+            categories (Union[Category, list[Category]]): list of "Category"s
         """
+        if not isinstance(categories, list):
+            categories = [categories]
+
         category_names_list = [category.name for category in categories]
         category_names = set(category_names_list)
         if (
@@ -1215,12 +1381,15 @@ class Dataset:
 
         self.save_dataset_info()
 
-    def add_annotations(self, annotations: list[Annotation]):
+    def add_annotations(self, annotations: Union[Annotation, list[Annotation]]):
         """Add "Annotation"s to dataset.
 
         Args:
-            annotations (list[Annotation]): list of "Annotation"s
+            annotations (Union[Annotation, list[Annotation]]): list of "Annotation"s
         """
+        if not isinstance(annotations, list):
+            annotations = [annotations]
+
         categories = self.get_category_names()
         for item in annotations:
             if self.task == TaskType.TEXT_RECOGNITION:
@@ -1230,13 +1399,21 @@ class Dataset:
             item_path = self.annotation_dir / f"{item.image_id}" / f"{item.annotation_id}.json"
             io.save_json(item.to_dict(), item_path, create_directory=True)
 
-    def add_predictions(self, predictions: list[Annotation]):
+    def add_predictions(self, predictions: Union[Annotation, list[Annotation]]):
         """Add "Annotation"s to dataset.
 
         Args:
-            annotations (list[Annotation]): list of "Annotation"s
+            annotations (Union[Annotation, list[Annotation]]): list of "Annotation"s
         """
+        if not isinstance(predictions, list):
+            predictions = [predictions]
+
+        categories = self.get_category_names()
         for item in predictions:
+            if self.task == TaskType.TEXT_RECOGNITION:
+                for char in item.caption:
+                    if char not in categories:
+                        raise ValueError(f"Category '{char}' is not in dataset")
             item_path = self.prediction_dir / f"{item.image_id}" / f"{item.annotation_id}.json"
             io.save_json(item.to_dict(), item_path, create_directory=True)
 
@@ -1293,7 +1470,7 @@ class Dataset:
             val_ids = []
             test_ids = []
 
-            for category_id, images in self.get_category_to_images().items():
+            for category_id, images in self.__category_to_unique_images.items():
                 image_num = len(images)
                 image_ids = list(map(lambda x: x.image_id, images))
                 random.shuffle(image_ids)
