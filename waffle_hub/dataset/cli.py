@@ -1,9 +1,10 @@
-import inspect
-
 import fire
+from waffle_utils.log import initialize_logger
 
 from waffle_hub.dataset import Dataset
 from waffle_hub.utils.base_cli import BaseCLI, cli
+
+initialize_logger("dataset.log", root_level="INFO", console_level="INFO", file_level="DEBUG")
 
 
 class DatasetInstance(BaseCLI):
@@ -21,7 +22,9 @@ class DatasetInstance(BaseCLI):
 
 
 def main():
-    fire.Fire(cli(Dataset, DatasetInstance), serialize=str)
+    fire.Fire(
+        cli(Dataset, DatasetInstance), serialize=str, command="draw_annotations --name dummy10000"
+    )
 
 
 if __name__ == "__main__":
