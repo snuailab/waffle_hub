@@ -22,9 +22,7 @@ class DatasetInstance(BaseCLI):
 
 
 def main():
-    fire.Fire(
-        cli(Dataset, DatasetInstance), serialize=str, command="draw_annotations --name dummy10000"
-    )
+    fire.Fire(cli(Dataset, DatasetInstance), serialize=str)
 
 
 if __name__ == "__main__":
