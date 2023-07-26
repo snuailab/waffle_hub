@@ -307,10 +307,12 @@ def _import_yolo_classification(self, yolo_root_dir: Path, *args):
 
 def _parse_od_label(line: str, width: int, height: int):
     """parse label file for od"""
-    category_id, x, y, w, h = map(float, line.split())
+    category_id, cx, cy, w, h = map(float, line.split())
+    x1 = cx - w / 2
+    y1 = cy - h / 2
     return {
         "category_id": int(category_id) + 1,
-        "bbox": [x * width, y * height, w * width, h * height],
+        "bbox": [x1 * width, y1 * height, w * width, h * height],
     }
 
 
