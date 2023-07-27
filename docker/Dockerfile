@@ -8,9 +8,10 @@ ENV OMP_NUM_THREADS=1
 # Install Python packages (no cache)
 ARG NO_CACHE_ARG
 
-RUN pip install -U pip \
-    && pip install -U git+https://github.com/snuailab/waffle_hub.git \
-    && pip install -U numpy
-
-
 WORKDIR /workspace
+
+COPY . .
+
+RUN pip install -U pip \
+    && pip install -U . \
+    && pip install -U numpy pytest
