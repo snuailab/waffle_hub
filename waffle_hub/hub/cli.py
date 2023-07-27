@@ -1,9 +1,10 @@
-import inspect
-
 import fire
+from waffle_utils.log import initialize_logger
 
 from waffle_hub.hub import Hub
 from waffle_hub.utils.base_cli import BaseCLI, cli
+
+initialize_logger("hub.log", root_level="INFO", console_level="INFO", file_level="DEBUG")
 
 
 class HubInstance(BaseCLI):
