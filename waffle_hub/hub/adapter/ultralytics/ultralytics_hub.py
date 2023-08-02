@@ -278,25 +278,29 @@ class UltralyticsHub(Hub):
 
     def training(self, cfg: TrainConfig, callback: TrainCallback):
 
+        params = {
+            "data": str(cfg.dataset_path),
+            "epochs": cfg.epochs,
+            "batch": cfg.batch_size,
+            "imgsz": cfg.image_size,
+            "lr0": cfg.learning_rate,
+            "lrf": cfg.learning_rate,
+            "rect": cfg.letter_box,
+            "device": cfg.device,
+            "workers": cfg.workers,
+            "seed": cfg.seed,
+            "verbose": cfg.verbose,
+            "project": str(self.hub_dir),
+            "name": str(self.ARTIFACT_DIR),
+        }
+        params.update(cfg.advance_params)
+
         code = f"""if __name__ == "__main__":
         from ultralytics import YOLO
         try:
             model = YOLO("{cfg.pretrained_model}", task="{self.backend_task_name}")
             model.train(
-                data="{cfg.dataset_path}",
-                epochs={cfg.epochs},
-                batch={cfg.batch_size},
-                imgsz={cfg.image_size},
-                lr0={cfg.learning_rate},
-                lrf={cfg.learning_rate},
-                rect={cfg.letter_box},
-                device="{cfg.device}",
-                workers={cfg.workers},
-                seed={cfg.seed},
-                verbose={cfg.verbose},
-                project="{self.hub_dir}",
-                name="{self.ARTIFACT_DIR}",
-                **{cfg.advance_params}
+                **{params}
             )
         except Exception as e:
             print(e)
