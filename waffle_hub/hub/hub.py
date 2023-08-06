@@ -13,6 +13,7 @@ import os
 import threading
 import time
 import warnings
+import json
 from functools import cached_property
 from pathlib import Path, PurePath
 from typing import Union
@@ -59,6 +60,8 @@ from waffle_hub.utils.draw import draw_results
 from waffle_hub.utils.evaluate import evaluate_function
 from waffle_hub.utils.metric_logger import MetricLogger
 
+import optuna
+from optuna.samplers import (RandomSampler, TPESampler, GridSampler)
 logger = logging.getLogger(__name__)
 
 
@@ -1666,3 +1669,71 @@ class Hub:
             "cpu_name": cpuinfo.get_cpu_info()["brand_raw"],
             "gpu_name": torch.cuda.get_device_name(0) if device != "cpu" else None,
         }
+    def _hpo_init(self, trial, search_space):
+        for k, v in search_space.items():
+            if isinstance(v[0], bool):
+                search_space[k] = trial.suggest_categorical(k, v)
+            else:
+                search_space[k] = trial.suggest_uniform(k, v[0], v[1])
+        return search_space
+
+    def _objective(self, trial, dataset, model_info, search_space):
+        torch.cuda.empty_cache()
+        if trial.number == 0:
+            search_space = self._hpo_init(trial, search_space)
+        
+        hub_name = f"{self.name}/trial_{trial.number}"
+
+        hub = Hub.new(
+            name=hub_name,
+            task=self.task,
+            model_type=self.model_type,
+            model_size=self.model_size,
+        )
+
+        hub.train(
+            dataset=dataset,
+            epochs=model_info["epochs"],
+            batch_size=model_info["batch_size"],
+            image_size=model_info["image_size"],
+            device=model_info["device"],
+            workers=0,
+            letter_box=model_info["letter_box"],
+            advance_params=search_space
+        )
+        evaluate_result = hub.evaluate(
+            dataset=dataset,
+            set_name="test",
+            image_size=640,
+            workers=0,
+            confidence_threshold=0.25,
+            iou_threshold=0.5,
+            device=model_info["device"],
+        )
+        return float(evaluate_result.eval_metrics[0]["value"])
+
+    def _create_sampler(self, sampler_type):
+        if sampler_type == "RandomSampler":
+            return RandomSampler()
+        elif sampler_type == "TPESampler":
+            return TPESampler()
+        elif sampler_type == "GridSampler":
+            return GridSampler()
+        else:
+            raise ValueError(f"Invalid sampler type: {sampler_type}")
+
+    def poc(self, dataset, model_info, n_trials, direction, sampler_type, search_space):
+        start_time = time.time()
+        sampler = self._create_sampler(sampler_type)
+        study = optuna.create_study(direction=direction, sampler=sampler)
+        study.optimize(lambda trial: self._objective(trial, dataset, model_info, search_space), n_trials=n_trials)
+        end_time = time.time()
+        best_value = study.best_value
+        best_params = study.best_params
+        total_time = end_time - start_time
+        hpo_file_path = f"hubs/{model_info['name']}/hpo.json"
+        with open(hpo_file_path, "w") as f:
+            json.dump({"best_params": best_params,
+                    "best_value": best_value,
+                    "total_time": total_time,
+                    }, f)
