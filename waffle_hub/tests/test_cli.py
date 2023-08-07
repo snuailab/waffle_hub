@@ -1,159 +1,299 @@
+import subprocess
 from pathlib import Path
 
 import pytest
-from waffle_utils.file import io, network
+from waffle_utils.file.io import unzip
+from waffle_utils.file.network import get_file_from_url
 
-from waffle_hub import TaskType
-from waffle_hub.dataset import Dataset
+
+def run_cli(cmd):
+    ret = subprocess.run(cmd, check=True, shell=True)
+    return ret
 
 
 @pytest.fixture(scope="session")
-def coco_path(tmp_path_factory: pytest.TempPathFactory):
+def test_dir(tmpdir_factory):
+    return Path(tmpdir_factory.mktemp("test"))
+
+
+def test_dataset_new(test_dir: Path):
+    cmd = f"python -m waffle_hub.dataset.cli new \
+        --name new \
+        --root-dir {test_dir / 'datasets'} \
+        --task classification \
+    "
+    ret = run_cli(cmd)
+    assert ret.returncode == 0
+
+
+def test_dataset_from_coco(test_dir: Path):
     url = "https://raw.githubusercontent.com/snuailab/assets/main/waffle/sample_dataset/mnist.zip"
+    coco_dir = test_dir / "datasets" / "mnist_coco"
 
-    tmpdir = tmp_path_factory.mktemp("coco")
-    zip_file = tmpdir / "mnist.zip"
-    coco_path = tmpdir / "extract"
+    get_file_from_url(url, str(test_dir), True)
+    unzip(str(test_dir / "mnist.zip"), coco_dir)
 
-    network.get_file_from_url(url, zip_file, create_directory=True)
-    io.unzip(zip_file, coco_path, create_directory=True)
-
-    return Path(coco_path)
-
-
-@pytest.fixture(scope="session")
-def yolo_classification_path(tmp_path_factory: pytest.TempPathFactory):
-    url = "https://raw.githubusercontent.com/snuailab/assets/main/waffle/sample_dataset/mnist_yolo_classification.zip"
-
-    tmpdir = tmp_path_factory.mktemp("yolo")
-    zip_file = tmpdir / "mnist_yolo_classification.zip"
-    yolo_path = tmpdir / "extract"
-
-    network.get_file_from_url(url, zip_file, create_directory=True)
-    io.unzip(zip_file, yolo_path, create_directory=True)
-
-    return Path(yolo_path)
+    cmd = f"python -m waffle_hub.dataset.cli from_coco \
+        --name from_coco \
+        --root-dir {test_dir / 'datasets'} \
+        --coco-file {coco_dir / 'coco.json'} \
+        --coco-root-dir {coco_dir / 'images'} \
+        --task classification \
+    "
+    ret = run_cli(cmd)
+    assert ret.returncode == 0
+    assert (test_dir / "datasets" / "from_coco").exists()
 
 
-@pytest.fixture(scope="session")
-def yolo_object_detection_path(tmp_path_factory: pytest.TempPathFactory):
+def test_dataset_from_yolo(test_dir: Path):
     url = "https://raw.githubusercontent.com/snuailab/assets/main/waffle/sample_dataset/mnist_yolo_object_detection.zip"
+    yolo_dir = test_dir / "datasets" / "mnist_yolo"
 
-    tmpdir = tmp_path_factory.mktemp("yolo")
-    zip_file = tmpdir / "mnist_yolo_object_detection.zip"
-    yolo_path = tmpdir / "extract"
+    get_file_from_url(url, str(test_dir), True)
+    unzip(str(test_dir / "mnist_yolo_object_detection.zip"), yolo_dir)
 
-    network.get_file_from_url(url, zip_file, create_directory=True)
-    io.unzip(zip_file, yolo_path, create_directory=True)
-
-    return Path(yolo_path)
-
-
-@pytest.fixture(scope="session")
-def yolo_instance_segmentation_path(tmp_path_factory: pytest.TempPathFactory):
-    url = "https://raw.githubusercontent.com/snuailab/assets/main/waffle/sample_dataset/mnist_yolo_instance_segmentation.zip"
-
-    tmpdir = tmp_path_factory.mktemp("yolo")
-    zip_file = tmpdir / "mnist_yolo_instance_segmentation.zip"
-    yolo_path = tmpdir / "extract"
-
-    network.get_file_from_url(url, zip_file, create_directory=True)
-    io.unzip(zip_file, yolo_path, create_directory=True)
-
-    return Path(yolo_path)
+    cmd = f"python -m waffle_hub.dataset.cli from_yolo \
+        --name from_yolo \
+        --root-dir {test_dir / 'datasets'} \
+        --task object_detection \
+        --yolo-root-dir {yolo_dir} \
+        --yaml-path {yolo_dir / 'data.yaml'} \
+    "
+    ret = run_cli(cmd)
+    assert ret.returncode == 0
+    assert (test_dir / "datasets" / "from_yolo").exists()
 
 
-@pytest.fixture(scope="session")
-def transformers_detection_path(tmp_path_factory: pytest.TempPathFactory):
-    url = "https://raw.githubusercontent.com/snuailab/assets/main/waffle/sample_dataset/mnist_huggingface_detection.zip"
-
-    tmpdir = tmp_path_factory.mktemp("transformers")
-    zip_file = tmpdir / "mnist_huggingface_detection.zip"
-    transformers_path = tmpdir / "extract"
-
-    network.get_file_from_url(url, zip_file, create_directory=True)
-    io.unzip(zip_file, transformers_path, create_directory=True)
-
-    return Path(transformers_path)
-
-
-@pytest.fixture(scope="session")
-def transformers_classification_path(tmp_path_factory: pytest.TempPathFactory):
+def test_dataset_from_transformers(test_dir: Path):
     url = "https://raw.githubusercontent.com/snuailab/assets/main/waffle/sample_dataset/mnist_huggingface_classification.zip"
+    hf_dir = test_dir / "datasets" / "mnist_hf"
 
-    tmpdir = tmp_path_factory.mktemp("transformers")
-    zip_file = tmpdir / "mnist_huggingface_classification.zip"
-    transformers_path = tmpdir / "extract"
+    get_file_from_url(url, str(test_dir), True)
+    unzip(str(test_dir / "mnist_huggingface_classification.zip"), hf_dir)
 
-    network.get_file_from_url(url, zip_file, create_directory=True)
-    io.unzip(zip_file, transformers_path, create_directory=True)
-
-    return Path(transformers_path)
-
-
-@pytest.fixture(scope="session")
-def test_video_path(tmp_path_factory: pytest.TempPathFactory):
-    url = "https://github.com/snuailab/assets/raw/main/waffle/sample_dataset/video.mp4"
-
-    tmpdir = tmp_path_factory.mktemp("test_video")
-    video_path = tmpdir / "video.mp4"
-
-    network.get_file_from_url(url, video_path, create_directory=True)
-
-    return Path(video_path)
+    cmd = f"python -m waffle_hub.dataset.cli from_transformers \
+        --name from_hf \
+        --root-dir {test_dir / 'datasets'} \
+        --task classification \
+        --dataset-dir {hf_dir} \
+    "
+    ret = run_cli(cmd)
+    assert ret.returncode == 0
+    assert (test_dir / "datasets" / "from_hf").exists()
 
 
-@pytest.fixture
-def instance_segmentation_dataset(coco_path: Path, tmpdir: Path):
-    dataset: Dataset = Dataset.from_coco(
-        name="seg",
-        task=TaskType.INSTANCE_SEGMENTATION,
-        coco_file=coco_path / "coco.json",
-        coco_root_dir=coco_path / "images",
-        root_dir=tmpdir,
+def test_dataset_split(test_dir: Path):
+    cmd = f"python -m waffle_hub.dataset.cli split \
+        --name from_coco \
+        --root-dir {test_dir / 'datasets'} \
+        --train-ratio 0.8 \
+        --val-ratio 0.1 \
+        --test-ratio 0.1 \
+        --method random \
+        --seed 42 \
+    "
+    ret = run_cli(cmd)
+    assert ret.returncode == 0
+    assert (test_dir / "datasets" / "from_coco" / "sets" / "train.json").exists()
+
+
+def test_dataset_export(test_dir: Path):
+    cmd = f"python -m waffle_hub.dataset.cli export \
+        --data-type ultralytics \
+        --name from_coco \
+        --root-dir {test_dir / 'datasets'} \
+    "
+    ret = run_cli(cmd)
+    assert ret.returncode == 0
+    assert (test_dir / "datasets" / "from_coco" / "exports" / "YOLO").exists()
+
+
+def test_dataset_clone(test_dir: Path):
+    cmd = f"python -m waffle_hub.dataset.cli clone \
+        --src-name from_coco \
+        --name clone \
+        --src-root-dir {test_dir / 'datasets'} \
+        --root-dir {test_dir / 'datasets'} \
+    "
+    ret = run_cli(cmd)
+    assert ret.returncode == 0
+    assert (test_dir / "datasets" / "clone").exists()
+
+
+def test_dataset_delete(test_dir: Path):
+    cmd = f"python -m waffle_hub.dataset.cli delete \
+        --name clone \
+        --root-dir {test_dir / 'datasets'} \
+    "
+    ret = run_cli(cmd)
+    assert ret.returncode == 0
+    assert not (test_dir / "datasets" / "clone").exists()
+
+
+def test_dataset_get_split_ids(test_dir: Path):
+    cmd = f"python -m waffle_hub.dataset.cli get_split_ids \
+        --name from_coco \
+        --root-dir {test_dir / 'datasets'} \
+    "
+    ret = run_cli(cmd)
+    assert ret.returncode == 0
+
+
+def test_dataset_merge(test_dir: Path):
+    cmd = f"python -m waffle_hub.dataset.cli merge \
+        --name merge \
+        --root-dir {test_dir / 'datasets'} \
+        --src-names [from_coco,from_hf] \
+        --src-root-dirs {test_dir / 'datasets'} --src-root-dirs {test_dir / 'datasets'} \
+        --task classification \
+    "
+    ret = run_cli(cmd)
+    assert ret.returncode == 0
+    assert (test_dir / "datasets" / "merge").exists()
+
+
+def test_dataset_sample(test_dir: Path):
+    cmd = f"python -m waffle_hub.dataset.cli sample \
+        --name sample \
+        --root-dir {test_dir / 'datasets'} \
+        --task object_detection \
+    "
+    ret = run_cli(cmd)
+    assert ret.returncode == 0
+    assert (test_dir / "datasets" / "sample").exists()
+
+
+def test_dataset_get_fields(test_dir: Path):
+    # image
+    cmd = f"python -m waffle_hub.dataset.cli get_images \
+        --name sample \
+        --root-dir {test_dir / 'datasets'} \
+    "
+    ret = run_cli(cmd)
+    assert ret.returncode == 0
+
+    # annotation
+    cmd = f"python -m waffle_hub.dataset.cli get_annotations \
+        --name sample \
+        --root-dir {test_dir / 'datasets'} \
+    "
+    ret = run_cli(cmd)
+    assert ret.returncode == 0
+
+    # category
+    cmd = f"python -m waffle_hub.dataset.cli get_categories \
+        --name sample \
+        --root-dir {test_dir / 'datasets'} \
+    "
+    ret = run_cli(cmd)
+    assert ret.returncode == 0
+
+
+def test_hub_new(test_dir: Path):
+    cmd = f'python -m waffle_hub.hub.cli new \
+        --backend ultralytics \
+        --root-dir {test_dir / "hubs"} \
+        --name test \
+        --task classification \
+        --model-type yolov8 \
+        --model-size n \
+        --categories [1,2] \
+    '
+    ret = run_cli(cmd)
+    assert ret.returncode == 0
+    assert (test_dir / "hubs" / "test").exists()
+
+
+def test_hub_train(test_dir: Path):
+    cmd = f'python -m waffle_hub.hub.cli train \
+        --root-dir {test_dir / "hubs"} \
+        --name test \
+        --dataset {test_dir / "datasets" / "from_coco"} \
+        --epochs 1 \
+        --batch-size 4 \
+        --image-size 16 \
+        --learning-rate 0.001 \
+        --letter-box \
+        --device cpu \
+        --workers 0 \
+        --seed 0 \
+        --verbose \
+    '
+    ret = run_cli(cmd)
+    assert ret.returncode == 0
+    assert (test_dir / "hubs" / "test" / "artifacts").exists()
+
+
+def test_hub_train_advance_params(test_dir: Path):
+    cmd = f'python -m waffle_hub.hub.cli new \
+        --backend ultralytics \
+        --root-dir {test_dir / "hubs"} \
+        --name test_adv \
+        --task classification \
+        --model-type yolov8 \
+        --model-size n \
+        --categories [1,2] \
+    '
+    ret = run_cli(cmd)
+    assert ret.returncode == 0
+    assert (test_dir / "hubs" / "test").exists()
+
+    cmd = (
+        f'python -m waffle_hub.hub.cli train \
+        --root-dir {test_dir / "hubs"} \
+        --name test_adv \
+        --dataset {test_dir / "datasets" / "from_coco"} \
+        --epochs 1 \
+        --batch-size 4 \
+        --image-size 16 \
+        --learning-rate 0.001 \
+        --letter-box \
+        --device cpu \
+        --workers 0 \
+        --seed 0 \
+        --verbose \
+    '
+        + ' --advance_params "{box: 3}"'
     )
-    dataset.split(0.2, 0.8)
-
-    return dataset
-
-
-@pytest.fixture
-def object_detection_dataset(coco_path: Path, tmpdir: Path):
-    dataset: Dataset = Dataset.from_coco(
-        name="od",
-        task=TaskType.OBJECT_DETECTION,
-        coco_file=coco_path / "coco.json",
-        coco_root_dir=coco_path / "images",
-        root_dir=tmpdir,
-    )
-    dataset.split(0.2, 0.8)
-
-    return dataset
+    ret = run_cli(cmd)
+    assert ret.returncode == 0
+    assert (test_dir / "hubs" / "test" / "artifacts").exists()
 
 
-@pytest.fixture
-def classification_dataset(coco_path: Path, tmpdir: Path):
-    dataset: Dataset = Dataset.from_coco(
-        name="cls",
-        task=TaskType.CLASSIFICATION,
-        coco_file=coco_path / "coco.json",
-        coco_root_dir=coco_path / "images",
-        root_dir=tmpdir,
-    )
-    dataset.split(0.2, 0.8)
+def test_hub_inference(test_dir: Path):
+    cmd = f'python -m waffle_hub.hub.cli inference \
+        --root-dir {test_dir / "hubs"} \
+        --name test \
+        --source {test_dir / "datasets" / "from_coco" / "raw"} \
+        --confidence-threshold 0.25 \
+        --device cpu \
+        --workers 0 \
+    '
+    ret = run_cli(cmd)
+    assert ret.returncode == 0
+    assert (test_dir / "hubs" / "test" / "inferences").exists()
 
-    return dataset
+
+def test_hub_evaluate(test_dir: Path):
+    cmd = f'python -m waffle_hub.hub.cli evaluate \
+        --name test \
+        --root-dir {test_dir / "hubs"} \
+        --dataset {test_dir / "datasets" / "from_coco"} \
+        --set-name test \
+        --device cpu \
+        --workers 0 \
+    '
+    ret = run_cli(cmd)
+    assert ret.returncode == 0
+    assert (test_dir / "hubs" / "test" / "evaluate.json").exists()
 
 
-@pytest.fixture
-def text_recognition_dataset(coco_path: Path, tmpdir: Path):
-    dataset: Dataset = Dataset.from_coco(
-        name="ocr",
-        task=TaskType.TEXT_RECOGNITION,
-        coco_file=coco_path / "coco.json",
-        coco_root_dir=coco_path / "images",
-        root_dir=tmpdir,
-    )
-    dataset.split(0.8)
-
-    return dataset
+def test_hub_export(test_dir: Path):
+    cmd = f'python -m waffle_hub.hub.cli export \
+        --name test \
+        --root-dir {test_dir / "hubs"} \
+        --device cpu \
+    '
+    ret = run_cli(cmd)
+    assert ret.returncode == 0
+    assert (test_dir / "hubs" / "test" / "weights" / "model.onnx").exists()
