@@ -3,6 +3,7 @@ Ultralytics Hub
 See Hub documentation for more details about usage.
 """
 
+import logging
 import warnings
 from pathlib import Path
 from typing import Union
@@ -22,6 +23,8 @@ from waffle_hub.utils.callback import TrainCallback
 from waffle_hub.utils.process import run_python_file
 
 from .config import DEFAULT_PARAMS, MODEL_TYPES, TASK_MAP
+
+logger = logging.getLogger(__name__)
 
 
 class UltralyticsHub(Hub):
@@ -274,7 +277,11 @@ class UltralyticsHub(Hub):
         )
 
         # other
-        cfg.letter_box = False if "," in cfg.device else cfg.letter_box
+        if self.task in [TaskType.OBJECT_DETECTION, TaskType.INSTANCE_SEGMENTATION]:
+            cfg.letter_box = True  # TODO: hard coding
+            logger.warning(
+                "letter_box False is not supported for Object Detection and Segmentation."
+            )
 
     def training(self, cfg: TrainConfig, callback: TrainCallback):
 
@@ -285,7 +292,7 @@ class UltralyticsHub(Hub):
             "imgsz": cfg.image_size,
             "lr0": cfg.learning_rate,
             "lrf": cfg.learning_rate,
-            "rect": cfg.letter_box,
+            "rect": False,  # TODO: hard coding for mosaic
             "device": cfg.device,
             "workers": cfg.workers,
             "seed": cfg.seed,
