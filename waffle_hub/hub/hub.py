@@ -1722,7 +1722,7 @@ class Hub:
         else:
             raise ValueError(f"Invalid sampler type: {sampler_type}")
 
-    def poc(self, dataset, model_info, n_trials, direction, sampler_type, search_space):
+    def hpo(self, dataset, model_info, n_trials, direction, sampler_type, search_space):
         start_time = time.time()
         sampler = self._create_sampler(sampler_type)
         study = optuna.create_study(direction=direction, sampler=sampler)
