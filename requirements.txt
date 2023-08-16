@@ -1,9 +1,9 @@
 # print utils
 tqdm
 tabulate==0.9.0
-pydantic
-rich
-onnxruntime
+pydantic==1.8.2
+rich==13.5.2
+onnxruntime==1.15.1
 tbparse==0.0.7
 
 # waffle dependencies

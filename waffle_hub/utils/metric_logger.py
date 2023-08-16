@@ -56,42 +56,42 @@ try:
 
     metric_logger_classes.append(_TensorboardLogger)
 
-except ImportError:
+except:
     logger.warning(
         "Tensorboard is not installed. To use Tensorboard logger, please install it with `pip install tensorboard`"
     )
 
-try:
-    import mlflow
+# try:
+#     import mlflow
 
-    class _MLFlowLogger(_BaseMetricLogger):
-        def __init__(self, name, log_dir, **kwargs):
-            super().__init__(name, log_dir, **kwargs)
+#     class _MLFlowLogger(_BaseMetricLogger):
+#         def __init__(self, name, log_dir, **kwargs):
+#             super().__init__(name, log_dir, **kwargs)
 
-            self.kwargs = kwargs
+#             self.kwargs = kwargs
 
-        def log_metric(self, tag, value, step):
-            # remove invalid characters in tag using regex (only alphabet, -, _, / are allowed)
-            tag = re.sub(r"[^a-zA-Z0-9-_\/]", "_", tag)
-            with mlflow.start_run(run_name=self.kwargs.get("run_name", "0")):
-                mlflow.log_metric(tag, value, step)
+#         def log_metric(self, tag, value, step):
+#             # remove invalid characters in tag using regex (only alphabet, -, _, / are allowed)
+#             tag = re.sub(r"[^a-zA-Z0-9-_\/]", "_", tag)
+#             with mlflow.start_run(run_name=self.kwargs.get("run_name", "0")):
+#                 mlflow.log_metric(tag, value, step)
 
-        def open(self):
-            exp = mlflow.set_experiment(self.name)
-            # TODO: only support one model for one experiment
-            for run in mlflow.search_runs(experiment_ids=exp.experiment_id).run_id:
-                mlflow.delete_run(mlflow.get_run(run).info.run_id)
-            logging.info(f"MLFlow logs will be saved to {mlflow.get_tracking_uri()}")
+#         def open(self):
+#             exp = mlflow.set_experiment(self.name)
+#             # TODO: only support one model for one experiment
+#             for run in mlflow.search_runs(experiment_ids=exp.experiment_id).run_id:
+#                 mlflow.delete_run(mlflow.get_run(run).info.run_id)
+#             logging.info(f"MLFlow logs will be saved to {mlflow.get_tracking_uri()}")
 
-        def close(self):
-            mlflow.end_run()
+#         def close(self):
+#             mlflow.end_run()
 
-    metric_logger_classes.append(_MLFlowLogger)
+#     metric_logger_classes.append(_MLFlowLogger)
 
-except ImportError:
-    logger.warning(
-        "MLFlow is not installed. To use MLFlow logger, please install it with `pip install mlflow`"
-    )
+# except:
+#     logger.warning(
+#         "MLFlow is not installed. To use MLFlow logger, please install it with `pip install mlflow`"
+#     )
 
 
 class MetricLogger:

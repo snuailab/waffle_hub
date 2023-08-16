@@ -26,6 +26,7 @@ from waffle_hub.dataset.adapter import (
     export_yolo,
     import_autocare_dlt,
     import_coco,
+    import_label_studio,
     import_transformers,
     import_yolo,
 )
@@ -987,6 +988,55 @@ class Dataset:
 
             # TODO: add unlabeled set
             io.save_json([], ds.unlabeled_set_file, create_directory=True)
+
+        except Exception as e:
+            ds.delete()
+            raise e
+
+        ds.create_index()
+        return ds
+
+    @classmethod
+    def from_label_studio(
+        cls,
+        name: str,
+        task: str,
+        json_file: str,
+        image_dir: str = None,
+        root_dir: str = None,
+    ) -> "Dataset":
+        """
+        Import Dataset from label_studio format.
+        This method imports dataset from label_studio exported json file (the first one).
+
+        Args:
+            name (str): Dataset name.
+            task (str): Dataset task.
+            json_file (str): Label studio json file path.
+            image_dir (str): Label studio image directory.
+            root_dir (str, optional): Dataset root directory. Defaults to None.
+
+        Example:
+            >>> ds = Dataset.from_label_studio(
+                "label_studio",
+                "classification",
+                "path/to/label_studio/json/export/file.json",
+                "path/to/image_dir"
+            )
+
+        Returns:
+            Dataset: Imported dataset.
+        """
+
+        ds = Dataset.new(name=name, task=task, root_dir=root_dir)
+
+        try:
+            import_label_studio(
+                self=ds,
+                json_file=json_file,
+                task=task,
+                image_dir=image_dir,
+            )
 
         except Exception as e:
             ds.delete()
