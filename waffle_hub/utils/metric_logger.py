@@ -56,7 +56,7 @@ try:
 
     metric_logger_classes.append(_TensorboardLogger)
 
-except ImportError:
+except:
     logger.warning(
         "Tensorboard is not installed. To use Tensorboard logger, please install it with `pip install tensorboard`"
     )
@@ -88,7 +88,7 @@ try:
 
     metric_logger_classes.append(_MLFlowLogger)
 
-except ImportError:
+except:
     logger.warning(
         "MLFlow is not installed. To use MLFlow logger, please install it with `pip install mlflow`"
     )
