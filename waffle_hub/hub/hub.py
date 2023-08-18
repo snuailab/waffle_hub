@@ -8,6 +8,8 @@ Hub is a multi-backend compatible interface for model training, evaluation, infe
 
 """
 import importlib
+import json
+import shutil
 import logging
 import os
 import threading
@@ -22,6 +24,8 @@ import cv2
 import numpy as np
 import torch
 import tqdm
+import optuna
+from optuna.samplers import GridSampler, RandomSampler, TPESampler
 from waffle_utils.file import io
 from waffle_utils.utils import type_validator
 
@@ -60,6 +64,83 @@ from waffle_hub.utils.evaluate import evaluate_function
 from waffle_hub.utils.metric_logger import MetricLogger
 
 logger = logging.getLogger(__name__)
+
+
+class OptunaHPO:
+    def __init__(self, hub):
+        self.hub = hub
+
+    def _hpo_init(self, trial, search_space):
+        params = {}
+        for k, v in search_space.items():
+            if isinstance(v[0], bool):
+                params[k] = trial.suggest_categorical(k, v)
+            else:
+                params[k] = trial.suggest_uniform(k, v[0], v[1])
+        return params
+
+    def _hpo_objective(self, trial, dataset, search_space, **kwargs):
+        torch.cuda.empty_cache()
+        params = self._hpo_init(trial, search_space)
+
+        hub_name = f"{self.hub.name}/hpo/trial_{trial.number}"
+        hub = self.hub.new(
+            name=hub_name,
+            task=self.hub.task,
+            model_type=self.hub.model_type,
+            model_size=self.hub.model_size,
+        )
+
+        hub.train(
+            dataset=dataset,
+            epochs=kwargs.get("epochs", None),
+            batch_size=kwargs.get("batch_size", None),
+            image_size=kwargs.get("image_size", None),
+            device=kwargs.get("device", "0"),
+            letter_box=kwargs.get("letter_box", None),
+            advance_params=params,
+        )
+
+        evaluate_result = hub.evaluate(
+            dataset=dataset,
+            set_name="test",
+            image_size=kwargs.get("image_size", None),
+            confidence_threshold=0.25,
+            iou_threshold=0.5,
+            device=kwargs.get("device", "0"),
+        )
+
+        return float(evaluate_result.eval_metrics[0]["value"])
+
+    def _create_sampler(self, sampler_type, search_space):
+
+        samplers = {
+            "RandomSampler": RandomSampler(),
+            "TPESampler": TPESampler(),
+            "GridSampler": GridSampler(search_space),
+        }
+        if sampler_type in samplers:
+            return samplers[sampler_type]
+        else:
+            raise ValueError(f"Invalid sampler type: {sampler_type}")
+
+
+
+    def optimize(self, dataset, n_trials, direction, sampler_type, search_space, **kwargs):
+        start_time = time.time()
+        sampler = self._create_sampler(sampler_type, search_space)
+        study = optuna.create_study(direction=direction, sampler=sampler)
+        study.optimize(
+            lambda trial: self._hpo_objective(trial, dataset, search_space, **kwargs),
+            n_trials=n_trials,
+        )
+        end_time = time.time()
+        best_value = study.best_value
+        best_trial = study.best_trial.number
+        best_params = study.best_params
+        total_time = end_time - start_time
+
+        return best_trial, best_params, best_value, total_time
 
 
 class Hub:
@@ -1666,3 +1747,38 @@ class Hub:
             "cpu_name": cpuinfo.get_cpu_info()["brand_raw"],
             "gpu_name": torch.cuda.get_device_name(0) if device != "cpu" else None,
         }
+
+
+    def _save_hpo_result(self, best_trial, best_params, best_value, total_time):
+        hub_root_dir = self.root_dir / self.name
+        hpo_file_path = hub_root_dir / "hpo.json"
+        best_hpo_path = hub_root_dir / f"hpo/trial_{best_trial}"
+        shutil.rmtree(hub_root_dir / "configs")
+
+        for name in os.listdir(best_hpo_path):
+            src_path = best_hpo_path / name
+            dst_path = hub_root_dir / name
+
+            if os.path.isdir(src_path):
+                io.copy_files_to_directory(src_path, dst_path, create_directory=True)
+            else:
+                io.copy_file(src_path, dst_path)
+
+        io.save_json(
+            [
+                {
+                    "best_trial": best_trial,
+                    "best_params": best_params,
+                    "best_value": best_value,
+                    "total_time": total_time,
+                }
+            ],
+            hpo_file_path,
+        )
+
+    def hpo(self, dataset, n_trials, direction, sampler_type, search_space, **kwargs):
+        optuna_hpo = OptunaHPO(self)
+        best_trial, best_params, best_value, total_time = optuna_hpo.optimize(
+            dataset, n_trials, direction, sampler_type, search_space, **kwargs
+        )
+        self._save_hpo_result(best_trial, best_params, best_value, total_time)
