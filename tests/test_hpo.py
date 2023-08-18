@@ -41,6 +41,7 @@ def test_hpo(example_hub):
         image_size=8,
         device="0"
     )
+    
     assert isinstance(result, dict)
     assert "best_params" in result
     assert "best_score" in result
