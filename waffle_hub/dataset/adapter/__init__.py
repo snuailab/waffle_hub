@@ -2,6 +2,7 @@ from .autocare_dlt import export_autocare_dlt, import_autocare_dlt
 from .coco import export_coco, import_coco
 from .transformers import export_transformers, import_transformers
 from .yolo import export_yolo, import_yolo
+from .superb_ai import import_superb_ai
 
 __all__ = [
     "export_yolo",
@@ -12,4 +13,5 @@ __all__ = [
     "import_coco",
     "import_transformers",
     "import_yolo",
+    "import_superb_ai"
 ]

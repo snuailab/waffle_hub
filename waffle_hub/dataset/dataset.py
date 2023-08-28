@@ -27,6 +27,7 @@ from waffle_hub.dataset.adapter import (
     import_coco,
     import_transformers,
     import_yolo,
+    import_superb_ai,
 )
 from waffle_hub.schema import Annotation, Category, DatasetInfo, Image
 from waffle_hub.utils.draw import draw_results
@@ -831,6 +832,76 @@ class Dataset:
                 io.copy_file(ds.val_set_file, ds.test_set_file, create_directory=True)
 
             # TODO: add unlabeled set
+            io.save_json([], ds.unlabeled_set_file, create_directory=True)
+
+        except Exception as e:
+            ds.delete()
+            raise e
+
+        ds.create_index()
+        return ds
+
+    @classmethod
+    def from_superb_ai(
+        cls,
+        name: str,
+        task: str,
+        superb_root_dir: str,
+        superb_file_dir: str,
+        root_dir: str = None,
+        option = 'default'
+    ) -> "Dataset":
+        """
+        Import dataset from Superb AI format.
+        This method is used for importing dataset from Superb AI format.
+
+        Args:
+            name (str): name of dataset.
+            task (str): task of dataset.
+            superb_root_dir (Union[str, list[str]]): Superb AI File root Directory (include project.json, meta)
+            superb_file_dir (Union[str, list[str]]): Superb AI Image File Directory 
+            root_dir (str, optional): root directory of dataset. Defaults to None.
+            option (str, optional): choice class type (e.g. default: object class, sub: options name)
+
+        Raises:
+            FileExistsError: if new dataset name already exist.
+
+        Examples:
+            # Import one coco json file.
+            >>> ds = Dataset.from_superb_ai(name="my_dataset", task="object_detection", superb_root_dir="path/to/superb_root_dir", superb_file_dir="path/to/superb_file_dir")
+            >>> ds.get_images()
+            {<Image: 1>, <Image: 2>, <Image: 3>, <Image: 4>, <Image: 5>}
+            >>> ds.get_annotations()
+            {<Annotation: 1>, <Annotation: 2>, <Annotation: 3>, <Annotation: 4>, <Annotation: 5>}
+            >>> ds.get_categories()
+            {<Category: 1>, <Category: 2>, <Category: 3>, <Category: 4>, <Category: 5>}
+            >>> ds.get_category_names()
+            ['person', 'bicycle', 'car', 'motorcycle', 'airplane']
+
+        Returns:
+            Dataset: Dataset Class.
+        """
+        ds = Dataset.new(name=name, task=task, root_dir=root_dir)
+
+
+        try:
+            if not Path(superb_root_dir).exists():
+                pass
+            if not Path(superb_file_dir).exists():
+                pass
+
+            project_json = f"{superb_root_dir}/project.json"
+            meta_path = f"{superb_root_dir}/meta"
+
+            if not Path(project_json).exists():
+                pass
+            if not Path(meta_path).exists():
+                pass
+
+
+            import_superb_ai(ds, superb_project_json=project_json, superb_meta=meta_path, superb_root_dir=superb_file_dir, cls_type=option)
+
+            # # TODO: add unlabeled set
             io.save_json([], ds.unlabeled_set_file, create_directory=True)
 
         except Exception as e:

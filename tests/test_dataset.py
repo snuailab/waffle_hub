@@ -295,6 +295,32 @@ def test_dummy(tmpdir):
         _total_dummy("dummy", TaskType.CLASSIFICATION, 3, 3, 0, tmpdir)
 
 
+def _from_superb_ai(dataset_name, task: TaskType, superb_dir, root_dir, option='default'):
+    dataset = Dataset.from_superb_ai(
+        name=dataset_name,
+        task=task,
+        superb_root_dir=superb_dir,
+        superb_file_dir=superb_dir,
+        root_dir = root_dir,
+        option=option,
+    )
+    assert dataset.dataset_info_file.exists()
+
+def _total_superb_ai(dataset_name, task: TaskType, superb_dir, root_dir):
+    _from_superb_ai(dataset_name, task, superb_dir, root_dir)
+    _index(dataset_name, root_dir)
+    _clone(dataset_name, root_dir)
+    _split(dataset_name, root_dir)
+    _export(dataset_name, task, root_dir)
+
+def test_superb_ai(superb_ai_detection_path, tmpdir):
+    _total_superb_ai(
+        "superb_ai_object_detection",
+        TaskType.OBJECT_DETECTION,
+        superb_ai_detection_path,
+        tmpdir,
+    )
+
 # test coco
 def _from_coco(dataset_name, task: TaskType, coco_path, root_dir):
     dataset = Dataset.from_coco(
