@@ -1,5 +1,6 @@
 from .autocare_dlt import export_autocare_dlt, import_autocare_dlt
 from .coco import export_coco, import_coco
+from .label_studio import import_label_studio
 from .transformers import export_transformers, import_transformers
 from .yolo import export_yolo, import_yolo
 from .superb_ai import import_superb_ai
@@ -14,4 +15,5 @@ __all__ = [
     "import_transformers",
     "import_yolo",
     "import_superb_ai"
+    "import_label_studio",
 ]

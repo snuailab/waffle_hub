@@ -24,6 +24,7 @@ def _train(hub, dataset: Dataset, image_size: int, advance_params: dict = None, 
         image_size=image_size,
         batch_size=4,
         pretrained_model=None,
+        letter_box=False,
         device="cpu",
         workers=0,
         advance_params=advance_params,
@@ -41,6 +42,12 @@ def _train(hub, dataset: Dataset, image_size: int, advance_params: dict = None, 
     assert len(result.eval_metrics) >= 1
     assert Path(result.best_ckpt_file).exists()
     # assert Path(result.last_ckpt_file).exists()
+
+    if hub.backend == "ultralytics":
+        if hub.task in [TaskType.INSTANCE_SEGMENTATION, TaskType.OBJECT_DETECTION]:
+            assert hub.get_train_config().letter_box == True
+        elif hub.task == TaskType.CLASSIFICATION:
+            assert hub.get_train_config().letter_box == False
 
     return result
 

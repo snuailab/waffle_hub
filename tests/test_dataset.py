@@ -508,6 +508,41 @@ def test_transformers(transformers_detection_path, transformers_classification_p
     )
 
 
+# TODO: add test code with export function
+# test label studio
+# def _from_label_studio(dataset_name, task: TaskType, label_studio_json_path, root_dir):
+#     dataset = Dataset.from_label_studio(
+#         name=dataset_name,
+#         task=task,
+#         json_file=label_studio_json_path,
+#         root_dir=root_dir,
+#     )
+#     assert dataset.dataset_info_file.exists()
+
+
+# def _total_label_studio(dataset_name, task: TaskType, label_studio_json_path, root_dir):
+#     _from_label_studio(dataset_name, task, label_studio_json_path, root_dir)
+#     _index(dataset_name, root_dir)
+#     _clone(dataset_name, root_dir)
+#     _split(dataset_name, root_dir)
+#     _export(dataset_name, task, root_dir)
+
+
+# def test_label_studio(label_studio_path, tmpdir):
+#     _total_label_studio(
+#         "label_studio_object_detection",
+#         TaskType.OBJECT_DETECTION,
+#         label_studio_path / "object_detection.json",
+#         tmpdir,
+#     )
+#     _total_label_studio(
+#         "label_studio_classification",
+#         TaskType.CLASSIFICATION,
+#         label_studio_path / "classification.json",
+#         tmpdir,
+#     )
+
+
 # dataloader
 def test_image_dataloader(coco_path, tmpdir):
 

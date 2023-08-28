@@ -3,6 +3,7 @@ import logging
 import os
 import random
 import shutil
+import time
 import warnings
 from collections import Counter, OrderedDict, defaultdict
 from functools import cached_property
@@ -25,6 +26,7 @@ from waffle_hub.dataset.adapter import (
     export_yolo,
     import_autocare_dlt,
     import_coco,
+    import_label_studio,
     import_transformers,
     import_yolo,
     import_superb_ai,
@@ -305,87 +307,87 @@ class Dataset:
     # dataset indexes
     @property
     def image_dict(self) -> dict[int, Image]:
-        if not hasattr(self, "__image_dict"):
+        if not hasattr(self, "_image_dict"):
             self.create_index()
-        return self.__image_dict
+        return self._image_dict
 
     @property
     def unlabeled_image_dict(self) -> dict[int, Image]:
-        if not hasattr(self, "__unlabeled_image_dict"):
+        if not hasattr(self, "_unlabeled_image_dict"):
             self.create_index()
-        return self.__unlabeled_image_dict
+        return self._unlabeled_image_dict
 
     @property
     def annotation_dict(self) -> dict[int, Annotation]:
-        if not hasattr(self, "__annotation_dict"):
+        if not hasattr(self, "_annotation_dict"):
             self.create_index()
-        return self.__annotation_dict
+        return self._annotation_dict
 
     @property
     def prediction_dict(self) -> dict[int, Annotation]:
-        if not hasattr(self, "__prediction_dict"):
+        if not hasattr(self, "_prediction_dict"):
             self.create_index()
-        return self.__prediction_dict
+        return self._prediction_dict
 
     @property
     def category_dict(self) -> dict[int, Category]:
-        if not hasattr(self, "__category_dict"):
+        if not hasattr(self, "_category_dict"):
             self.create_index()
-        return self.__category_dict
+        return self._category_dict
 
     @property
     def image_to_annotations(self) -> dict[int, list[Annotation]]:
-        if not hasattr(self, "__image_to_annotations"):
+        if not hasattr(self, "_image_to_annotations"):
             self.create_index()
-        return self.__image_to_annotations
+        return self._image_to_annotations
 
     @property
     def image_to_predictions(self) -> dict[int, list[Annotation]]:
-        if not hasattr(self, "__image_to_predictions"):
+        if not hasattr(self, "_image_to_predictions"):
             self.create_index()
-        return self.__image_to_predictions
+        return self._image_to_predictions
 
     @property
     def annotation_to_image(self) -> dict[int, Image]:
-        if not hasattr(self, "__annotation_to_image"):
+        if not hasattr(self, "_annotation_to_image"):
             self.create_index()
-        return self.__annotation_to_image
+        return self._annotation_to_image
 
     @property
     def prediction_to_image(self) -> dict[int, Image]:
-        if not hasattr(self, "__prediction_to_image"):
+        if not hasattr(self, "_prediction_to_image"):
             self.create_index()
-        return self.__prediction_to_image
+        return self._prediction_to_image
 
     @property
     def category_to_images(self) -> dict[int, list[Image]]:
-        if not hasattr(self, "__category_to_images"):
+        if not hasattr(self, "_category_to_images"):
             self.create_index()
-        return self.__category_to_images
+        return self._category_to_images
 
     @property
     def category_to_unique_images(self) -> dict[int, list[Image]]:
-        if not hasattr(self, "__category_to_unique_images"):
+        if not hasattr(self, "_category_to_unique_images"):
             self.create_index()
-        return self.__category_to_unique_images
+        return self._category_to_unique_images
 
     @property
     def category_name_to_category(self) -> dict[str, Category]:
-        if not hasattr(self, "__category_name_to_category"):
+        if not hasattr(self, "_category_name_to_category"):
             self.create_index()
-        return self.__category_name_to_category
+        return self._category_name_to_category
 
     @property
     def category_to_annotations(self) -> dict[int, list[Annotation]]:
-        if not hasattr(self, "__category_to_annotations"):
+        if not hasattr(self, "_category_to_annotations"):
             self.create_index()
-        return self.__category_to_annotations
+        return self._category_to_annotations
 
     @property
     def category_to_predictions(self) -> dict[int, list[Annotation]]:
-        if not hasattr(self, "__category_to_predictions"):
+        if not hasattr(self, "_category_to_predictions"):
             self.create_index()
-        return self.__category_to_predictions
+        return self._category_to_predictions
 
     def get_category_names(self) -> list[str]:
         return [category.name for category in self.categories]
@@ -1066,6 +1068,55 @@ class Dataset:
         return ds
 
     @classmethod
+    def from_label_studio(
+        cls,
+        name: str,
+        task: str,
+        json_file: str,
+        image_dir: str = None,
+        root_dir: str = None,
+    ) -> "Dataset":
+        """
+        Import Dataset from label_studio format.
+        This method imports dataset from label_studio exported json file (the first one).
+
+        Args:
+            name (str): Dataset name.
+            task (str): Dataset task.
+            json_file (str): Label studio json file path.
+            image_dir (str): Label studio image directory.
+            root_dir (str, optional): Dataset root directory. Defaults to None.
+
+        Example:
+            >>> ds = Dataset.from_label_studio(
+                "label_studio",
+                "classification",
+                "path/to/label_studio/json/export/file.json",
+                "path/to/image_dir"
+            )
+
+        Returns:
+            Dataset: Imported dataset.
+        """
+
+        ds = Dataset.new(name=name, task=task, root_dir=root_dir)
+
+        try:
+            import_label_studio(
+                self=ds,
+                json_file=json_file,
+                task=task,
+                image_dir=image_dir,
+            )
+
+        except Exception as e:
+            ds.delete()
+            raise e
+
+        ds.create_index()
+        return ds
+
+    @classmethod
     def sample(cls, name: str, task: str, root_dir: str = None) -> "Dataset":
         """
         Import sample Dataset.
@@ -1313,105 +1364,102 @@ class Dataset:
 
     def create_index(self):
         """Create index for faster search."""
-        self.__image_dict = OrderedDict()
-        self.__unlabeled_image_dict = OrderedDict()
-        self.__annotation_dict = OrderedDict()
-        self.__prediction_dict = OrderedDict()
-        self.__category_dict = OrderedDict()
-        self.__image_to_annotations = OrderedDict()
-        self.__image_to_predictions = OrderedDict()
-        self.__annotation_to_image = OrderedDict()
-        self.__prediction_to_image = OrderedDict()
-        self.__category_to_images = OrderedDict()
-        self.__category_to_unique_images = OrderedDict()
-        self.__category_name_to_category = OrderedDict()
-        self.__category_to_annotations = OrderedDict()
-        self.__category_to_predictions = OrderedDict()
+        self._image_dict = OrderedDict()
+        self._unlabeled_image_dict = OrderedDict()
+        self._annotation_dict = OrderedDict()
+        self._prediction_dict = OrderedDict()
+        self._category_dict = OrderedDict()
+        self._image_to_annotations = OrderedDict()
+        self._image_to_predictions = OrderedDict()
+        self._annotation_to_image = OrderedDict()
+        self._prediction_to_image = OrderedDict()
+        self._category_to_images = OrderedDict()
+        self._category_to_unique_images = OrderedDict()
+        self._category_name_to_category = OrderedDict()
+        self._category_to_annotations = OrderedDict()
+        self._category_to_predictions = OrderedDict()
 
+        start = time.time()
         logger.info("Creating index for faster search")
 
         for image in self.get_images():
-            self.__image_dict[image.image_id] = image  # image_id: image
-            self.__image_to_annotations[image.image_id] = []
-            self.__image_to_predictions[image.image_id] = []
+            self._image_dict[image.image_id] = image  # image_id: image
+            self._image_to_annotations[image.image_id] = []
+            self._image_to_predictions[image.image_id] = []
 
         for annotation in self.get_annotations():
-            self.__annotation_dict[
-                annotation.annotation_id
-            ] = annotation  # annotation_id: annotation
-            self.__image_to_annotations[annotation.image_id].append(
+            self._annotation_dict[annotation.annotation_id] = annotation  # annotation_id: annotation
+            self._image_to_annotations[annotation.image_id].append(
                 annotation
             )  # image_id: [annotations]
-            self.__annotation_to_image[annotation.annotation_id] = self.__image_dict[
+            self._annotation_to_image[annotation.annotation_id] = self._image_dict[
                 annotation.image_id
             ]  # annotation_id: image
 
         for prediction in self.get_predictions():
-            self.__prediction_dict[
-                prediction.annotation_id
-            ] = prediction  # annotation_id: prediction
-            self.__image_to_predictions[prediction.image_id].append(
+            self._prediction_dict[prediction.annotation_id] = prediction  # annotation_id: prediction
+            self._image_to_predictions[prediction.image_id].append(
                 prediction
             )  # image_id: [predictions]
-            self.__prediction_to_image[prediction.annotation_id] = self.__image_dict[
+            self._prediction_to_image[prediction.annotation_id] = self._image_dict[
                 prediction.image_id
             ]  # prediction_id: image
 
         for category in self.get_categories():
-            self.__category_dict[category.category_id] = category  # category_id: category
-            self.__category_name_to_category[category.name] = category  # category_name: category
-            self.__category_to_unique_images[category.category_id] = []  # category_id: image
-            self.__category_to_images[category.category_id] = set()
-            self.__category_to_annotations[category.category_id] = []
+            self._category_dict[category.category_id] = category  # category_id: category
+            self._category_name_to_category[category.name] = category  # category_name: category
+            self._category_to_unique_images[category.category_id] = []  # category_id: image
+            self._category_to_images[category.category_id] = set()
+            self._category_to_annotations[category.category_id] = []
 
-        for annotation in self.__annotation_dict.values():
+        for annotation in self._annotation_dict.values():
             if self.task == TaskType.TEXT_RECOGNITION:
                 chars = set(annotation.caption)
                 for char in chars:
-                    category_id = self.__category_name_to_category[char].category_id
-                    self.__category_to_annotations[category_id].append(annotation)
-                    self.__category_to_images[category_id].add(
-                        self.__annotation_to_image[annotation.annotation_id]
+                    category_id = self._category_name_to_category[char].category_id
+                    self._category_to_annotations[category_id].append(annotation)
+                    self._category_to_images[category_id].add(
+                        self._annotation_to_image[annotation.annotation_id]
                     )
             else:
-                self.__category_to_annotations[annotation.category_id].append(
+                self._category_to_annotations[annotation.category_id].append(
                     annotation
                 )  # category_id: [annotations]
-                self.__category_to_images[annotation.category_id].add(
-                    self.__annotation_to_image[annotation.annotation_id]
+                self._category_to_images[annotation.category_id].add(
+                    self._annotation_to_image[annotation.annotation_id]
                 )  # category_id: {images}
 
-        for image_id, annotations in self.__image_to_annotations.items():
+        for image_id, annotations in self._image_to_annotations.items():
             if self.task == TaskType.TEXT_RECOGNITION:
                 most_common_category = Counter(
                     sum([list(annotation.caption) for annotation in annotations], [])
                 ).most_common(1)[0][0]
-                most_common_category_id = self.__category_name_to_category[
+                most_common_category_id = self._category_name_to_category[
                     most_common_category
                 ].category_id
-                self.__category_to_unique_images[most_common_category_id].append(
-                    self.__image_dict[image_id]
+                self._category_to_unique_images[most_common_category_id].append(
+                    self._image_dict[image_id]
                 )
             else:
                 most_common_category_id = Counter(
                     [annotation.category_id for annotation in annotations]
                 ).most_common(1)[0][0]
-                self.__category_to_unique_images[most_common_category_id].append(
-                    self.__image_dict[image_id]
+                self._category_to_unique_images[most_common_category_id].append(
+                    self._image_dict[image_id]
                 )
 
-        for category_id, images in self.__category_to_images.items():
-            self.__category_to_images[category_id] = list(images)
+        for category_id, images in self._category_to_images.items():
+            self._category_to_images[category_id] = list(images)
 
-        for prediction in self.__prediction_dict.values():
-            self.__category_to_predictions[prediction.category_id].append(
+        for prediction in self._prediction_dict.values():
+            self._category_to_predictions[prediction.category_id].append(
                 prediction
             )  # category_id: [predictions]
 
         for image in self.get_images(labeled=False):
-            self.__unlabeled_image_dict[image.image_id] = image  # unlabeled_image_id: image
+            self._unlabeled_image_dict[image.image_id] = image  # unlabeled_image_id: image
 
-        logger.info("Creating index done")
+        logger.info(f"Creating index done {time.time() - start:.2f} seconds")
 
     # add
     def add_images(self, images: Union[Image, list[Image]]):
@@ -1541,7 +1589,7 @@ class Dataset:
             val_ids = []
             test_ids = []
 
-            for category_id, images in self.__category_to_unique_images.items():
+            for category_id, images in self.category_to_unique_images.items():
                 image_num = len(images)
                 image_ids = list(map(lambda x: x.image_id, images))
                 random.shuffle(image_ids)
