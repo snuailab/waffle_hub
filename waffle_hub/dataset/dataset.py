@@ -24,6 +24,7 @@ from waffle_hub.dataset.adapter import (
     export_coco,
     export_transformers,
     export_yolo,
+    export_superb_ai,
     import_autocare_dlt,
     import_coco,
     import_label_studio,
@@ -696,7 +697,7 @@ class Dataset:
         new_annotation_id = 1
 
         try:
-            for src_name, src_root_dir in zip(src_names, src_root_dirs):
+            for src_name, src_root_dir in tqdm.tqdm(zip(src_names, src_root_dirs)):
                 src_ds = Dataset.load(src_name, src_root_dir)
                 src_categories = src_ds.get_categories()
 
@@ -851,7 +852,6 @@ class Dataset:
         superb_root_dir: str,
         superb_file_dir: str,
         root_dir: str = None,
-        option = 'default'
     ) -> "Dataset":
         """
         Import dataset from Superb AI format.
@@ -901,7 +901,7 @@ class Dataset:
                 pass
 
 
-            import_superb_ai(ds, superb_project_json=project_json, superb_meta=meta_path, superb_root_dir=superb_file_dir, cls_type=option)
+            import_superb_ai(ds, superb_project_json=project_json, superb_meta=meta_path, superb_root_dir=superb_file_dir)
 
             # # TODO: add unlabeled set
             io.save_json([], ds.unlabeled_set_file, create_directory=True)
@@ -1682,8 +1682,22 @@ class Dataset:
         """
 
         self.check_trainable()
+        
+        # f = {"COCO": export_coco,
+        #      "YOLO": export_yolo,
+        #      "ULTRALYTICS": export_yolo,
+        #      "AUTOCARE_DLT": export_autocare_dlt,
+        #      "TRANSFORMERS": export_transformers,
+        #      "SUPERB_AI": export_superb_ai,
+        #      }
+
 
         export_dir: Path = self.export_dir / EXPORT_MAP[data_type.upper()]
+        # export_function = f.get(data_type.upper())
+
+        # if export_function is None:
+        #     raise ValueError(f"Invalid data_type: {data_type}")
+            
         if data_type in [DataType.YOLO, DataType.ULTRALYTICS]:
             export_function = export_yolo
         elif data_type in [DataType.COCO]:
@@ -1692,6 +1706,8 @@ class Dataset:
             export_function = export_autocare_dlt
         elif data_type in [DataType.TRANSFORMERS]:
             export_function = export_transformers
+        elif data_type in [DataType.SUPERB_AI]:
+            export_function = export_superb_ai
 
         else:
             raise ValueError(f"Invalid data_type: {data_type}")
