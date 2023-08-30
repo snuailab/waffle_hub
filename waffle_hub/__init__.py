@@ -76,6 +76,7 @@ class DataType(BaseEnum):
 
     TRANSFORMERS = enum.auto()
 
+    SUPERB_AI = enum.auto()
 
 class TaskType(BaseEnum):
     CLASSIFICATION = enum.auto()
@@ -98,4 +99,5 @@ EXPORT_MAP = {
     DataType.COCO: "COCO",
     DataType.AUTOCARE_DLT: "AUTOCARE_DLT",
     DataType.TRANSFORMERS: "TRANSFORMERS",
+    DataType.SUPERB_AI: "SUPERB_AI",
 }
