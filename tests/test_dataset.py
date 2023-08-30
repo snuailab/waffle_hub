@@ -255,6 +255,16 @@ def _export(dataset_name, task: TaskType, root_dir):
             root_dir=root_dir,
         )
         assert len(dataset.get_images()) == len(import_ds.get_images())
+    if task in [TaskType.OBJECT_DETECTION]:
+        export_dir = Path(dataset.export("superb_ai"))
+        import_ds = Dataset.from_superb_ai(
+            name=f"{task}_import_superb_ai",
+            task=task,
+            superb_root_dir = export_dir,
+            superb_file_dir = export_dir,
+            root_dir=root_dir,
+        )
+        assert len(dataset.get_images()) == len(import_ds.get_images())
 
 
 # test dummy
@@ -295,14 +305,13 @@ def test_dummy(tmpdir):
         _total_dummy("dummy", TaskType.CLASSIFICATION, 3, 3, 0, tmpdir)
 
 
-def _from_superb_ai(dataset_name, task: TaskType, superb_dir, root_dir, option='default'):
+def _from_superb_ai(dataset_name, task: TaskType, superb_dir, root_dir):
     dataset = Dataset.from_superb_ai(
         name=dataset_name,
         task=task,
         superb_root_dir=superb_dir,
         superb_file_dir=superb_dir,
         root_dir = root_dir,
-        option=option,
     )
     assert dataset.dataset_info_file.exists()
 

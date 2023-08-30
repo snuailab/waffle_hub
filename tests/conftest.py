@@ -62,6 +62,18 @@ def yolo_instance_segmentation_path(tmp_path_factory: pytest.TempPathFactory):
 
     return Path(yolo_path)
 
+@pytest.fixture(scope="session")
+def superb_ai_detection_path(tmp_path_factory: pytest.TempPathFactory):
+    url = "https://raw.githubusercontent.com/snuailab/assets/main/waffle/sample_dataset/mnist_superbai_detection.zip"
+
+    tmpdir = tmp_path_factory.mktemp("superb_ai")
+    zip_file = tmpdir / "mnist_superbai_detection.zip"
+    transformers_path = tmpdir / "extract"
+
+    network.get_file_from_url(url, zip_file, create_directory=True)
+    io.unzip(zip_file, transformers_path, create_directory=True)
+
+    return Path(transformers_path)
 
 @pytest.fixture(scope="session")
 def transformers_detection_path(tmp_path_factory: pytest.TempPathFactory):
