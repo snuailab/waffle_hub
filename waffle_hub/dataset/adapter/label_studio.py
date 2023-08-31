@@ -34,32 +34,40 @@ def import_object_detection(self, json_file, image_dir=None):
         images.append(image)
 
         for annotation in data["annotations"]:
-            category = annotation["result"][0]["value"]["rectanglelabels"][0]
+            for result in annotation["result"]:
+                # get labeling info
+                if "rectanglelabels" in result["value"].keys():
+                    category = result["value"]["rectanglelabels"][0]
+                elif "label" in result["value"].keys():
+                    category = result["value"]["label"][0]
+                else:
+                    print(f"no category info in {data['id']}")
+                    raise
 
-            if category not in category_to_id:
-                category_to_id[category] = len(category_to_id) + 1
-                categories.append(
-                    Category.object_detection(
+                if category not in category_to_id:
+                    category_to_id[category] = len(category_to_id) + 1
+                    categories.append(
+                        Category.object_detection(
+                            category_id=category_to_id[category],
+                            name=category,
+                            supercategory="object",
+                        )
+                    )
+
+                x = result["value"]["x"] * W / 100
+                y = result["value"]["y"] * H / 100
+                width = result["value"]["width"] * W / 100
+                height = result["value"]["height"] * H / 100
+
+                annotations.append(
+                    Annotation.object_detection(
+                        annotation_id=len(annotations) + 1,
+                        image_id=image_id,
                         category_id=category_to_id[category],
-                        name=category,
-                        supercategory="object",
+                        bbox=[x, y, width, height],
+                        is_crowd=False,
                     )
                 )
-
-            x = annotation["result"][0]["value"]["x"] * W / 100
-            y = annotation["result"][0]["value"]["y"] * H / 100
-            width = annotation["result"][0]["value"]["width"] * W / 100
-            height = annotation["result"][0]["value"]["height"] * H / 100
-
-            annotations.append(
-                Annotation.object_detection(
-                    annotation_id=len(annotations) + 1,
-                    image_id=image_id,
-                    category_id=category_to_id[category],
-                    bbox=[x, y, width, height],
-                    is_crowd=False,
-                )
-            )
 
     self.add_images(images)
     self.add_categories(categories)
