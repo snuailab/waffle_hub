@@ -247,7 +247,7 @@ def import_superb_ai(self, superb_root_dir, superb_file_dir):
         image_ids = []
         meta = io.load_json(meta_path)
         file_name = meta['data_key']
-        image_path = Path(superb_root_dir) / (file_name[1:] if file_name[0] == '/' else file_name)
+        image_path = Path(superb_file_dir) / (file_name[1:] if file_name[0] == '/' else file_name)
 
         if not image_path.exists():
             raise FileNotFoundError(f"{image_path} does not exist.")
