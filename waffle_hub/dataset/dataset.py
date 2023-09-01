@@ -849,8 +849,9 @@ class Dataset:
         cls,
         name: str,
         task: str,
-        superb_root_dir: str,
-        superb_file_dir: str,
+        superb_label_dir: str,
+        superb_image_dir: str,
+        option: bool = False,
         root_dir: str = None,
     ) -> "Dataset":
         """
@@ -862,8 +863,8 @@ class Dataset:
             task (str): task of dataset.
             superb_root_dir (Union[str, list[str]]): Superb AI File root Directory (include project.json, meta)
             superb_file_dir (Union[str, list[str]]): Superb AI Image File Directory 
+            option (bool, optional): choice class type (e.g. True: object class, False: options name)
             root_dir (str, optional): root directory of dataset. Defaults to None.
-            option (str, optional): choice class type (e.g. default: object class, sub: options name)
 
         Raises:
             FileExistsError: if new dataset name already exist.
@@ -887,13 +888,13 @@ class Dataset:
 
 
         try:
-            if not Path(superb_root_dir).exists():
-                pass
-            if not Path(superb_file_dir).exists():
-                pass
+            if Path(superb_label_dir).exists():
+               ds.superb_root_dir=Path(superb_label_dir) 
+            if Path(superb_image_dir).exists():
+               ds.superb_image_dir=Path(superb_image_dir) 
 
-            project_json = f"{superb_root_dir}/project.json"
-            meta_path = f"{superb_root_dir}/meta"
+            project_json = f"{superb_label_dir}/project.json"
+            meta_path = f"{superb_label_dir}/meta"
 
             if not Path(project_json).exists():
                 pass
@@ -901,7 +902,7 @@ class Dataset:
                 pass
 
 
-            import_superb_ai(ds, superb_root_dir=superb_root_dir, superb_file_dir=superb_file_dir)
+            import_superb_ai(ds, option=option)
 
             # # TODO: add unlabeled set
             io.save_json([], ds.unlabeled_set_file, create_directory=True)
@@ -1737,4 +1738,7 @@ class Dataset:
             np_image = load_image(self.raw_image_dir / image.file_name)
             annotations = self.get_annotations(image.image_id)
             drawn_image = draw_results(np_image, annotations, names)
+
+            io.make_directory(self.draw_dir / Path(image.file_name).parent)
+
             save_image(self.draw_dir / image.file_name, drawn_image)

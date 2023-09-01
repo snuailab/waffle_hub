@@ -191,29 +191,18 @@ def export_superb_ai(self, export_dir: Union[str, Path]) -> str:
     return str(export_dir)
     
 
-def import_superb_ai(self, superb_root_dir, superb_file_dir):
-    """
-    Import coco dataset
-
-    Args:
-        superb_root_dir (list[str]): List of superb ai meta files and project file root directories
-        superb_root_dir (list[str]): List of superb ai image files root directories
-    """
-
-    # cocos = [COCO(coco_file) for coco_file in coco_files]
-    superb_project_json = f"{superb_root_dir}/project.json"
-    superb_meta = f"{superb_root_dir}/meta"
-    superb_project = io.load_json(superb_project_json)
-    metas = glob.glob(f"{superb_meta}/**/*.json", recursive=True)
-
-    superb_cat_id_to_waffle_cat_id = {}
+def _superb_category(self, option):
+    superb_project_json_path = self.superb_root_dir / 'project.json'
+    superb_project = io.load_json(superb_project_json_path)
+    self.superb_cat_id_to_waffle_cat_id = {}
     cats_id = 1
     for category in superb_project['object_detection']['object_classes']:
         supercategory_name = category['name']
-        if category.get('properties'):
+
+        if len(category.get('properties'))==1 and option:
             for cats in category['properties'][0]['options']:
                 category_name = cats['name']
-                superb_cat_id_to_waffle_cat_id[category_name] = cats_id
+                self.superb_cat_id_to_waffle_cat_id[category_name] = cats_id
                 category_info = {
                     "id": cats_id,
                     "supercategory": supercategory_name,
@@ -224,50 +213,49 @@ def import_superb_ai(self, superb_root_dir, superb_file_dir):
                 cats_id +=1
                 
         else:
-            category_name = supercategory_name
-            superb_cat_id_to_waffle_cat_id[category_name] = cats_id
-            category_super_name = category_name
+            self.superb_cat_id_to_waffle_cat_id[supercategory_name] = cats_id
             category_info = {
                 "id": cats_id,
-                "name": category_name,
-                "supercategory": category_super_name
+                "name": supercategory_name,
+                "supercategory": supercategory_name
             }
             self.add_categories([Category.from_dict({**category_info, "category_id": cats_id}, task=self.task)])
 
             cats_id +=1
-    
-    total_length = len(metas)
+
+def _superb_images(self,option):
+    superb_meta = list(self.superb_root_dir.glob('meta/**/*json'))
+    total_length = len(superb_meta)
     logging.info(f"Importing superb ai dataset, Total Length: {total_length}")
     pgbar = tqdm.tqdm(total = total_length, desc="Importing SuperbAI dataset")
 
     image_id = 1
     annotation_id = 1
 
-    for meta_path in metas:
+    for meta_path in superb_meta:
         image_ids = []
         meta = io.load_json(meta_path)
-        file_name = meta['data_key']
-        image_path = Path(superb_file_dir) / (file_name[1:] if file_name[0] == '/' else file_name)
+        file_name = str(meta['data_key']).lstrip('/')
+        image_path = Path(self.superb_image_dir) / file_name
 
         if not image_path.exists():
             raise FileNotFoundError(f"{image_path} does not exist.")
-
 
         self.add_images(
             [Image.from_dict({"width": meta['image_info']['width'],
                               "height": meta['image_info']['height'],
                               "image_id": image_id,
-                              "file_name": Path(file_name).name
+                              "file_name": file_name
                               })]
         )
-        io.copy_file(image_path, self.raw_image_dir / Path(file_name).name, create_directory=True)
+        io.copy_file(image_path, self.raw_image_dir / file_name, create_directory=True)
 
         anns_file = meta['label_path'][0]
 
-        anno_data = io.load_json(f"{superb_root_dir}/{anns_file}")
+        anno_data = io.load_json(self.superb_root_dir / anns_file)
 
         for label_info in anno_data['objects']:
-            if label_info.get('properties'):
+            if len(label_info.get('properties'))==1 and option:
                 if len(label_info['properties']) == 1 and len(label_info['properties'][0]['option_names']) == 1:
                     label_cls = label_info.get('properties')[0]['option_names'][0]
             else:
@@ -281,7 +269,7 @@ def import_superb_ai(self, superb_root_dir, superb_file_dir):
                 "bbox": [coord['x'], coord['y'], coord['width'], coord['height']],
                 'area': 0,
                 'iscrowd': 0,
-                "category_id": superb_cat_id_to_waffle_cat_id[label_cls]
+                "category_id": self.superb_cat_id_to_waffle_cat_id[label_cls]
             }
             self.add_annotations(
                 [
@@ -299,3 +287,19 @@ def import_superb_ai(self, superb_root_dir, superb_file_dir):
         pgbar.update(1)
     
     pgbar.close()
+
+
+def import_superb_ai(self, option):
+    """
+    Import coco dataset
+
+    Args:
+        superb_root_dir (list[str]): List of superb ai meta files and project file root directories
+        superb_root_dir (list[str]): List of superb ai image files root directories
+    """
+
+    # cocos = [COCO(coco_file) for coco_file in coco_files]
+
+    _superb_category(self, option=option)
+    _superb_images(self, option=option)
+    
