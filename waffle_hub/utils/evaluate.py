@@ -95,7 +95,23 @@ def evaluate_object_detection(
         num_classes=num_classes,
     )(preds, labels)
 
-    return ObjectDetectionMetric(float(map_dict["map"]))
+    return ObjectDetectionMetric(
+        float(map_dict["map"]),
+        float(map_dict['map_50']),
+        float(map_dict['map_75']),
+        float(map_dict['map_small']),
+        float(map_dict['map_medium']),
+        float(map_dict['map_large']),
+        float(map_dict['mar_1']),
+        float(map_dict['mar_10']),
+        float(map_dict['mar_100']),
+        float(map_dict['mar_small']),
+        float(map_dict['map_medium']),
+        float(map_dict['map_large']),
+        map_dict['map_per_class'].tolist(),
+        map_dict['mar_100_per_class'].tolist()
+        )
+
 
 
 def evaluate_segmentation(

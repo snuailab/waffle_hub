@@ -1053,18 +1053,20 @@ class Hub:
     def get_model(self):
         raise NotImplementedError
 
-    def before_evaluate(self, cfg: EvaluateConfig):
-        pass
+    def before_evaluate(self, cfg: EvaluateConfig, dataset: Dataset):
+        if len(dataset.get_split_ids()[2]) == 0:
+            cfg.set_name = 'val'
 
     def on_evaluate_start(self, cfg: EvaluateConfig):
         pass
 
-    def evaluating(self, cfg: EvaluateConfig, callback: EvaluateCallback) -> str:
+    def evaluating(self, cfg: EvaluateConfig, callback: EvaluateCallback, dataset: Dataset) -> str:
         device = cfg.device
 
         model = self.get_model().to(device)
 
-        dataset = Dataset.load(cfg.dataset_name, cfg.dataset_root_dir)
+        # dataset = Dataset.load(cfg.dataset_name, cfg.dataset_root_dir)
+
         dataloader = get_dataset_class("dataset")(
             dataset,
             cfg.image_size,
@@ -1090,16 +1092,31 @@ class Hub:
             callback.update(i)
 
         metrics = evaluate_function(preds, labels, self.task, len(self.categories))
-        io.save_json(
-            [
-                {
-                    "tag": tag,
-                    "value": value,
-                }
-                for tag, value in metrics.to_dict().items()
-            ],
-            self.evaluate_file,
-        )
+        result_metrics = []
+
+        for tag, value in metrics.to_dict().items():
+
+            if tag =='mAP_per_classes' or tag=='mAR_100_per_class':
+                values = { cat : cat_value for cat, cat_value in zip(self.get_category_names(), value)}
+            else:
+                values = value
+
+            result_metrics.append({
+                "tag": tag,
+                "value": values
+            })
+        io.save_json(result_metrics, self.evaluate_file)
+
+        # io.save_json(
+        #     [
+        #         {
+        #             "tag": tag,
+        #             "value": value,
+        #         }
+        #         for tag, value in metrics.to_dict().items()
+        #     ],
+        #     self.evaluate_file,
+        # )
 
     def on_evaluate_end(self, cfg: EvaluateConfig):
         pass
@@ -1170,9 +1187,9 @@ class Hub:
 
         def inner(callback: EvaluateCallback, result: EvaluateResult):
             try:
-                self.before_evaluate(cfg)
+                self.before_evaluate(cfg, dataset)
                 self.on_evaluate_start(cfg)
-                self.evaluating(cfg, callback)
+                self.evaluating(cfg, callback, dataset)
                 self.on_evaluate_end(cfg)
                 self.after_evaluate(cfg, result)
                 callback.force_finish()

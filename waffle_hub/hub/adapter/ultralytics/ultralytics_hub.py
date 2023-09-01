@@ -125,7 +125,7 @@ class UltralyticsHub(Hub):
             normalize = T.Normalize([0, 0, 0], [1, 1, 1], inplace=True)
 
             def preprocess(x, *args, **kwargs):
-                return normalize(x)
+                return normalize(x.float())
 
         elif self.task == TaskType.INSTANCE_SEGMENTATION:
             normalize = T.Normalize([0, 0, 0], [1, 1, 1], inplace=True)
