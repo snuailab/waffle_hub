@@ -191,17 +191,18 @@ def export_superb_ai(self, export_dir: Union[str, Path]) -> str:
     return str(export_dir)
     
 
-def import_superb_ai(self, superb_project_json, superb_meta, superb_root_dir):
+def import_superb_ai(self, superb_root_dir, superb_file_dir):
     """
     Import coco dataset
 
     Args:
-        superb_project_json (list[str]): List of Project json file
-        superb_meta (list[str]): List of superb ai meta files root directories
-        superb_root_dir (list[str]): List of superb ai meta files root directories
+        superb_root_dir (list[str]): List of superb ai meta files and project file root directories
+        superb_root_dir (list[str]): List of superb ai image files root directories
     """
 
     # cocos = [COCO(coco_file) for coco_file in coco_files]
+    superb_project_json = f"{superb_root_dir}/project.json"
+    superb_meta = f"{superb_root_dir}/meta"
     superb_project = io.load_json(superb_project_json)
     metas = glob.glob(f"{superb_meta}/**/*.json", recursive=True)
 

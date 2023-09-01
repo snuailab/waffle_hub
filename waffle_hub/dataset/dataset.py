@@ -901,7 +901,7 @@ class Dataset:
                 pass
 
 
-            import_superb_ai(ds, superb_project_json=project_json, superb_meta=meta_path, superb_root_dir=superb_file_dir)
+            import_superb_ai(ds, superb_root_dir=superb_root_dir, superb_file_dir=superb_file_dir)
 
             # # TODO: add unlabeled set
             io.save_json([], ds.unlabeled_set_file, create_directory=True)
