@@ -8,6 +8,14 @@ initialize_logger("hub.log", root_level="INFO", console_level="INFO", file_level
 
 
 class HubInstance(BaseCLI):
+    # not required for cli mode
+    restrict_method_names = [
+        "load",
+        "get_default_advance_train_params",
+        "get_image_loader",
+        "get_model",
+    ]
+
     def __init__(self, name: str, root_dir: str = None):
         self.hub = None
         if name in Hub.get_hub_list(root_dir):

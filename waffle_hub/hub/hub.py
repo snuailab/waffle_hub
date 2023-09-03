@@ -133,7 +133,7 @@ class Hub:
         self.backend: str = backend
         self.version: str = version
 
-        self.save_model_config()
+        self._save_model_config()
 
     def __repr__(self):
         return self.get_model_config().__repr__()
@@ -643,7 +643,7 @@ class Hub:
         """
         return ModelConfig.load(self.model_config_file)
 
-    def save_model_config(self):
+    def _save_model_config(self):
         """Save ModelConfig."""
         ModelConfig(
             name=self.name,
@@ -968,7 +968,7 @@ class Hub:
         ## check category match
         if not self.categories:
             self.categories = dataset.get_categories()
-            self.save_model_config()
+            self._save_model_config()
         elif set(dataset.get_category_names()) != set(self.get_category_names()):
             raise ValueError(
                 "Dataset categories are not matched with hub categories. \n"
@@ -1055,13 +1055,13 @@ class Hub:
     def get_model(self):
         raise NotImplementedError
 
-    def before_evaluate(self, cfg: EvaluateConfig):
+    def _before_evaluate(self, cfg: EvaluateConfig):
         pass
 
-    def on_evaluate_start(self, cfg: EvaluateConfig):
+    def _on_evaluate_start(self, cfg: EvaluateConfig):
         pass
 
-    def evaluating(self, cfg: EvaluateConfig, callback: EvaluateCallback) -> str:
+    def _evaluating(self, cfg: EvaluateConfig, callback: EvaluateCallback) -> str:
         device = cfg.device
 
         model = self.get_model().to(device)
@@ -1103,10 +1103,10 @@ class Hub:
             self.evaluate_file,
         )
 
-    def on_evaluate_end(self, cfg: EvaluateConfig):
+    def _on_evaluate_end(self, cfg: EvaluateConfig):
         pass
 
-    def after_evaluate(self, cfg: EvaluateConfig, result: EvaluateResult):
+    def _after_evaluate(self, cfg: EvaluateConfig, result: EvaluateResult):
         result.eval_metrics = self.get_evaluate_result()
 
     def evaluate(
@@ -1172,11 +1172,11 @@ class Hub:
 
         def inner(callback: EvaluateCallback, result: EvaluateResult):
             try:
-                self.before_evaluate(cfg)
-                self.on_evaluate_start(cfg)
-                self.evaluating(cfg, callback)
-                self.on_evaluate_end(cfg)
-                self.after_evaluate(cfg, result)
+                self._before_evaluate(cfg)
+                self._on_evaluate_start(cfg)
+                self._evaluating(cfg, callback)
+                self._on_evaluate_end(cfg)
+                self._after_evaluate(cfg, result)
                 callback.force_finish()
             except Exception as e:
                 if self.evaluate_file.exists():
@@ -1236,13 +1236,13 @@ class Hub:
         return result
 
     # inference hooks
-    def before_inference(self, cfg: InferenceConfig):
+    def _before_inference(self, cfg: InferenceConfig):
         pass
 
-    def on_inference_start(self, cfg: InferenceConfig):
+    def _on_inference_start(self, cfg: InferenceConfig):
         pass
 
-    def inferencing(self, cfg: InferenceConfig, callback: InferenceCallback) -> str:
+    def _inferencing(self, cfg: InferenceConfig, callback: InferenceCallback) -> str:
         device = cfg.device
         model = self.get_model().to(device)
         result_parser = get_parser(self.task)(**cfg.to_dict(), categories=self.categories)
@@ -1313,10 +1313,10 @@ class Hub:
             create_directory=True,
         )
 
-    def on_inference_end(self, cfg: InferenceConfig):
+    def _on_inference_end(self, cfg: InferenceConfig):
         pass
 
-    def after_inference(self, cfg: InferenceConfig, result: EvaluateResult):
+    def _after_inference(self, cfg: InferenceConfig, result: EvaluateResult):
         result.predictions = self.get_inference_result()
         if cfg.draw:
             result.draw_dir = self.draw_dir
@@ -1387,11 +1387,11 @@ class Hub:
 
         def inner(callback: InferenceCallback, result: InferenceResult):
             try:
-                self.before_inference(cfg)
-                self.on_inference_start(cfg)
-                self.inferencing(cfg, callback)
-                self.on_inference_end(cfg)
-                self.after_inference(cfg, result)
+                self._before_inference(cfg)
+                self._on_inference_start(cfg)
+                self._inferencing(cfg, callback)
+                self._on_inference_end(cfg)
+                self._after_inference(cfg, result)
                 callback.force_finish()
             except Exception as e:
                 if self.inference_dir.exists():
@@ -1463,13 +1463,13 @@ class Hub:
         return result
 
     # Export Hook
-    def before_export(self, cfg: ExportConfig):
+    def _before_export(self, cfg: ExportConfig):
         pass
 
-    def on_export_start(self, cfg: ExportConfig):
+    def _on_export_start(self, cfg: ExportConfig):
         pass
 
-    def exporting(self, cfg: ExportConfig, callback: ExportCallback) -> str:
+    def _exporting(self, cfg: ExportConfig, callback: ExportCallback) -> str:
         image_size = cfg.image_size
         image_size = [image_size, image_size] if isinstance(image_size, int) else image_size
 
@@ -1503,10 +1503,10 @@ class Hub:
             dynamic_axes={name: {0: "batch_size"} for name in input_name + output_names},
         )
 
-    def on_export_end(self, cfg: ExportConfig):
+    def _on_export_end(self, cfg: ExportConfig):
         pass
 
-    def after_export(self, cfg: ExportConfig, result: ExportResult):
+    def _after_export(self, cfg: ExportConfig, result: ExportResult):
         result.export_file = self.onnx_file
 
     def export(
@@ -1552,11 +1552,11 @@ class Hub:
 
         def inner(callback: ExportCallback, result: ExportResult):
             try:
-                self.before_export(cfg)
-                self.on_export_start(cfg)
-                self.exporting(cfg, callback)
-                self.on_export_end(cfg)
-                self.after_export(cfg, result)
+                self._before_export(cfg)
+                self._on_export_start(cfg)
+                self._exporting(cfg, callback)
+                self._on_export_end(cfg)
+                self._after_export(cfg, result)
                 callback.force_finish()
             except Exception as e:
                 if self.onnx_file.exists():
