@@ -48,7 +48,7 @@ def cli(_class, _instance):
         ]
 
         help_string = (
-            "Available Class Methodas:\n"
+            "Available Class Methods:\n"
             + "\n".join(class_method_names)
             + "\n\nAvailable Instance Methods (need to specify --name [Name]):\n"
             + "\n".join(instance_method_names)
