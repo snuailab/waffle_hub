@@ -192,7 +192,7 @@ class AutocareDLTHub(Hub):
         return metrics
 
     # Train Hook
-    def on_train_start(self, cfg: TrainConfig):
+    def _on_train_start(self, cfg: TrainConfig):
         # set data
         cfg.dataset_path: Path = Path(cfg.dataset_path)
         train_coco_file = cfg.dataset_path / "train.json"
@@ -256,7 +256,7 @@ class AutocareDLTHub(Hub):
 
         cfg.dataset_path = str(cfg.dataset_path.absolute())
 
-    def training(self, cfg: TrainConfig, callback: TrainCallback):
+    def _training(self, cfg: TrainConfig, callback: TrainCallback):
         results = train.run(
             exp_name="train",
             model_cfg=str(cfg.model_config),
@@ -270,7 +270,7 @@ class AutocareDLTHub(Hub):
             raise RuntimeError("Training failed")
         del results
 
-    def on_train_end(self, cfg: TrainConfig):
+    def _on_train_end(self, cfg: TrainConfig):
         io.copy_file(
             self.artifact_dir / "train" / "best_ckpt.pth",
             self.best_ckpt_file,

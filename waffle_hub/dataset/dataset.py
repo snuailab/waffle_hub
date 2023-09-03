@@ -71,11 +71,11 @@ class Dataset:
         self.root_dir = root_dir
 
         if not self.initialized():
-            self.initialize()
-            self.set_categories(categories)
-            self.save_dataset_info()
+            self._initialize()
+            self._set_categories(categories)
+            self._save_dataset_info()
         else:  # for backward compatibility
-            self.save_dataset_info()
+            self._save_dataset_info()
 
     def __repr__(self):
         return self.get_dataset_info().__repr__()
@@ -105,7 +105,7 @@ class Dataset:
     def categories(self) -> list[Category]:
         return self.get_categories()
 
-    def set_categories(self, v):
+    def _set_categories(self, v):
         if v is None or len(v) == 0:
             v = []
         elif isinstance(v[0], dict):
@@ -307,85 +307,85 @@ class Dataset:
     @property
     def image_dict(self) -> dict[int, Image]:
         if not hasattr(self, "_image_dict"):
-            self.create_index()
+            self._create_index()
         return self._image_dict
 
     @property
     def unlabeled_image_dict(self) -> dict[int, Image]:
         if not hasattr(self, "_unlabeled_image_dict"):
-            self.create_index()
+            self._create_index()
         return self._unlabeled_image_dict
 
     @property
     def annotation_dict(self) -> dict[int, Annotation]:
         if not hasattr(self, "_annotation_dict"):
-            self.create_index()
+            self._create_index()
         return self._annotation_dict
 
     @property
     def prediction_dict(self) -> dict[int, Annotation]:
         if not hasattr(self, "_prediction_dict"):
-            self.create_index()
+            self._create_index()
         return self._prediction_dict
 
     @property
     def category_dict(self) -> dict[int, Category]:
         if not hasattr(self, "_category_dict"):
-            self.create_index()
+            self._create_index()
         return self._category_dict
 
     @property
     def image_to_annotations(self) -> dict[int, list[Annotation]]:
         if not hasattr(self, "_image_to_annotations"):
-            self.create_index()
+            self._create_index()
         return self._image_to_annotations
 
     @property
     def image_to_predictions(self) -> dict[int, list[Annotation]]:
         if not hasattr(self, "_image_to_predictions"):
-            self.create_index()
+            self._create_index()
         return self._image_to_predictions
 
     @property
     def annotation_to_image(self) -> dict[int, Image]:
         if not hasattr(self, "_annotation_to_image"):
-            self.create_index()
+            self._create_index()
         return self._annotation_to_image
 
     @property
     def prediction_to_image(self) -> dict[int, Image]:
         if not hasattr(self, "_prediction_to_image"):
-            self.create_index()
+            self._create_index()
         return self._prediction_to_image
 
     @property
     def category_to_images(self) -> dict[int, list[Image]]:
         if not hasattr(self, "_category_to_images"):
-            self.create_index()
+            self._create_index()
         return self._category_to_images
 
     @property
     def category_to_unique_images(self) -> dict[int, list[Image]]:
         if not hasattr(self, "_category_to_unique_images"):
-            self.create_index()
+            self._create_index()
         return self._category_to_unique_images
 
     @property
     def category_name_to_category(self) -> dict[str, Category]:
         if not hasattr(self, "_category_name_to_category"):
-            self.create_index()
+            self._create_index()
         return self._category_name_to_category
 
     @property
     def category_to_annotations(self) -> dict[int, list[Annotation]]:
         if not hasattr(self, "_category_to_annotations"):
-            self.create_index()
+            self._create_index()
         return self._category_to_annotations
 
     @property
     def category_to_predictions(self) -> dict[int, list[Annotation]]:
         if not hasattr(self, "_category_to_predictions"):
-            self.create_index()
+            self._create_index()
         return self._category_to_predictions
 
     def get_category_names(self) -> list[str]:
@@ -477,9 +477,9 @@ class Dataset:
 
             ds = Dataset.new(name=name, task=src_ds.task, root_dir=root_dir)
             io.copy_files_to_directory(src_ds.dataset_dir, ds.dataset_dir, create_directory=True)
-            ds.save_dataset_info()
+            ds._save_dataset_info()
 
-            ds.create_index()
+            ds._create_index()
             return ds
         except Exception as e:
             if (root_dir / name).exists():
@@ -617,7 +617,7 @@ class Dataset:
             ds.delete()
             raise e
 
-        ds.create_index()
+        ds._create_index()
         return ds
 
     @classmethod
@@ -648,7 +648,7 @@ class Dataset:
         dataset_info = DatasetInfo.load(dataset_info_file)
 
         ds = cls(**dataset_info.to_dict(), root_dir=root_dir)
-        ds.create_index()
+        ds._create_index()
         return ds
 
     @classmethod
@@ -762,7 +762,7 @@ class Dataset:
             raise e
 
         ds = Dataset.load(name, root_dir)
-        ds.create_index()
+        ds._create_index()
         return ds
 
     @classmethod
@@ -839,7 +839,7 @@ class Dataset:
             ds.delete()
             raise e
 
-        ds.create_index()
+        ds._create_index()
         return ds
 
     @classmethod
@@ -911,7 +911,7 @@ class Dataset:
             ds.delete()
             raise e
 
-        ds.create_index()
+        ds._create_index()
         return ds
 
     @classmethod
@@ -950,7 +950,7 @@ class Dataset:
             ds.delete()
             raise e
 
-        ds.create_index()
+        ds._create_index()
         return ds
 
     @classmethod
@@ -993,7 +993,7 @@ class Dataset:
             ds.delete()
             raise e
 
-        ds.create_index()
+        ds._create_index()
         return ds
 
     @classmethod
@@ -1042,7 +1042,7 @@ class Dataset:
             ds.delete()
             raise e
 
-        ds.create_index()
+        ds._create_index()
         return ds
 
     @classmethod
@@ -1087,7 +1087,7 @@ class Dataset:
         finally:
             shutil.rmtree(temp_dir)
 
-        ds.create_index()
+        ds._create_index()
         return ds
 
     @classmethod
@@ -1114,7 +1114,7 @@ class Dataset:
                     dataset_name_list.append(dataset_dir.name)
         return dataset_name_list
 
-    def initialize(self):
+    def _initialize(self):
         """Initialize Dataset.
         It creates necessary directories under {dataset_root_dir}/{dataset_name}.
         """
@@ -1137,7 +1137,7 @@ class Dataset:
         """
         return self.dataset_info_file.exists()
 
-    def save_dataset_info(self):
+    def _save_dataset_info(self):
         """Save DatasetInfo."""
         DatasetInfo(
             name=self.name,
@@ -1146,7 +1146,7 @@ class Dataset:
             created=self.created,
         ).save_yaml(self.dataset_info_file)
 
-    def trainable(self) -> bool:
+    def _trainable(self) -> bool:
         """Check if Dataset is trainable or not.
 
         Returns:
@@ -1167,7 +1167,7 @@ class Dataset:
         Raises:
             ValueError: if dataset has not enough annotations.
         """
-        if not self.trainable():
+        if not self._trainable():
             raise ValueError(
                 "Dataset is not trainable\n"
                 + f"Please check if the MINIMUM_TRAINABLE_IMAGE_NUM_PER_CATEGORY={Dataset.MINIMUM_TRAINABLE_IMAGE_NUM_PER_CATEGORY} is satisfied\n"
@@ -1189,7 +1189,7 @@ class Dataset:
         dataset_info = DatasetInfo.load(self.dataset_info_file)
         if not hasattr(dataset_info, "categories"):
             dataset_info.categories = self.get_categories()
-            self.save_dataset_info()
+            self._save_dataset_info()
         return dataset_info
 
     # get
@@ -1291,7 +1291,7 @@ class Dataset:
         }
         return num_annotations_per_category
 
-    def create_index(self):
+    def _create_index(self):
         """Create index for faster search."""
         self._image_dict = OrderedDict()
         self._unlabeled_image_dict = OrderedDict()
@@ -1427,7 +1427,7 @@ class Dataset:
             item_path = self.category_dir / f"{item_id}.json"
             io.save_json(item.to_dict(), item_path)
 
-        self.save_dataset_info()
+        self._save_dataset_info()
 
     def add_annotations(self, annotations: Union[Annotation, list[Annotation]]):
         """Add "Annotation"s to dataset.

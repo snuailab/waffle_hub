@@ -8,6 +8,16 @@ initialize_logger("dataset.log", root_level="INFO", console_level="INFO", file_l
 
 
 class DatasetInstance(BaseCLI):
+    # not required for cli mode
+    restrict_method_names = [
+        "load",
+        "new",
+        "add_annotations",
+        "add_categories",
+        "add_images",
+        "add_predictions",
+    ]
+
     def __init__(self, name: str, root_dir: str = None):
         self.dataset = None
         if name in Dataset.get_dataset_list(root_dir):
