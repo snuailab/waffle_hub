@@ -50,7 +50,7 @@ class CustomCallback(TrainerCallback):
         self._trainer = trainer
         self.metric_file = metric_file
 
-    def on_train_end(
+    def _on_train_end(
         self, args: TrainingArguments, state: TrainerState, control: TrainerControl, **kwargs
     ):
         epoch_metric = defaultdict(list)
@@ -143,7 +143,7 @@ class TransformersHub(Hub):
             root_dir=root_dir,
         )
 
-    def on_train_start(self, cfg: TrainConfig):
+    def _on_train_start(self, cfg: TrainConfig):
         # overwrite train config with default config
         cfg.pretrained_model = self.MODEL_TYPES[self.task][self.model_type][self.model_size]
 
@@ -205,7 +205,7 @@ class TransformersHub(Hub):
             device=cfg.device,
         )
 
-    def training(self, cfg: TrainConfig, callback: TrainCallback):
+    def _training(self, cfg: TrainConfig, callback: TrainCallback):
         trainer = Trainer(
             model=cfg.train_input.model,
             args=cfg.train_input.training_args,
@@ -226,7 +226,7 @@ class TransformersHub(Hub):
     def get_metrics(self) -> list[list[dict]]:
         return io.load_json(self.metric_file) if self.metric_file.exists() else []
 
-    def on_train_end(self, cfg: TrainConfig):
+    def _on_train_end(self, cfg: TrainConfig):
         io.copy_files_to_directory(
             self.artifact_dir / "weights" / "best_ckpt",
             self.best_ckpt_file,

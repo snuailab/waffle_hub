@@ -781,7 +781,7 @@ class Hub:
         return inner
 
     # Train Hook
-    def before_train(self, cfg: TrainConfig):
+    def _before_train(self, cfg: TrainConfig):
         # check device
         device = cfg.device
         if device == "cpu":
@@ -826,19 +826,19 @@ class Hub:
                 "Train artifacts already exist. Remove artifact to re-train (hub.delete_artifact())."
             )
 
-    def on_train_start(self, cfg: TrainConfig):
+    def _on_train_start(self, cfg: TrainConfig):
         pass
 
-    def save_train_config(self, cfg: TrainConfig):
+    def _save_train_config(self, cfg: TrainConfig):
         cfg.save_yaml(self.train_config_file)
 
-    def training(self, cfg: TrainConfig):
+    def _training(self, cfg: TrainConfig):
         pass
 
-    def on_train_end(self, cfg: TrainConfig):
+    def _on_train_end(self, cfg: TrainConfig):
         pass
 
-    def after_train(self, cfg: TrainConfig, result: TrainResult):
+    def _after_train(self, cfg: TrainConfig, result: TrainResult):
         result.best_ckpt_file = self.best_ckpt_file
         result.last_ckpt_file = self.last_ckpt_file
         result.metrics = self.get_metrics()
@@ -919,11 +919,11 @@ class Hub:
                     prefix="waffle",
                 )
                 metric_logger.start()
-                self.before_train(cfg)
-                self.on_train_start(cfg)
-                self.save_train_config(cfg)
-                self.training(cfg, callback)
-                self.on_train_end(cfg)
+                self._before_train(cfg)
+                self._on_train_start(cfg)
+                self._save_train_config(cfg)
+                self._training(cfg, callback)
+                self._on_train_end(cfg)
                 self.evaluate(
                     dataset=dataset,
                     batch_size=cfg.batch_size,
@@ -932,7 +932,7 @@ class Hub:
                     device=cfg.device,
                     workers=cfg.workers,
                 )
-                self.after_train(cfg, result)
+                self._after_train(cfg, result)
                 metric_logger.stop()
 
                 callback.force_finish()
@@ -1005,7 +1005,9 @@ class Hub:
                     self.DEFAULT_PARAMS[self.task][self.model_type][self.model_size], k
                 )
                 setattr(cfg, k, field_value)
-        cfg.image_size = cfg.image_size if isinstance(cfg.image_size, list) else [cfg.image_size, cfg.image_size]
+        cfg.image_size = (
+            cfg.image_size if isinstance(cfg.image_size, list) else [cfg.image_size, cfg.image_size]
+        )
 
         ## overwrite train advance config
         if cfg.advance_params:

@@ -247,7 +247,7 @@ class UltralyticsHub(Hub):
         return metrics
 
     # Train Hook
-    def on_train_start(self, cfg: TrainConfig):
+    def _on_train_start(self, cfg: TrainConfig):
 
         # set data
         cfg.dataset_path: Path = Path(cfg.dataset_path)
@@ -283,7 +283,7 @@ class UltralyticsHub(Hub):
                 "letter_box False is not supported for Object Detection and Segmentation."
             )
 
-    def training(self, cfg: TrainConfig, callback: TrainCallback):
+    def _training(self, cfg: TrainConfig, callback: TrainCallback):
 
         params = {
             "data": str(cfg.dataset_path),
@@ -320,7 +320,7 @@ class UltralyticsHub(Hub):
 
         run_python_file(script_file)
 
-    def on_train_end(self, cfg: TrainConfig):
+    def _on_train_end(self, cfg: TrainConfig):
         io.copy_file(
             self.artifact_dir / "weights" / "best.pt",
             self.best_ckpt_file,
