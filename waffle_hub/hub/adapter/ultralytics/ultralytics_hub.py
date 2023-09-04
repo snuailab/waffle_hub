@@ -284,9 +284,8 @@ class UltralyticsHub(Hub):
             )
 
     def training(self, cfg: TrainConfig, callback: TrainCallback):
-
         params = {
-            "data": str(cfg.dataset_path),
+            "data": str(cfg.dataset_path).replace("\\", "/"),
             "epochs": cfg.epochs,
             "batch": cfg.batch_size,
             "imgsz": cfg.image_size,
