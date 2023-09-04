@@ -16,6 +16,9 @@ class DatasetInstance(BaseCLI):
         "add_categories",
         "add_images",
         "add_predictions",
+        "create_index",
+        "initialize",
+        "save_dataset_info",
     ]
 
     def __init__(self, name: str, root_dir: str = None):
