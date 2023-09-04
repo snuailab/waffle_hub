@@ -3,23 +3,6 @@ __version__ = "0.2.11"
 import enum
 from collections import OrderedDict
 
-BACKEND_MAP = OrderedDict(
-    {
-        "ultralytics": {
-            "import_path": "waffle_hub.hub.adapter.ultralytics",
-            "class_name": "UltralyticsHub",
-        },
-        "autocare_dlt": {
-            "import_path": "waffle_hub.hub.adapter.autocare_dlt",
-            "class_name": "AutocareDLTHub",
-        },
-        "transformers": {
-            "import_path": "waffle_hub.hub.adapter.transformers",
-            "class_name": "TransformersHub",
-        },
-    }
-)
-
 
 class CustomEnumMeta(enum.EnumMeta):
     def __contains__(cls, item):
@@ -53,6 +36,11 @@ class BaseEnum(enum.Enum, metaclass=CustomEnumMeta):
         if isinstance(other, str):
             return self.name.upper() == other.upper()
         return super().__eq__(other)
+    
+    def __ne__(self, other):
+        if isinstance(other, str):
+            return self.name.upper() != other.upper()
+        return super().__ne__(other)
 
     def __hash__(self):
         return hash(self.name.upper())
@@ -93,9 +81,27 @@ class SplitMethod(BaseEnum):
 
 
 EXPORT_MAP = {
-    DataType.YOLO: "YOLO",
-    DataType.ULTRALYTICS: "YOLO",
+    DataType.YOLO: "ULTRALYTICS",
+    DataType.ULTRALYTICS: "ULTRALYTICS",
     DataType.COCO: "COCO",
     DataType.AUTOCARE_DLT: "AUTOCARE_DLT",
     DataType.TRANSFORMERS: "TRANSFORMERS",
 }
+
+
+BACKEND_MAP = OrderedDict(
+    {
+        DataType.ULTRALYTICS: {
+            "import_path": "waffle_hub.hub.adapter.ultralytics",
+            "class_name": "UltralyticsHub",
+        },
+        DataType.AUTOCARE_DLT: {
+            "import_path": "waffle_hub.hub.adapter.autocare_dlt",
+            "class_name": "AutocareDLTHub",
+        },
+        DataType.TRANSFORMERS: {
+            "import_path": "waffle_hub.hub.adapter.transformers",
+            "class_name": "TransformersHub",
+        },
+    }
+)

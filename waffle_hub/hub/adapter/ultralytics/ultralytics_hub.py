@@ -15,7 +15,7 @@ from ultralytics import YOLO
 from ultralytics.yolo.utils import DEFAULT_CFG as YOLO_DEFAULT_ADVANCE_PARAMS
 from waffle_utils.file import io
 
-from waffle_hub import TaskType
+from waffle_hub import TaskType, DataType
 from waffle_hub.hub import Hub
 from waffle_hub.hub.model.wrapper import ModelWrapper
 from waffle_hub.schema.configs import TrainConfig
@@ -28,7 +28,7 @@ logger = logging.getLogger(__name__)
 
 
 class UltralyticsHub(Hub):
-    BACKEND_NAME = "ultralytics"
+    BACKEND_NAME = DataType.ULTRALYTICS
     MODEL_TYPES = MODEL_TYPES
     MULTI_GPU_TRAIN = True
     DEFAULT_PARAMS = DEFAULT_PARAMS
@@ -304,6 +304,8 @@ class UltralyticsHub(Hub):
 
         code = f"""if __name__ == "__main__":
         from ultralytics import YOLO
+        import os
+        os.environ["KMP_DUPLICATE_LIB_OK"] = "TRUE"
         try:
             model = YOLO("{cfg.pretrained_model}", task="{self.backend_task_name}")
             model.train(
