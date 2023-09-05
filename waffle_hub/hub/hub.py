@@ -484,7 +484,9 @@ class Hub:
     def backend(self, v):
         v = str(v).upper()
         if v not in BACKEND_MAP:
-            raise ValueError(f"Backend {v} is not supported. Choose one of {list(BACKEND_MAP.keys())}")
+            raise ValueError(
+                f"Backend {v} is not supported. Choose one of {list(BACKEND_MAP.keys())}"
+            )
         self.__backend = v
 
     @property
@@ -1061,7 +1063,8 @@ class Hub:
 
     def before_evaluate(self, cfg: EvaluateConfig, dataset: Dataset):
         if len(dataset.get_split_ids()[2]) == 0:
-            cfg.set_name = 'val'
+            cfg.set_name = "val"
+            logger.warning("test set is not exist. use val set instead.")
 
     def on_evaluate_start(self, cfg: EvaluateConfig):
         pass
@@ -1101,13 +1104,16 @@ class Hub:
         result_metrics = []
         for tag, value in metrics.to_dict().items():
             if isinstance(value, list):
-                values = { cat : cat_value for cat, cat_value in zip(self.get_category_names(), value)}
+                values = [
+                    {
+                        "class_name": cat,
+                        "value": cat_value,
+                    }
+                    for cat, cat_value in zip(self.get_category_names(), value)
+                ]
             else:
                 values = value
-            result_metrics.append({
-                "tag": tag,
-                "value": values
-            })
+            result_metrics.append({"tag": tag, "value": values})
         io.save_json(result_metrics, self.evaluate_file)
 
     def on_evaluate_end(self, cfg: EvaluateConfig):
@@ -1177,7 +1183,7 @@ class Hub:
             EvaluateResult: evaluate result
         """
 
-        def inner(callback: EvaluateCallback, result: EvaluateResult):
+        def inner(dataset: Dataset, callback: EvaluateCallback, result: EvaluateResult):
             try:
                 self.before_evaluate(cfg, dataset)
                 self.on_evaluate_start(cfg)
@@ -1234,9 +1240,9 @@ class Hub:
         result.callback = callback
 
         if hold:
-            inner(callback, result)
+            inner(dataset, callback, result)
         else:
-            thread = threading.Thread(target=inner, args=(callback, result), daemon=True)
+            thread = threading.Thread(target=inner, args=(dataset, callback, result), daemon=True)
             callback.register_thread(thread)
             callback.start()
 

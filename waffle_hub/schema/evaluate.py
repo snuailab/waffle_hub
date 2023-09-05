@@ -24,10 +24,17 @@ class ObjectDetectionMetric(BaseSchema):
 @dataclass
 class ClassificationMetric(BaseSchema):
     accuracy: float
-    recall: list[float]
-    precision: list[float]
-    f1_score: list[float]
+    recall: float
+    precision: float
+    f1_score: float
+
+    accuracy_per_class: list[float]
+    recall_per_class: list[float]
+    precision_per_class: list[float]
+    f1_score_per_class: list[float]
+
     confusion_matrix: list[list[int]]
+
 
 @dataclass
 class InstanceSegmentationMetric(BaseSchema):

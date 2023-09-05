@@ -3,7 +3,13 @@ from operator import eq
 from typing import Union
 
 import torch
-from torchmetrics.classification import Accuracy, ConfusionMatrix, Recall, Precision, F1Score
+from torchmetrics.classification import (
+    Accuracy,
+    ConfusionMatrix,
+    F1Score,
+    Precision,
+    Recall,
+)
 from torchmetrics.detection import mean_ap
 from torchmetrics.text import CharErrorRate
 
@@ -79,18 +85,24 @@ def evaluate_classification(
     preds: list[Annotation], labels: list[Annotation], num_classes: int
 ) -> ClassificationMetric:
 
-    acc = Accuracy(task="multiclass", num_classes=num_classes)(preds, labels)
-    recall = Recall(task="multiclass", num_classes=num_classes, average='none')(preds, labels)
-    precision = Precision(task="multiclass", num_classes=num_classes, average='none')(preds, labels)
-    f1_score = F1Score(task="multiclass", num_classes=num_classes, average='none')(preds, labels)
-    confmat = ConfusionMatrix(task="multiclass", num_classes=num_classes)(preds, labels)
-    return ClassificationMetric(
-        accuracy=float(acc),
-        recall= recall.tolist(),
-        precision= precision.tolist(),
-        f1_score= f1_score.tolist(),
-        confusion_matrix= confmat.tolist()
-        )
+    accs = Accuracy(task="multiclass", num_classes=num_classes, average="none")(preds, labels)
+    recalls = Recall(task="multiclass", num_classes=num_classes, average="none")(preds, labels)
+    precisions = Precision(task="multiclass", num_classes=num_classes, average="none")(preds, labels)
+    f1_scores = F1Score(task="multiclass", num_classes=num_classes, average="none")(preds, labels)
+    confmats = ConfusionMatrix(task="multiclass", num_classes=num_classes)(preds, labels)
+
+    result = ClassificationMetric(
+        accuracy=float(sum(accs) / len(accs)),
+        recall=float(sum(recalls) / len(recalls)),
+        precision=float(sum(precisions) / len(precisions)),
+        f1_score=float(sum(f1_scores) / len(f1_scores)),
+        accuracy_per_class=accs.tolist(),
+        recall_per_class=recalls.tolist(),
+        precision_per_class=precisions.tolist(),
+        f1_score_per_class=f1_scores.tolist(),
+        confusion_matrix=confmats.tolist(),
+    )
+    return result
 
 
 def evaluate_object_detection(
@@ -101,25 +113,26 @@ def evaluate_object_detection(
         box_format="xywh",
         iou_type="bbox",
         class_metrics=True,
-        num_classes=num_classes,
     )(preds, labels)
 
-    return ObjectDetectionMetric(
-        float(map_dict["map"]),
-        float(map_dict['map_50']),
-        float(map_dict['map_75']),
-        float(map_dict['map_small']),
-        float(map_dict['map_medium']),
-        float(map_dict['map_large']),
-        float(map_dict['mar_1']),
-        float(map_dict['mar_10']),
-        float(map_dict['mar_100']),
-        float(map_dict['mar_small']),
-        float(map_dict['map_medium']),
-        float(map_dict['map_large']),
-        map_dict['map_per_class'].tolist(),
-        mAP100_per_class=map_dict['mar_100_per_class'].tolist()
-        )
+    result = ObjectDetectionMetric(
+        mAP=float(map_dict["map"]),
+        mAP_50=float(map_dict["map_50"]),
+        mAP_75=float(map_dict["map_75"]),
+        mAP_small=float(map_dict["map_small"]),
+        mAP_medium=float(map_dict["map_medium"]),
+        mAP_large=float(map_dict["map_large"]),
+        mAR_1=float(map_dict["mar_1"]),
+        mAR_10=float(map_dict["mar_10"]),
+        mAR_100=float(map_dict["mar_100"]),
+        mAR_small=float(map_dict["mar_small"]),
+        mAR_medium=float(map_dict["map_medium"]),
+        mAR_large=float(map_dict["map_large"]),
+        mAP_per_classes=map_dict["map_per_class"].tolist(),
+        mAR_100_per_class=map_dict["mar_100_per_class"].tolist(),
+    )
+    return result
+
 
 def evaluate_segmentation(
     preds: list[Annotation], labels: list[Annotation], num_classes: int
@@ -129,10 +142,10 @@ def evaluate_segmentation(
         box_format="xywh",
         iou_type="bbox",
         class_metrics=True,
-        num_classes=num_classes,
     )(preds, labels)
 
-    return InstanceSegmentationMetric(float(map_dict["map"]))
+    result = InstanceSegmentationMetric(float(map_dict["map"]))
+    return result
 
 
 def evalute_text_recognition(
@@ -142,7 +155,8 @@ def evalute_text_recognition(
     correct = reduce(lambda n, pair: n + eq(*pair), zip(preds, labels), 0)
     acc = correct / len(preds)
 
-    return TextRecognitionMetric(float(acc))
+    result = TextRecognitionMetric(float(acc))
+    return result
 
 
 def evaluate_function(
