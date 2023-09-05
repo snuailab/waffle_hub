@@ -152,6 +152,7 @@ class Hub:
         Returns:
             Hub: Backend hub Class
         """
+        backend = backend.upper()
         if backend not in BACKEND_MAP:
             raise ModuleNotFoundError(f"Backend {backend} is not supported")
 
@@ -479,8 +480,11 @@ class Hub:
         return self.__backend
 
     @backend.setter
-    @type_validator(str)
+    @type_validator(str, strict=False)
     def backend(self, v):
+        v = str(v).upper()
+        if v not in BACKEND_MAP:
+            raise ValueError(f"Backend {v} is not supported. Choose one of {list(BACKEND_MAP.keys())}")
         self.__backend = v
 
     @property

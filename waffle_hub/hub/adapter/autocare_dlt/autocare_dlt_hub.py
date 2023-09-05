@@ -17,7 +17,7 @@ from torchvision import transforms as T
 from waffle_utils.file import io
 from waffle_utils.utils import type_validator
 
-from waffle_hub import TaskType
+from waffle_hub import TaskType, DataType
 from waffle_hub.hub import Hub
 from waffle_hub.hub.adapter.autocare_dlt.configs import (
     get_data_config,
@@ -31,7 +31,7 @@ from .config import DATA_TYPE_MAP, DEFAULT_PARAMS, MODEL_TYPES, WEIGHT_PATH
 
 
 class AutocareDLTHub(Hub):
-    BACKEND_NAME = "autocare_dlt"
+    BACKEND_NAME = DataType.AUTOCARE_DLT
     MODEL_TYPES = MODEL_TYPES
     MULTI_GPU_TRAIN = False
     DEFAULT_PARAMS = DEFAULT_PARAMS

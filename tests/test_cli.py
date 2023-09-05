@@ -95,7 +95,7 @@ def test_dataset_export(test_dir: Path):
     "
     ret = run_cli(cmd)
     assert ret.returncode == 0
-    assert (test_dir / "datasets" / "from_coco" / "exports" / "YOLO").exists()
+    assert (test_dir / "datasets" / "from_coco" / "exports" / "ULTRALYTICS").exists()
 
 
 def test_dataset_clone(test_dir: Path):
