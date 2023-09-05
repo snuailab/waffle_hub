@@ -17,7 +17,7 @@ class ObjectDetectionMetric(BaseSchema):
     mAR_small: float
     mAR_medium: float
     mAR_large: float
-    mAP_per_classes: list[float]
+    mAP_per_class: list[float]
     mAR_100_per_class: list[float]
 
 
