@@ -26,7 +26,7 @@ def test_evaluate_classification():
         num_classes=3,
     )
 
-    assert result.accuracy == 2 / 3
+    assert abs(result.accuracy - 2 / 3) < 1e-5
 
 
 def test_evaluate_object_detection():
