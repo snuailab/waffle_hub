@@ -17,7 +17,7 @@ from torchvision import transforms as T
 from waffle_utils.file import io
 from waffle_utils.utils import type_validator
 
-from waffle_hub import TaskType, DataType
+from waffle_hub import DataType, TaskType
 from waffle_hub.hub import Hub
 from waffle_hub.hub.adapter.autocare_dlt.configs import (
     get_data_config,
@@ -149,7 +149,7 @@ class AutocareDLTHub(Hub):
         elif self.task == TaskType.CLASSIFICATION:
 
             def inner(x: torch.Tensor, *args, **kwargs):
-                x = [t.squeeze() for t in x]
+                x = [t.squeeze(-1).squeeze(-1) for t in x]
                 return x
 
         elif self.task == TaskType.TEXT_RECOGNITION:
