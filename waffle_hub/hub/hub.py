@@ -152,6 +152,7 @@ class Hub:
         Returns:
             Hub: Backend hub Class
         """
+        backend = backend.upper()
         if backend not in BACKEND_MAP:
             raise ModuleNotFoundError(f"Backend {backend} is not supported")
 
@@ -286,7 +287,7 @@ class Hub:
             task (str, optional): Task Name. See Hub.TASKS. Defaults to None.
             model_type (str, optional): Model Type. See Hub.MODEL_TYPES. Defaults to None.
             model_size (str, optional): Model Size. See Hub.MODEL_SIZES. Defaults to None.
-            categories (Union[list[dict], list]): class dictionary or list. [{"supercategory": "name"}, ] or ["name",].
+            categories (Union[list[dict], list], optional): class dictionary or list. [{"supercategory": "name"}, ] or ["name",]. Defaults to None.
             root_dir (str, optional): Root directory of hub repository. Defaults to None.
 
         Returns:
@@ -479,8 +480,11 @@ class Hub:
         return self.__backend
 
     @backend.setter
-    @type_validator(str)
+    @type_validator(str, strict=False)
     def backend(self, v):
+        v = str(v).upper()
+        if v not in BACKEND_MAP:
+            raise ValueError(f"Backend {v} is not supported. Choose one of {list(BACKEND_MAP.keys())}")
         self.__backend = v
 
     @property
@@ -1005,7 +1009,9 @@ class Hub:
                     self.DEFAULT_PARAMS[self.task][self.model_type][self.model_size], k
                 )
                 setattr(cfg, k, field_value)
-        cfg.image_size = cfg.image_size if isinstance(cfg.image_size, list) else [cfg.image_size, cfg.image_size]
+        cfg.image_size = (
+            cfg.image_size if isinstance(cfg.image_size, list) else [cfg.image_size, cfg.image_size]
+        )
 
         ## overwrite train advance config
         if cfg.advance_params:
