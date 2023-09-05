@@ -137,6 +137,7 @@ runs/
 .idea/
 .vscode/
 mlruns/
+*.log.*
 
 *.pt
 *.pth

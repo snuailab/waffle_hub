@@ -26,24 +26,29 @@ def cli(_class, _instance):
     def switch_type(command: str = None, **kwargs) -> str:
         name = kwargs.get("name", None)
 
+        restrict_method_names = getattr(_instance, "restrict_method_names")
+
         class_method_names = [
             function_name
             for function_name, _ in inspect.getmembers(_class, predicate=inspect.ismethod)
+            if function_name not in restrict_method_names
         ]
         instance_method_names = [
             function_name
             for function_name, _ in inspect.getmembers(_class, predicate=inspect.isfunction)
-            if function_name not in class_method_names and not function_name.startswith("_")
+            if not function_name.startswith("_")
+            and function_name not in (restrict_method_names + class_method_names)
         ]
         attribute_names = [
             attribute_name
             for attribute_name, _ in inspect.getmembers(_class)
             if not attribute_name.startswith("_")
-            and attribute_name not in (class_method_names + instance_method_names)
+            and attribute_name
+            not in (restrict_method_names + class_method_names + instance_method_names)
         ]
 
         help_string = (
-            "Available Class Methodas:\n"
+            "Available Class Methods:\n"
             + "\n".join(class_method_names)
             + "\n\nAvailable Instance Methods (need to specify --name [Name]):\n"
             + "\n".join(instance_method_names)
@@ -61,7 +66,7 @@ def cli(_class, _instance):
                 return (
                     "You need to specify --name [Name] --root_dir [Root Directory of the instance (optional)]\n"
                     + "to use instance_method or to get attribute\n"
-                    + getattr(_class, command).__doc__
+                    + str(getattr(_class, command).__doc__)
                 )
 
         elif command in class_method_names:

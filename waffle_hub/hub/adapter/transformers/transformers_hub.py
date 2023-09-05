@@ -26,7 +26,7 @@ from transformers.utils import ModelOutput
 from waffle_utils.file import io
 
 from datasets import load_from_disk
-from waffle_hub import TaskType
+from waffle_hub import TaskType, DataType
 from waffle_hub.hub import Hub
 from waffle_hub.hub.adapter.transformers.train_input_helper import (
     ClassifierInputHelper,
@@ -63,7 +63,7 @@ class CustomCallback(TrainerCallback):
 
 
 class TransformersHub(Hub):
-    BACKEND_NAME = "transformers"
+    BACKEND_NAME = DataType.TRANSFORMERS
     MODEL_TYPES = MODEL_TYPES
     MULTI_GPU_TRAIN = False
     DEFAULT_PARAMS = DEFAULT_PARAMS
