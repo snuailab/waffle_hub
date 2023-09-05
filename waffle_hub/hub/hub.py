@@ -152,7 +152,6 @@ class Hub:
         Returns:
             Hub: Backend hub Class
         """
-        backend = backend.upper()
         if backend not in BACKEND_MAP:
             raise ModuleNotFoundError(f"Backend {backend} is not supported")
 

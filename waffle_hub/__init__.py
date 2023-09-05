@@ -36,11 +36,6 @@ class BaseEnum(enum.Enum, metaclass=CustomEnumMeta):
         if isinstance(other, str):
             return self.name.upper() == other.upper()
         return super().__eq__(other)
-    
-    def __ne__(self, other):
-        if isinstance(other, str):
-            return self.name.upper() != other.upper()
-        return super().__ne__(other)
 
     def __ne__(self, other):
         if isinstance(other, str):
