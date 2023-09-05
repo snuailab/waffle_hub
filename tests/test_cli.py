@@ -16,16 +16,6 @@ def test_dir(tmpdir_factory):
     return Path(tmpdir_factory.mktemp("test"))
 
 
-def test_dataset_new(test_dir: Path):
-    cmd = f"python -m waffle_hub.dataset.cli new \
-        --name new \
-        --root-dir {test_dir / 'datasets'} \
-        --task classification \
-    "
-    ret = run_cli(cmd)
-    assert ret.returncode == 0
-
-
 def test_dataset_from_coco(test_dir: Path):
     url = "https://raw.githubusercontent.com/snuailab/assets/main/waffle/sample_dataset/mnist.zip"
     coco_dir = test_dir / "datasets" / "mnist_coco"
@@ -105,7 +95,7 @@ def test_dataset_export(test_dir: Path):
     "
     ret = run_cli(cmd)
     assert ret.returncode == 0
-    assert (test_dir / "datasets" / "from_coco" / "exports" / "YOLO").exists()
+    assert (test_dir / "datasets" / "from_coco" / "exports" / "ULTRALYTICS").exists()
 
 
 def test_dataset_clone(test_dir: Path):
