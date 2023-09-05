@@ -36,7 +36,7 @@ class BaseEnum(enum.Enum, metaclass=CustomEnumMeta):
         if isinstance(other, str):
             return self.name.upper() == other.upper()
         return super().__eq__(other)
-    
+
     def __ne__(self, other):
         if isinstance(other, str):
             return self.name.upper() != other.upper()
@@ -80,13 +80,15 @@ class SplitMethod(BaseEnum):
     STRATIFIED = enum.auto()
 
 
-EXPORT_MAP = {
-    DataType.YOLO: "ULTRALYTICS",
-    DataType.ULTRALYTICS: "ULTRALYTICS",
-    DataType.COCO: "COCO",
-    DataType.AUTOCARE_DLT: "AUTOCARE_DLT",
-    DataType.TRANSFORMERS: "TRANSFORMERS",
-}
+EXPORT_MAP = OrderedDict(
+    {
+        DataType.YOLO: "ULTRALYTICS",
+        DataType.ULTRALYTICS: "ULTRALYTICS",
+        DataType.COCO: "COCO",
+        DataType.AUTOCARE_DLT: "AUTOCARE_DLT",
+        DataType.TRANSFORMERS: "TRANSFORMERS",
+    }
+)
 
 
 BACKEND_MAP = OrderedDict(
@@ -105,3 +107,13 @@ BACKEND_MAP = OrderedDict(
         },
     }
 )
+
+
+for key in list(EXPORT_MAP.keys()):
+    EXPORT_MAP[str(key).lower()] = EXPORT_MAP[key]
+    EXPORT_MAP[str(key).upper()] = EXPORT_MAP[key]
+
+
+for key in list(BACKEND_MAP.keys()):
+    BACKEND_MAP[str(key).lower()] = BACKEND_MAP[key]
+    BACKEND_MAP[str(key).upper()] = BACKEND_MAP[key]
