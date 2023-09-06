@@ -96,9 +96,15 @@ def test_resize_function():
                 assert (image.shape[1], image.shape[0]) == info[
                     "new_shape"
                 ], f"Difference from resize image shape to info (letter_box: {lb})"
-                assert (
-                    info["input_shape"] == info["new_shape"]
-                ), "Difference from info[input_shape] to info[new_shape] (letter_box: {lb})"
+                if lb:
+                    assert (
+                        (info["input_shape"][0] - info["new_shape"][0]) // 2,
+                        (info["input_shape"][1] - info["new_shape"][1]) // 2,
+                    ) == info["pad"], f"Difference Pad info (letter_box: {lb})"
+                else:
+                    assert (
+                        info["input_shape"] == info["new_shape"]
+                    ), f"Difference from info[input_shape] to info[new_shape] (letter_box: {lb})"
         # square 2 rect
         for ori_shape in square_list:
             for resize_shape in rect_list:
@@ -109,10 +115,16 @@ def test_resize_function():
                 )
                 assert (image.shape[1], image.shape[0]) == info[
                     "new_shape"
-                ], "Difference from resize image shape to info (letter_box: {lb})"
-                assert (
-                    info["input_shape"] == info["new_shape"]
-                ), "Difference from info[input_shape] to info[new_shape] (letter_box: {lb})"
+                ], f"Difference from resize image shape to info (letter_box: {lb})"
+                if lb:
+                    assert (
+                        (info["input_shape"][0] - info["new_shape"][0]) // 2,
+                        (info["input_shape"][1] - info["new_shape"][1]) // 2,
+                    ) == info["pad"], f"Difference Pad info (letter_box: {lb})"
+                else:
+                    assert (
+                        info["input_shape"] == info["new_shape"]
+                    ), f"Difference from info[input_shape] to info[new_shape] (letter_box: {lb})"
         # rect 2 square
         for ori_shape in rect_list:
             for resize_shape in square_list:
@@ -123,10 +135,16 @@ def test_resize_function():
                 )
                 assert (image.shape[1], image.shape[0]) == info[
                     "new_shape"
-                ], "Difference from resize image shape to info (letter_box: {lb})"
-                assert (
-                    info["input_shape"] == info["new_shape"]
-                ), "Difference from info[input_shape] to info[new_shape] (letter_box: {lb})"
+                ], f"Difference from resize image shape to info (letter_box: {lb})"
+                if lb:
+                    assert (
+                        (info["input_shape"][0] - info["new_shape"][0]) // 2,
+                        (info["input_shape"][1] - info["new_shape"][1]) // 2,
+                    ) == info["pad"], f"Difference Pad info (letter_box: {lb})"
+                else:
+                    assert (
+                        info["input_shape"] == info["new_shape"]
+                    ), f"Difference from info[input_shape] to info[new_shape] (letter_box: {lb})"
         # rect 2 rect
         for ori_shape in rect_list:
             for resize_shape in rect_list:
@@ -137,7 +155,13 @@ def test_resize_function():
                 )
                 assert (image.shape[1], image.shape[0]) == info[
                     "new_shape"
-                ], "Difference from resize image shape to info (letter_box: {lb})"
-                assert (
-                    info["input_shape"] == info["new_shape"]
-                ), "Difference from info[input_shape] to info[new_shape] (letter_box: {lb})"
+                ], f"Difference from resize image shape to info (letter_box: {lb})"
+                if lb:
+                    assert (
+                        (info["input_shape"][0] - info["new_shape"][0]) // 2,
+                        (info["input_shape"][1] - info["new_shape"][1]) // 2,
+                    ) == info["pad"], f"Difference Pad info (letter_box: {lb})"
+                else:
+                    assert (
+                        info["input_shape"] == info["new_shape"]
+                    ), f"Difference from info[input_shape] to info[new_shape] (letter_box: {lb})"

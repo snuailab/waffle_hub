@@ -75,21 +75,17 @@ def resize_image(
         w_ratio = W / w
 
         if w_ratio < h_ratio:
-            resize_shape = (int(w*w_ratio), round(h*w_ratio))
+            resize_shape = (int(w * w_ratio), round(h * w_ratio))
             total_pad = H - resize_shape[1]
             top = total_pad // 2
             bottom = total_pad - top
             left, right = 0, 0
-            w_ = resize_shape[0]
-            h_ = resize_shape[1] + total_pad
         else:
-            resize_shape = (round(w*h_ratio), int(h*h_ratio))
+            resize_shape = (round(w * h_ratio), int(h * h_ratio))
             total_pad = W - resize_shape[0]
             left = total_pad // 2
             right = total_pad - left
             top, bottom = 0, 0
-            w_ = resize_shape[0] + total_pad
-            h_ = resize_shape[1]
 
         resized_image = cv2.resize(image, resize_shape, interpolation=cv2.INTER_LINEAR)
         resized_image = cv2.copyMakeBorder(
@@ -97,14 +93,14 @@ def resize_image(
         )
 
     else:
-        w_, h_ = W, H
+        resize_shape = (W, H)
         left, top = 0, 0
-        resized_image = cv2.resize(image, (w_, h_), interpolation=cv2.INTER_LINEAR)
+        resized_image = cv2.resize(image, resize_shape, interpolation=cv2.INTER_LINEAR)
 
     return resized_image, ImageInfo(
         ori_image=cv2.cvtColor(image, cv2.COLOR_BGR2RGB),
         ori_shape=(w, h),
-        new_shape=(w_, h_),
+        new_shape=resize_shape,
         input_shape=(W, H),
         pad=(left, top),
     )
