@@ -7,6 +7,7 @@ Hub is a multi-backend compatible interface for model training, evaluation, infe
     Check out docstrings for more details.
 
 """
+import enum
 import importlib
 import logging
 import os
@@ -25,7 +26,9 @@ import tqdm
 from waffle_utils.file import io
 from waffle_utils.utils import type_validator
 
+import waffle_hub.core.hpo as HPO
 from waffle_hub import BACKEND_MAP, EXPORT_MAP, TaskType
+from waffle_hub.core.hpo import OptunaHPO, RaytuneHPO
 from waffle_hub.dataset import Dataset
 from waffle_hub.hub.model.wrapper import get_parser
 from waffle_hub.schema.configs import (
