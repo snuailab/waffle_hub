@@ -21,12 +21,14 @@ class OptunaHPO:
         else:
             raise ValueError(f"Invalid sampler type: {sampler_type}")
 
-    def optimize(self, f, dataset, n_trials, direction, sampler_type, search_space, **kwargs):
+    def optimize(
+        self, objective, dataset, n_trials, direction, sampler_type, search_space, **kwargs
+    ):
         start_time = time.time()
         sampler = self._create_sampler(sampler_type, search_space)
         study = optuna.create_study(direction=direction, sampler=sampler)
 
-        def objective(trial):
+        def objective_wrapper(trial):
             def _get_search_space(trial, search_space):
                 params = {}
                 for k, v in search_space.items():
@@ -37,9 +39,9 @@ class OptunaHPO:
                 return params
 
             params = _get_search_space(trial, search_space)
-            return f(trial, dataset, params, **kwargs)
+            return objective(trial, dataset, params, **kwargs)
 
-        study.optimize(objective, n_trials=n_trials)
+        study.optimize(objective_wrapper, n_trials=n_trials)
         end_time = time.time()
         best_value = study.best_value
         best_trial = study.best_trial.number

@@ -13,6 +13,7 @@ import logging
 import os
 import shutil
 import threading
+import time
 import warnings
 from functools import cached_property
 from pathlib import Path, PurePath
@@ -1710,16 +1711,8 @@ class Hub:
             hpo_file_path,
         )
 
-    def _get_search_space(self, trial, search_space):
-        params = {}
-        for k, v in search_space.items():
-            if isinstance(v[0], bool):
-                params[k] = trial.suggest_categorical(k, v)
-            else:
-                params[k] = trial.suggest_uniform(k, v[0], v[1])
-        return params
-
     def hpo(self, dataset, n_trials, direction, sampler_type, search_space, **kwargs):
+
         optuna_hpo = OptunaHPO()
 
         def _hpo_hub_objective(trial, dataset, params, **kwargs):
