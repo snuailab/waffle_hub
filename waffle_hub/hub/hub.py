@@ -26,7 +26,7 @@ import optuna
 import torch
 import tqdm
 from optuna.pruners import HyperbandPruner
-from optuna.samplers import TPESampler
+from optuna.samplers import GridSampler, RandomSampler, TPESampler
 from waffle_utils.file import io
 from waffle_utils.utils import type_validator
 

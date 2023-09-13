@@ -141,4 +141,5 @@ mlruns/
 
 *.pt
 *.pth
+*.db
 debug.py
