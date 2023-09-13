@@ -5,18 +5,19 @@ from waffle_hub.hub import Hub
 
 
 @pytest.fixture
-def example_hub():
+def example_ultralytics_hub():
     hub_name = "test"
     hub = Hub.new(
         name=hub_name,
         task="classification",
         model_type="yolov8",
         model_size="n",
+        backend="ultralytics",
     )
     return hub
 
 
-def test_hpo(example_hub):
+def test_ultralytics_hpo(example_ultralytics_hub):
     n_trials = 2
     sampler_type = "TPESampler"
     search_space = {
@@ -34,7 +35,7 @@ def test_hpo(example_hub):
     dataset = Dataset.load(name="mnist_classification")
     direction = "maximize"
 
-    result = example_hub.hpo(
+    result = example_ultralytics_hub.hpo(
         dataset=dataset,
         n_trials=n_trials,
         direction=direction,

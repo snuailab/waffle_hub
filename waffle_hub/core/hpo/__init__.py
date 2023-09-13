@@ -1,5 +1,7 @@
 import enum
 
+from .framework.optuna_hpo import OptunaHPO
+
 
 class HPOEnum(enum.Enum):
     # framework
