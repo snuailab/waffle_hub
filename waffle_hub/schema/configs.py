@@ -79,34 +79,50 @@ class ExportConfig(BaseSchema):
     device: str = None
 
 
+@dataclass
+class HPOConfig(BaseSchema):
+    dataset_path: str = None
+    epochs: int = None
+    batch_size: int = None
+    image_size: list[int] = None
+    learning_rate: list[float] = None
+    letter_box: bool = None
+    pretrained_model: str = None
+    device: str = None
+    workers: int = None
+    seed: int = None
+    advance_params: dict = None
+    verbose: bool = None
+
+
 # TODO: Whenever a new combination of sampler and pruner (i.e., method) is added,
 # each framework-specific config needs to be modified separately. (Issue)
 
 
-class OptunaHPOConfig(BaseHPOSchema):
+class OptunaHpoMethodConfig(BaseHPOSchema):
     framework = "OPTUNA"
 
     def __init__(cls):
         super().__init__(cls.framework)
 
-    def initialize_sampler(self, method_type):
+    def initialize_method(self, method_type):
         if self.framework == "OPTUNA":
-            print(method_type, HPOMethod.TPESAMPLER)
+            method_type = method_type.upper()
             if method_type == HPOMethod.RANDOMSAMPLER.name:
                 return (RandomSampler(), NopPruner())
             elif method_type == HPOMethod.GRIDSAMPLER.name:
                 return (GridSampler(), NopPruner())
-            elif method_type == HPOMethod.BOHBSAMPLER.name:
-                return (TPESampler(), HyperbandPruner())
+            elif method_type == HPOMethod.BOHB.name:
+                return (TPESampler(n_startup_trials=10), HyperbandPruner())
             elif method_type == HPOMethod.TPESAMPLER.name:
-                return (TPESampler(), NopPruner())
+                return (TPESampler(n_startup_trials=10), NopPruner())
             else:
                 raise ValueError(f"Invalid sampler_type: {method_type}")
         else:
             raise ValueError("Framework mismatch")
 
 
-class RaytuneHPOConfig(BaseHPOSchema):
+class RaytuneHpoMethodConfig(BaseHPOSchema):
     framework = "RAYTUNE"
 
     def __init__(cls):

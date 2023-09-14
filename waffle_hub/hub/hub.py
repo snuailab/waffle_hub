@@ -1711,10 +1711,10 @@ class Hub:
             hpo_file_path,
         )
 
-    def hpo(self, dataset, n_trials, direction, sampler_type, search_space, **kwargs):
+    def hpo(self, dataset, n_trials, direction, hpo_method, search_space, **kwargs):
 
-        optuna_hpo = OptunaHPO()
-
+        optuna_hpo = OptunaHPO(hpo_method)
+        # TODO : obejctives : direction must be defined by waffle hub
         def _hpo_hub_objective(trial, dataset, params, **kwargs):
             torch.cuda.empty_cache()
 
@@ -1746,8 +1746,13 @@ class Hub:
             )
             return float(evaluate_result.eval_metrics[0]["value"])
 
-        best_trial, best_params, best_value, total_time = optuna_hpo.optimize(
-            _hpo_hub_objective, dataset, n_trials, direction, sampler_type, search_space, **kwargs
+        best_trial, best_params, best_value, total_time = optuna_hpo.hpo(
+            objective=_hpo_hub_objective,
+            dataset=dataset,
+            n_trials=n_trials,
+            direction=direction,
+            search_space=search_space,
+            **kwargs,
         )
 
         self._save_hpo_result(best_trial, best_params, best_value, total_time)

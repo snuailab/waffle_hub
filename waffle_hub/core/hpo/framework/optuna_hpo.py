@@ -4,72 +4,42 @@ import optuna
 from optuna.pruners import HyperbandPruner
 from optuna.samplers import GridSampler, RandomSampler, TPESampler
 
+from waffle_hub.schema.configs import OptunaHpoMethodConfig
+
+# TODO [Exception]: scheduler 및 pruner 관련 none 일 경우 (config 에서도 error 가 발생할 수 있음) 하위 계층에서도 error 발생
+#      class HPOMethodError(Exception) 정의 필요
+
 
 class OptunaHPO:
-    def __init__(self):
-        self._scheduler = None
+    def __init__(self, hpo_method):
+        self._config = OptunaHpoMethodConfig()
+        self._hpo_method = hpo_method
+        self._study = None
+        self._sampler = None
         self._pruner = None
-        self._hpo_method = None
 
-    # TODO : hpo_method -> scheduler, pruner
-    @property
-    def scheduler(self):
-        # TODO : exeption
-        return self._scheduler
+    # TODO : user can customize sheduler / pruner After update config add property and setter
 
-    @property
-    def pruner(
-        self,
-    ):
-        # TODO : exeption
-        return self._pruner
-
-    @property
-    def hpo_method(
-        self,
-    ):
-        # TODO : exeption
-        return self._hpo_method
-
-    # user can customize sheduler / pruner
-    @scheduler.setter
-    def scheduler(self, scheduler: str):
-        pass
-
-    @pruner.setter
-    def pruner(self, pruner: str):
-        pass
-
-    @hpo_method.setter
-    def hpo_method(
-        self,
-        hpo_method: str,
-    ):
-        # sampler_class, pruner_class = OptunaHPOEnum.get_sampler_and_pruner(hpo_method.upper())
-        # if sampler_class is not None:
-        #     sampler = sampler_class()
-        # else:
-        #     print("Sampler not found.")
-        pass
-
-    def _create_sampler(self, sampler_type, search_space):
-        samplers = {
-            "RandomSampler": RandomSampler(),
-            "TPESampler": TPESampler(),
-            "GridSampler": GridSampler(search_space),
-        }
-        if sampler_type in samplers:
-            return samplers[sampler_type]
-        else:
-            raise ValueError(f"Invalid sampler type: {sampler_type}")
+    def _initialize_sampler(self, hpo_method):
+        self._sampler, self._pruner = self._config.initialize_method(hpo_method)
 
     def create_study(
         self,
+        study_name: str = "test",
+        direction: str = "maximize",
     ):
-        pass
+        self._initialize_sampler(self._hpo_method)
+        self._study = optuna.create_study(
+            study_name=study_name,
+            storage=f"sqlite:///{study_name}.db",
+            direction=direction,
+            sampler=self._sampler,
+            pruner=self._pruner,
+        )
 
     def load_study(
         self,
+        study_name: str,
     ):
         # load studies using db
         # db must be located in study hub
@@ -80,13 +50,7 @@ class OptunaHPO:
     ):
         pass
 
-    def optimize(
-        self, objective, dataset, n_trials, direction, sampler_type, search_space, **kwargs
-    ):
-        start_time = time.time()
-        sampler = self._create_sampler(sampler_type, search_space)
-        study = optuna.create_study(direction=direction, sampler=sampler)
-
+    def optimize(self, objective, dataset, n_trials, search_space, **kwargs):
         def objective_wrapper(trial):
             def _get_search_space(trial, search_space):
                 params = {}
@@ -98,12 +62,17 @@ class OptunaHPO:
                 return params
 
             params = _get_search_space(trial, search_space)
-            return objective(trial, dataset, params, **kwargs)
+            return objective(trial=trial, dataset=dataset, params=params, **kwargs)
 
-        study.optimize(objective_wrapper, n_trials=n_trials)
+        self._study.optimize(objective_wrapper, n_trials=n_trials)
+
+    def hpo(self, objective, dataset, n_trials, direction, search_space, **kwargs):
+        start_time = time.time()
+        self.create_study(direction=direction)
+        self.optimize(objective, dataset, n_trials, search_space)
         end_time = time.time()
-        best_value = study.best_value
-        best_trial = study.best_trial.number
-        best_params = study.best_params
+        best_value = self._study.best_value
+        best_trial = self._study.best_trial.number
+        best_params = self._study.best_params
         total_time = end_time - start_time
         return best_trial, best_params, best_value, total_time

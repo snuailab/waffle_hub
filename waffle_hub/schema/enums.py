@@ -4,7 +4,7 @@ from enum import Enum
 class HPOMethod(Enum):
     RANDOMSAMPLER = "RANDOMSAMPLER"
     GRIDSAMPLER = "GRIDSAMPLER"
-    BOHBSAMPLER = "BOHBSAMPLER"
+    BOHB = "BOHB"
     TPESAMPLER = "TPESAMPLER"
 
 

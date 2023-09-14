@@ -58,15 +58,11 @@ class BaseHPOSchema:
         self.framework = framework
 
     def initialize_sampler(self, method_type):
-        raise NotImplementedError("Subclasses should implement this method.")
+        # raise NotImplementedError("Subclasses should implement this method.")
+        pass
 
     def get_sampler_and_pruner(self, method_type):
-        if method_type in HPOMethod.__members__:
-            return self.initialize_sampler(method_type)
-        else:
-            raise ValueError(
-                f"HPO Method with name '{method_type}' not found in HPOEnum for framework '{self.framework}'"
-            )
+        pass
 
     @classmethod
     def get_framework(cls):
