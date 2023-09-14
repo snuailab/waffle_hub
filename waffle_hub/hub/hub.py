@@ -1740,8 +1740,8 @@ class Hub:
                 dataset=dataset,
                 set_name="test",
                 image_size=kwargs.get("image_size", None),
-                confidence_threshold=0.25,
-                iou_threshold=0.5,
+                confidence_threshold=kwargs.get("confidence_threshold", None),
+                iou_threshold=kwargs.get("iou_threshold", None),
                 device=kwargs.get("device", "0"),
             )
             return float(evaluate_result.eval_metrics[0]["value"])

@@ -1,9 +1,13 @@
 import json
+from abc import ABC, abstractmethod
 from dataclasses import asdict, dataclass
+from enum import Enum
 from pathlib import Path
 
 import yaml
 from waffle_utils.file import io
+
+from waffle_hub.schema.enums import HPOMethod, Objective, SearchOption
 
 
 @dataclass
@@ -47,3 +51,31 @@ class BaseSchema:
 
     def __getitem__(self, key):
         return getattr(self, key)
+
+
+class BaseHPOSchema:
+    def __init__(self, framework):
+        self.framework = framework
+
+    def initialize_sampler(self, method_type):
+        raise NotImplementedError("Subclasses should implement this method.")
+
+    def get_sampler_and_pruner(self, method_type):
+        if method_type in HPOMethod.__members__:
+            return self.initialize_sampler(method_type)
+        else:
+            raise ValueError(
+                f"HPO Method with name '{method_type}' not found in HPOEnum for framework '{self.framework}'"
+            )
+
+    @classmethod
+    def get_framework(cls):
+        return cls.framework
+
+    @classmethod
+    def get_search_option(cls):
+        return [option.value for option in SearchOption]
+
+    @classmethod
+    def get_objective(cls):
+        return [obj.value for obj in Objective]

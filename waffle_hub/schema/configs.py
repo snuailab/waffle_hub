@@ -1,7 +1,11 @@
 from dataclasses import dataclass
 from typing import Union
 
-from waffle_hub.schema.base_schema import BaseSchema
+from optuna.pruners import HyperbandPruner, NopPruner
+from optuna.samplers import GridSampler, RandomSampler, TPESampler
+
+from waffle_hub.schema.base_schema import BaseHPOSchema, BaseSchema
+from waffle_hub.schema.enums import HPOMethod
 
 
 @dataclass
@@ -73,3 +77,44 @@ class ExportConfig(BaseSchema):
     opset_version: int = None
     half: bool = False
     device: str = None
+
+
+# TODO: Whenever a new combination of sampler and pruner (i.e., method) is added,
+# each framework-specific config needs to be modified separately. (Issue)
+
+
+class OptunaHPOConfig(BaseHPOSchema):
+    framework = "OPTUNA"
+
+    def __init__(cls):
+        super().__init__(cls.framework)
+
+    def initialize_sampler(self, method_type):
+        if self.framework == "OPTUNA":
+            print(method_type, HPOMethod.TPESAMPLER)
+            if method_type == HPOMethod.RANDOMSAMPLER.name:
+                return (RandomSampler(), NopPruner())
+            elif method_type == HPOMethod.GRIDSAMPLER.name:
+                return (GridSampler(), NopPruner())
+            elif method_type == HPOMethod.BOHBSAMPLER.name:
+                return (TPESampler(), HyperbandPruner())
+            elif method_type == HPOMethod.TPESAMPLER.name:
+                return (TPESampler(), NopPruner())
+            else:
+                raise ValueError(f"Invalid sampler_type: {method_type}")
+        else:
+            raise ValueError("Framework mismatch")
+
+
+class RaytuneHPOConfig(BaseHPOSchema):
+    framework = "RAYTUNE"
+
+    def __init__(cls):
+        super().__init__(cls.framework)
+
+    def initialize_sampler(self, method_type):
+        if self.framework == "RAYTUNE":
+            # TODO : initialize raytune methods
+            pass
+        else:
+            raise ValueError("Framework mismatch")
