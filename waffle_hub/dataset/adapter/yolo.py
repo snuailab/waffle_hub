@@ -339,7 +339,8 @@ def _import_yolo_images_labels(self, yolo_root_dir: Path, yaml_path: str, task: 
 
     # get image relative paths
     set_image_rel_path = _get_yolo_image_rel_paths(
-        yolo_root_dir, list(set(map(lambda x: info.get(x, None), ["train", "val", "test"])))
+        yolo_root_dir,
+        list(set(map(lambda x: info.get(x, None), [info["train"], info["val"], info["test"]]))),
     )
 
     # get categories
