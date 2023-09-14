@@ -1684,10 +1684,10 @@ class Hub:
             "gpu_name": torch.cuda.get_device_name(0) if device != "cpu" else None,
         }
 
-    def _save_hpo_result(self, best_trial, best_params, best_value, total_time):
+    def _save_hpo_result(self, hpo_results):
         hub_root_dir = self.root_dir / self.name
         hpo_file_path = hub_root_dir / "hpo.json"
-        best_hpo_path = hub_root_dir / f"hpo/trial_{best_trial}"
+        best_hpo_path = hub_root_dir / f"hpo/trial_{hpo_results['best_trial']}"
         shutil.rmtree(hub_root_dir / "configs")
 
         for name in os.listdir(best_hpo_path):
@@ -1698,16 +1698,8 @@ class Hub:
                 io.copy_files_to_directory(src_path, dst_path, create_directory=True)
             else:
                 io.copy_file(src_path, dst_path)
-
         io.save_json(
-            [
-                {
-                    "best_trial": best_trial,
-                    "best_params": best_params,
-                    "best_value": best_value,
-                    "total_time": total_time,
-                }
-            ],
+            [hpo_results],
             hpo_file_path,
         )
 
@@ -1746,7 +1738,8 @@ class Hub:
             )
             return float(evaluate_result.eval_metrics[0]["value"])
 
-        best_trial, best_params, best_value, total_time = optuna_hpo.hpo(
+        hpo_results = optuna_hpo.hpo(
+            study_name=self.name,
             objective=_hpo_hub_objective,
             dataset=dataset,
             n_trials=n_trials,
@@ -1755,11 +1748,6 @@ class Hub:
             **kwargs,
         )
 
-        self._save_hpo_result(best_trial, best_params, best_value, total_time)
+        self._save_hpo_result(hpo_results)
 
-        return {
-            "best_trial": best_trial,
-            "best_params": best_params,
-            "best_score": best_value,
-            "total_time": total_time,
-        }
+        return hpo_results
