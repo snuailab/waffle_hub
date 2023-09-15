@@ -1704,7 +1704,6 @@ class Hub:
         )
 
     def hpo(self, dataset, n_trials, direction, hpo_method, search_space, **kwargs):
-
         optuna_hpo = OptunaHPO(hpo_method)
         # TODO : obejctives : direction must be defined by waffle hub
         def _hpo_hub_objective(trial, dataset, params, **kwargs):

@@ -68,7 +68,7 @@ class OptunaHPO:
             def _get_search_space(trial, search_space):
                 params = {}
                 for k, v in search_space.items():
-                    if isinstance(v[0], bool):
+                    if isinstance(v, tuple):
                         params[k] = trial.suggest_categorical(k, v)
                     else:
                         params[k] = trial.suggest_uniform(k, v[0], v[1])
@@ -79,9 +79,7 @@ class OptunaHPO:
 
         self._study.optimize(objective_wrapper, n_trials=n_trials)
 
-    def _create_hpo(
-        self, study_name, objective, dataset, n_trials, direction, search_space, **kwargs
-    ):
+    def hpo(self, study_name, objective, dataset, n_trials, direction, search_space, **kwargs):
         self.create_study(study_name=study_name, direction=direction)
         self.optimize(objective, dataset, n_trials, search_space, **kwargs)
         best_value = self._study.best_value
