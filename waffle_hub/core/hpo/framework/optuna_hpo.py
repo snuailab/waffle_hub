@@ -4,8 +4,6 @@ from pathlib import Path
 import optuna
 import optuna.visualization as oplt
 import plotly.io as pio
-from optuna.pruners import HyperbandPruner
-from optuna.samplers import GridSampler, RandomSampler, TPESampler
 
 from waffle_hub.schema.configs import OptunaHpoMethodConfig
 
@@ -58,14 +56,13 @@ class OptunaHPO:
         # db must be located in study hub
 
     def visualize_hpo_results(self):
-        # 시각화 생성
+
         param_importance = oplt.plot_param_importances(self._study)
         contour = oplt.plot_contour(self._study)
         coordinates = oplt.plot_parallel_coordinate(self._study)
         slice_plot = oplt.plot_slice(self._study)
         optimization_history = oplt.plot_optimization_history(self._study)
 
-        # 생성한 시각화를 이미지 파일로 저장
         pio.write_image(param_importance, self._hub_root / self._study_name / "param_importance.png")
         pio.write_image(contour, self._hub_root / self._study_name / "contour.png")
         pio.write_image(coordinates, self._hub_root / self._study_name / "coordinates.png")

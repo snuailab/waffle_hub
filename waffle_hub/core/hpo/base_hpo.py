@@ -20,7 +20,6 @@ class BaseHPO:
             search_opt (str, optional) : search params option. Default to medium
                 m(medium) : only learning rate
                 l(long) : learning rate and augmentation params
-            method:
         """
         self.percent = percent
         self.search_opt = search_opt
@@ -54,31 +53,4 @@ class BaseHPO:
         self,
     ):
         # TODO: if selecting_args are not None :
-        pass
-
-    # def _init_search(
-    #     self,
-    # ):
-    #     # TODO : not only random search
-    #     # user can chose grid search (recommend for long) / random search (medium)
-    #     pass
-
-    @abstractmethod
-    def objectives(self, objective: str = "acc"):
-        # TODO : objectives by loss, acc
-        """
-        objectives method should be overrided with same arguments.
-
-        It recieves objective
-        """
-        raise NotImplementedError
-
-    # def save_hpo(
-    #     self,
-    # ):
-    #     pass
-
-    @abstractmethod
-    def hpo(self, hub: Hub, objectives: str = "acc"):
-        # only get hub, objectives
         pass
