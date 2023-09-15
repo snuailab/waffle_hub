@@ -71,7 +71,7 @@ class OptunaHPO:
                     if isinstance(v, tuple):
                         params[k] = trial.suggest_categorical(k, v)
                     else:
-                        params[k] = trial.suggest_uniform(k, v[0], v[1])
+                        params[k] = trial.suggest_float(k, v[0], v[1])
                 return params
 
             params = _get_search_space(trial, search_space)
