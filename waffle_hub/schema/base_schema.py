@@ -7,7 +7,7 @@ from pathlib import Path
 import yaml
 from waffle_utils.file import io
 
-from waffle_hub.schema.enums import HPOMethod, Objective, SearchOption
+from waffle_hub import Objective, SearchOption
 
 
 @dataclass

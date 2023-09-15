@@ -34,6 +34,7 @@ from waffle_hub.hub.model.wrapper import get_parser
 from waffle_hub.schema.configs import (
     EvaluateConfig,
     ExportConfig,
+    HPOConfig,
     InferenceConfig,
     ModelConfig,
     TrainConfig,
@@ -1704,7 +1705,7 @@ class Hub:
         )
 
     def hpo(self, dataset, n_trials, direction, hpo_method, search_space, **kwargs):
-        optuna_hpo = OptunaHPO(hpo_method)
+        optuna_hpo = OptunaHPO(self.root_dir, hpo_method)
         # TODO : obejctives : direction must be defined by waffle hub
         def _hpo_hub_objective(trial, dataset, params, **kwargs):
             torch.cuda.empty_cache()
@@ -1735,6 +1736,7 @@ class Hub:
                 iou_threshold=kwargs.get("iou_threshold", None),
                 device=kwargs.get("device", "0"),
             )
+            print(evaluate_result.eval_metrics[0])
             return float(evaluate_result.eval_metrics[0]["value"])
 
         hpo_results = optuna_hpo.hpo(

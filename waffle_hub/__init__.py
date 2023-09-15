@@ -80,6 +80,24 @@ class SplitMethod(BaseEnum):
     STRATIFIED = enum.auto()
 
 
+class HPOMethod(BaseEnum):
+    RANDOMSAMPLER = "RANDOMSAMPLER"
+    GRIDSAMPLER = "GRIDSAMPLER"
+    BOHB = "BOHB"
+    TPESAMPLER = "TPESAMPLER"
+
+
+class SearchOption(BaseEnum):
+    FAST = "FAST"
+    MEDIUM = "MEDIUM"
+    LONG = "LONG"
+
+
+class Objective(BaseEnum):
+    MINIMIZE_LOSS = ("minimize", "LOSS")
+    MAXIMIZE_ACCURACY = ("maximize", "ACCURACY")
+
+
 EXPORT_MAP = OrderedDict(
     {
         DataType.YOLO: "ULTRALYTICS",

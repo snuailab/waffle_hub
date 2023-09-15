@@ -8,7 +8,7 @@ from waffle_hub.hub import Hub
 
 def test_hpo():
     n_trials = 2
-    hpo_method = "TPESampler"
+    hpo_method = "RandomSampler"
     search_space = {
         "lr0": [0.005, 0.05],
         "lrf": [0.001, 0.005],
@@ -19,9 +19,8 @@ def test_hpo():
         "hsv_v": [0.01, 0.02],
         "translate": [0.09, 0.11],
         "scale": [0.45, 0.55],
-        "mosaic": [0.6, 1],
     }
-    hub_name = "test"
+    hub_name = "test2"
 
     hub = Hub.new(
         name=hub_name,
@@ -41,9 +40,13 @@ def test_hpo():
         hpo_method=hpo_method,
         search_space=search_space,
         epochs=30,
-        image_size=8,
+        image_size=24,
         device="0",
     )
     assert isinstance(result, dict)
     assert "best_params" in result
     assert "best_score" in result
+
+
+if __name__ == "__main__":
+    test_hpo()

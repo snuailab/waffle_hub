@@ -4,8 +4,8 @@ from typing import Union
 from optuna.pruners import HyperbandPruner, NopPruner
 from optuna.samplers import GridSampler, RandomSampler, TPESampler
 
+from waffle_hub import HPOMethod
 from waffle_hub.schema.base_schema import BaseHPOSchema, BaseSchema
-from waffle_hub.schema.enums import HPOMethod
 
 
 @dataclass
