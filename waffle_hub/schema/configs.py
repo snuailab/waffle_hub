@@ -103,7 +103,7 @@ class HPOMethodConfig(BaseHPOSchema):
     def __init__(self, framework):
         self.framework = framework
 
-    def initialize_method(self, method_type, n_start_trials=10):
+    def initialize_method(self, method_type, n_start_trials=3):
         if self.framework == "OPTUNA":
             method_type = method_type.upper()
             if method_type == HPOMethod.RANDOMSAMPLER.name:
