@@ -402,6 +402,43 @@ class Hub:
                     hub_name_list.append(hub_dir.name)
         return hub_name_list
 
+    @classmethod
+    def import_waffle(cls, name: str, waffle_file: str, root_dir: str = None):  # -> "Hub"
+        """Import new Hub with waffle file for inference.
+
+        Args:
+            name (str): hub name.
+            waffle_file (str): waffle file path.
+            root_dir (str, optional): hub root directory. Defaults to None.
+
+        Returns:
+            Hub: New Hub instance
+        """
+        root_dir = Hub.parse_root_dir(root_dir)
+
+        if name in cls.get_hub_list(root_dir):
+            raise FileExistsError(f"{name} already exists. Try another name.")
+
+        try:
+            io.unzip(waffle_file, root_dir / name, create_directory=True)
+            model_config_file = root_dir / name / Hub.MODEL_CONFIG_FILE
+            if not model_config_file.exists():
+                raise FileNotFoundError(f"Model[{name}] does not exists. {model_config_file}")
+            model_config = ModelConfig.load(model_config_file)
+            model_config.name = name
+            model_config.save_yaml(model_config_file)
+            return cls.get_hub_class(model_config.backend)(
+                **{
+                    **model_config.to_dict(),
+                    "root_dir": root_dir,
+                }
+            )
+
+        except Exception as e:
+            if (root_dir / name).exists():
+                io.remove_directory(root_dir / name)
+            raise e
+
     # properties
     @property
     def name(self) -> str:
@@ -1680,3 +1717,17 @@ class Hub:
             "cpu_name": cpuinfo.get_cpu_info()["brand_raw"],
             "gpu_name": torch.cuda.get_device_name(0) if device != "cpu" else None,
         }
+
+    def export_waffle(self, hold):
+        """Export Waffle Model
+
+        Args:
+            hold (bool, optional): hold or not.
+                If True then it holds until task finished.
+                If False then return Inferece Callback and run in background. Defaults to True.
+
+        Example:
+            >>> export_result.export_waffle_file
+            hubs/my_hub/weights/my_hub.waffle
+        """
+        pass
