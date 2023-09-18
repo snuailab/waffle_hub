@@ -46,7 +46,3 @@ def test_hpo():
     assert isinstance(result, dict)
     assert "best_params" in result
     assert "best_score" in result
-
-
-if __name__ == "__main__":
-    test_hpo()
