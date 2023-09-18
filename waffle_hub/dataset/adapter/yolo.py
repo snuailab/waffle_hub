@@ -343,9 +343,7 @@ def _import_yolo_images_labels(self, yolo_root_dir: Path, yaml_path: str, task: 
             set(
                 map(
                     lambda x: info.get(x, None),
-                    [info["train"], info["val"], info["test"]]
-                    if "test" in info.keys()
-                    else [info["train"], info["val"], info["val"]],
+                    [info["train"], info["val"], info.get("test", info["val"])],
                 )
             )
         ),
