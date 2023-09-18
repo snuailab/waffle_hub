@@ -267,7 +267,7 @@ def test_ultralytics_classification(
         task=TaskType.CLASSIFICATION,
         model_type="yolov8",
         model_size="n",
-        categories=classification_dataset.get_category_names(),
+        categories=dataset.get_category_names(),
         root_dir=tmpdir,
     )
     hub = Hub.load(name=name, root_dir=tmpdir)
