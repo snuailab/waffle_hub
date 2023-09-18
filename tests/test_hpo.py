@@ -20,7 +20,7 @@ def test_hpo():
         "translate": [0.09, 0.11],
         "scale": [0.45, 0.55],
     }
-    hub_name = "test2"
+    hub_name = "test6"
 
     hub = Hub.new(
         name=hub_name,
@@ -31,7 +31,7 @@ def test_hpo():
     )
 
     dataset = Dataset.load(name="mnist_classification")
-    direction = "maximize"
+    direction = "minimize"
 
     result = hub.hpo(
         dataset=dataset,

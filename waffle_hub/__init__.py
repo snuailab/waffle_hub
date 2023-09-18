@@ -94,8 +94,8 @@ class SearchOption(BaseEnum):
 
 
 class Objective(BaseEnum):
-    MINIMIZE_LOSS = ("minimize", "LOSS")
-    MAXIMIZE_ACCURACY = ("maximize", "ACCURACY")
+    MINIMIZE_LOSS = ("MINIMIZE", "LOSS")
+    MAXIMIZE_ACCURACY = ("MAXIMIZE", "ACCURACY")
 
 
 EXPORT_MAP = OrderedDict(

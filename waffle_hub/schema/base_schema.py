@@ -54,8 +54,8 @@ class BaseSchema:
 
 
 class BaseHPOSchema:
-    def __init__(self, framework):
-        self.framework = framework
+    def __init__(self):
+        pass
 
     def initialize_sampler(self, method_type):
         # raise NotImplementedError("Subclasses should implement this method.")
@@ -63,10 +63,6 @@ class BaseHPOSchema:
 
     def get_sampler_and_pruner(self, method_type):
         pass
-
-    @classmethod
-    def get_framework(cls):
-        return cls.framework
 
     @classmethod
     def get_search_option(cls):

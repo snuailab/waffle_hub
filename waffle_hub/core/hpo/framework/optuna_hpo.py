@@ -1,5 +1,6 @@
 import time
 from pathlib import Path
+from typing import Dict
 
 import optuna
 import optuna.visualization as oplt
@@ -7,18 +8,64 @@ import plotly.io as pio
 from optuna.pruners import HyperbandPruner
 from optuna.samplers import GridSampler, RandomSampler, TPESampler
 
-from waffle_hub.schema.configs import OptunaHpoMethodConfig
+from waffle_hub.schema.configs import HPOMethodConfig
 
-# TODO [Exception]: scheduler 및 pruner 관련 none 일 경우 (config 에서도 error 가 발생할 수 있음) 하위 계층에서도 error 발생
-#      class HPOMethodError(Exception) 정의 필요
+
+class ObjectiveDirectionMapper:
+    def __init__(self, objectives: str):
+        self.objectives = objectives
+        self._direction = None
+        self._objective = None
+
+    @property
+    def direction(self):
+        return self._direction
+
+    @property
+    def objective(self):
+        return self._objective
+
+    def set_direction(self):
+        # 매핑 함수 딕셔너리
+        mapping_functions = {
+            "minimize": self.map_to_minimize,
+            "loss": self.map_to_minimize,
+            "maximize": self.map_to_maximize,
+            "acc": self.map_to_maximize,
+        }
+
+        if self.objectives not in mapping_functions:
+            raise ValueError("Invalid objectives")
+
+        return mapping_functions[self.objectives]
+
+    def map_to_minimize(self, results: Dict):
+        if "loss" not in results:
+            raise ValueError("Invalid results")
+        self._objective = "loss"
+        self._direction = "minimize"
+        result = results["loss"]["metrics"][-1][4]["value"]
+
+        return float(result)
+
+    def map_to_maximize(self, results: Dict):
+        if "accuracy" not in results:
+            raise ValueError("Invalid results")
+        self._objective = "accuracy"
+        self._direction = "maximize"
+        result = results["accuracy"]["eval_metrics"][0]["value"]
+        return float(result)
 
 
 class OptunaHPO:
-    def __init__(self, hub_root, hpo_method):
+    def __init__(self, hub_root, hpo_method, frame_work, direction):
         self._study_name = None
         self._hub_root = hub_root
-        self._config = OptunaHpoMethodConfig()
+        self._frame_work = frame_work
+        self._config = HPOMethodConfig(self._frame_work.upper())
         self._hpo_method = hpo_method
+        self._objective_direction_mapper = ObjectiveDirectionMapper(direction)
+        self._direction = self._objective_direction_mapper.direction
         self._study = None
 
     def set_study_name(self, study_name):
@@ -30,12 +77,10 @@ class OptunaHPO:
     # TODO : study name must be property and setter
 
     def _initialize_sampler(self, hpo_method):
+
         self._sampler, self._pruner = self._config.initialize_method(hpo_method)
 
-    def create_study(
-        self,
-        direction: str = "maximize",
-    ):
+    def create_study(self):
         self._initialize_sampler(self._hpo_method)
         if self._study_name is None:
             raise ValueError("Study name cannot be None.")
@@ -43,7 +88,7 @@ class OptunaHPO:
         self._study = optuna.create_study(
             study_name=self._study_name,
             storage=f"sqlite:///{self._hub_root}/{self._study_name}/{self._study_name}.db",
-            direction=direction,
+            direction=self._direction,
             sampler=self._sampler,
             pruner=self._pruner,
         )
@@ -89,13 +134,19 @@ class OptunaHPO:
                 return params
 
             params = _get_search_space(trial, search_space)
-            return objective(trial=trial, dataset=dataset, params=params, **kwargs)
+            return objective(
+                trial=trial,
+                dataset=dataset,
+                params=params,
+                objective_mapper=self._objective_direction_mapper,
+                **kwargs,
+            )
 
         self._study.optimize(objective_wrapper, n_trials=n_trials)
 
-    def hpo(self, study_name, objective, dataset, n_trials, direction, search_space, **kwargs):
+    def run_hpo(self, study_name, objective, dataset, n_trials, search_space, **kwargs):
         self.set_study_name(study_name)  # Set the study name using the property setter
-        self.create_study(direction=direction)
+        self.create_study()
         self.optimize(objective, dataset, n_trials, search_space, **kwargs)
         best_value = self._study.best_value
         best_trial = self._study.best_trial.number
