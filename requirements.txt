@@ -23,7 +23,6 @@ timm==0.6.13
 autocare-dlt==0.2.4
 
 # etc
-torchaudio==0.13.1
 numpy<=1.23.5
 pillow==9.5
 torchmetrics==1.1.0
