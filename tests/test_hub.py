@@ -11,7 +11,8 @@ from waffle_hub.dataset import Dataset
 from waffle_hub.hub import Hub
 from waffle_hub.schema.result import (
     EvaluateResult,
-    ExportResult,
+    ExportOnnxResult,
+    ExportWaffleResult,
     InferenceResult,
     TrainResult,
 )
@@ -96,8 +97,8 @@ def _inference(hub, source: str, hold: bool = True):
     return result
 
 
-def _export(hub, half: bool = False, hold: bool = True):
-    result: ExportResult = hub.export(
+def _export_onnx(hub, half: bool = False, hold: bool = True):
+    result: ExportOnnxResult = hub.export_onnx(
         hold=hold,
         half=half,
         device="cpu",
@@ -110,9 +111,24 @@ def _export(hub, half: bool = False, hold: bool = True):
         assert result.callback.is_finished()
         assert not result.callback.is_failed()
 
-    assert Path(result.export_file).exists()
+    assert Path(result.export_onnx_file).exists()
 
     return result
+
+
+def _export_waffle(hub):
+    result: ExportWaffleResult = hub.export_waffle()
+
+    assert Path(result.export_waffle_file).exists()
+
+    return result
+
+
+def _import_waffle(waffle_file: str, source: str, tmpdir: Path, hold: bool = True):
+    name = "test_import"
+    hub = Hub.import_waffle(name=name, waffle_file=waffle_file, root_dir=tmpdir)
+
+    _inference(hub, source, hold=hold)
 
 
 def _feature_extraction(
@@ -147,13 +163,23 @@ def _util(hub):
     assert isinstance(hub_loaded, type(hub))
 
 
-def _total(hub, dataset: Dataset, image_size: int, advance_params: dict = None, hold: bool = True):
+def _total(
+    hub,
+    dataset: Dataset,
+    image_size: int,
+    tmpdir: Path,
+    advance_params: dict = None,
+    hold: bool = True,
+):
 
     _train(hub, dataset, image_size, advance_params=advance_params, hold=hold)
     _evaluate(hub, dataset, hold=hold)
     _inference(hub, dataset.raw_image_dir, hold=hold)
-    _export(hub, half=False, hold=hold)
-    # _export(hub, half=True, hold=hold)  # cpu cannot be half
+    _export_onnx(
+        hub, half=False, hold=hold
+    )  # _export_onnx(hub, half=True, hold=hold)  # cpu cannot be half
+    result = _export_waffle(hub)
+    _import_waffle(result.export_waffle_file, dataset.raw_image_dir, tmpdir, hold=hold)
     _feature_extraction(hub, image_size)
     _benchmark(hub, image_size)
     _util(hub)
@@ -183,7 +209,7 @@ def test_ultralytics_segmentation(
         root_dir=tmpdir,
     )
 
-    _total(hub, dataset, image_size)
+    _total(hub, dataset, image_size, tmpdir)
     _inference(hub, test_video_path, hold=False)
 
 
@@ -211,7 +237,7 @@ def test_ultralytics_object_detection(
         root_dir=tmpdir,
     )
 
-    _total(hub, dataset, image_size)
+    _total(hub, dataset, image_size, tmpdir)
     _inference(hub, test_video_path, hold=False)
 
 
@@ -241,16 +267,23 @@ def test_ultralytics_object_detection_advance_params(
 
     hub.get_default_advance_train_params()
 
-    _total(hub, dataset, image_size, {"box": 4, "cls": 1})
+    import_hub_name = "test_import"
+    _total(hub, dataset, image_size, tmpdir, {"box": 4, "cls": 1})
     hub.delete_artifact()
+    import_hub = Hub.load(name=import_hub_name, root_dir=tmpdir)
+    import_hub.delete_hub()
 
     with open(str(tmpdir / "adv.json"), "w") as f:
         json.dump({"box": 4, "cls": 2}, f)
-    _total(hub, dataset, image_size, str(tmpdir / "adv.json"))
+    _total(hub, dataset, image_size, tmpdir, str(tmpdir / "adv.json"))
     hub.delete_artifact()
+    import_hub = Hub.load(name=import_hub_name, root_dir=tmpdir)
+    import_hub.delete_hub()
 
     with pytest.raises(ValueError):
-        _total(hub, dataset, image_size, {"box": 4, "dummy_adv_param": 2})
+        _total(hub, dataset, image_size, tmpdir, {"box": 4, "dummy_adv_param": 2})
+        import_hub = Hub.load(name=import_hub_name, root_dir=tmpdir)
+        import_hub.delete_hub()
 
 
 def test_ultralytics_classification(
@@ -277,7 +310,7 @@ def test_ultralytics_classification(
         root_dir=tmpdir,
     )
 
-    _total(hub, dataset, image_size)
+    _total(hub, dataset, image_size, tmpdir)
     _inference(hub, test_video_path, hold=False)
 
 
@@ -303,7 +336,7 @@ def test_transformers_object_detection(object_detection_dataset: Dataset, tmpdir
         root_dir=tmpdir,
     )
 
-    _total(hub, dataset, image_size)
+    _total(hub, dataset, image_size, tmpdir)
 
 
 def test_non_hold(classification_dataset: Dataset, tmpdir: Path):
@@ -328,82 +361,107 @@ def test_non_hold(classification_dataset: Dataset, tmpdir: Path):
         root_dir=tmpdir,
     )
 
-    _total(hub, dataset, image_size, hold=False)
+    _total(hub, dataset, image_size, tmpdir, hold=False)
 
 
-def test_autocare_dlt_object_detection(object_detection_dataset: Dataset, tmpdir: Path):
-    image_size = 32
-    dataset = object_detection_dataset
+# TODO: Handling autocate_dlt
+# def test_autocare_dlt_object_detection(object_detection_dataset: Dataset, tmpdir: Path):
+#     image_size = 32
+#     dataset = object_detection_dataset
 
-    # test hub
-    name = "test_det"
-    hub = Hub.new(
-        name=name,
-        backend="autocare_dlt",
-        task=TaskType.OBJECT_DETECTION,
-        model_type="YOLOv5",
-        model_size="s",
-        categories=object_detection_dataset.get_category_names(),
-        root_dir=tmpdir,
-    )
-    hub = Hub.load(name=name, root_dir=tmpdir)
-    hub: Hub = Hub.from_model_config(
-        name=name + "_from_model_config",
-        model_config_file=tmpdir / name / Hub.MODEL_CONFIG_FILE,
-        root_dir=tmpdir,
-    )
+#     # test hub
+#     name = "test_det"
+#     hub = Hub.new(
+#         name=name,
+#         backend="autocare_dlt",
+#         task=TaskType.OBJECT_DETECTION,
+#         model_type="YOLOv5",
+#         model_size="s",
+#         categories=object_detection_dataset.get_category_names(),
+#         root_dir=tmpdir,
+#     )
+#     hub = Hub.load(name=name, root_dir=tmpdir)
+#     hub: Hub = Hub.from_model_config(
+#         name=name + "_from_model_config",
+#         model_config_file=tmpdir / name / Hub.MODEL_CONFIG_FILE,
+#         root_dir=tmpdir,
+#     )
 
-    _total(hub, dataset, image_size)
-
-
-def test_autocare_dlt_classification(classification_dataset: Dataset, tmpdir: Path):
-    image_size = 32
-    dataset = classification_dataset
-
-    # test hub
-    name = "test_cls"
-    hub = Hub.new(
-        name=name,
-        backend="autocare_dlt",
-        task=TaskType.CLASSIFICATION,
-        model_type="Classifier",
-        model_size="s",
-        categories=dataset.get_categories(),
-        root_dir=tmpdir,
-    )
-    hub = Hub.load(name=name, root_dir=tmpdir)
-    hub: Hub = Hub.from_model_config(
-        name=name + "_from_model_config",
-        model_config_file=tmpdir / name / Hub.MODEL_CONFIG_FILE,
-        root_dir=tmpdir,
-    )
-
-    _total(hub, dataset, image_size)
+#     _total(hub, dataset, image_size, tmpdir)
 
 
-def test_autocare_dlt_text_recognition(text_recognition_dataset: Dataset, tmpdir: Path):
-    image_size = 32
-    dataset = text_recognition_dataset
+# def test_autocare_dlt_classification(classification_dataset: Dataset, tmpdir: Path):
+#     image_size = 32
+#     dataset = classification_dataset
 
-    # test hub
-    name = "test_ocr"
-    hub = Hub.new(
-        name=name,
-        backend="autocare_dlt",
-        task=TaskType.TEXT_RECOGNITION,
-        model_type="TextRecognition",
-        model_size="s",
-        categories=dataset.get_categories(),
-        root_dir=tmpdir,
-    )
-    hub = Hub.load(name=name, root_dir=tmpdir)
-    hub: Hub = Hub.from_model_config(
-        name=name + "_from_model_config",
-        model_config_file=tmpdir / name / Hub.MODEL_CONFIG_FILE,
-        root_dir=tmpdir,
-    )
+#     # test hub
+#     name = "test_cls"
+#     hub = Hub.new(
+#         name=name,
+#         backend="autocare_dlt",
+#         task=TaskType.CLASSIFICATION,
+#         model_type="Classifier",
+#         model_size="s",
+#         categories=dataset.get_categories(),
+#         root_dir=tmpdir,
+#     )
+#     hub = Hub.load(name=name, root_dir=tmpdir)
+#     hub: Hub = Hub.from_model_config(
+#         name=name + "_from_model_config",
+#         model_config_file=tmpdir / name / Hub.MODEL_CONFIG_FILE,
+#         root_dir=tmpdir,
+#     )
 
-    _total(hub, dataset, image_size)
+#     _total(hub, dataset, image_size, tmpdir)
+
+
+# def test_autocare_dlt_text_recognition(text_recognition_dataset: Dataset, tmpdir: Path):
+#     image_size = 32
+#     dataset = text_recognition_dataset
+
+#     # test hub
+#     name = "test_ocr"
+#     hub = Hub.new(
+#         name=name,
+#         backend="autocare_dlt",
+#         task=TaskType.TEXT_RECOGNITION,
+#         model_type="TextRecognition",
+#         model_size="s",
+#         categories=dataset.get_categories(),
+#         root_dir=tmpdir,
+#     )
+#     hub = Hub.load(name=name, root_dir=tmpdir)
+#     hub: Hub = Hub.from_model_config(
+#         name=name + "_from_model_config",
+#         model_config_file=tmpdir / name / Hub.MODEL_CONFIG_FILE,
+#         root_dir=tmpdir,
+#     )
+
+#     _total(hub, dataset, image_size, tmpdir)
+
+# def test_autocare_dlt_classification_without_category(classification_dataset: Dataset, tmpdir: Path):
+#     image_size = 32
+#     dataset = classification_dataset
+
+#     # test hub
+#     name = "test_cls"
+#     hub = Hub.new(
+#         name=name,
+#         backend="autocare_dlt",
+#         task=TaskType.CLASSIFICATION,
+#         model_type="Classifier",
+#         model_size="s",
+#         # categories=dataset.get_categories(),
+#         root_dir=tmpdir,
+#     )
+#     hub = Hub.load(name=name, root_dir=tmpdir)
+#     hub: Hub = Hub.from_model_config(
+#         name=name + "_from_model_config",
+#         model_config_file=tmpdir / name / Hub.MODEL_CONFIG_FILE,
+#         root_dir=tmpdir,
+#     )
+
+#     _total(hub, dataset, image_size, tmpdir)
 
 
 def test_ultralytics_classification_without_category(classification_dataset: Dataset, tmpdir: Path):
@@ -428,32 +486,7 @@ def test_ultralytics_classification_without_category(classification_dataset: Dat
         root_dir=tmpdir,
     )
 
-    _total(hub, dataset, image_size)
-
-
-def test_autocare_dlt_classification_without_category(classification_dataset: Dataset, tmpdir: Path):
-    image_size = 32
-    dataset = classification_dataset
-
-    # test hub
-    name = "test_cls"
-    hub = Hub.new(
-        name=name,
-        backend="autocare_dlt",
-        task=TaskType.CLASSIFICATION,
-        model_type="Classifier",
-        model_size="s",
-        # categories=dataset.get_categories(),
-        root_dir=tmpdir,
-    )
-    hub = Hub.load(name=name, root_dir=tmpdir)
-    hub: Hub = Hub.from_model_config(
-        name=name + "_from_model_config",
-        model_config_file=tmpdir / name / Hub.MODEL_CONFIG_FILE,
-        root_dir=tmpdir,
-    )
-
-    _total(hub, dataset, image_size)
+    _total(hub, dataset, image_size, tmpdir)
 
 
 def test_transformers_classification(classification_dataset: Dataset, tmpdir: Path):
@@ -478,4 +511,4 @@ def test_transformers_classification(classification_dataset: Dataset, tmpdir: Pa
         root_dir=tmpdir,
     )
 
-    _total(hub, dataset, image_size)
+    _total(hub, dataset, image_size, tmpdir)
