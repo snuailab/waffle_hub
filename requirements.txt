@@ -24,9 +24,9 @@ autocare-dlt==0.2.4
 
 # etc
 numpy<=1.23.5
-Pillow==9.5
 torchmetrics==1.1.0
 pycocotools>=2.0.2
 py-cpuinfo>=8.0.0
 shapely>=2.0.0
 fire==0.5.0
+Pillow==9.5
