@@ -23,6 +23,7 @@ timm==0.6.13
 autocare-dlt==0.2.4
 
 # etc
+numba==0.57.1
 numpy<=1.23.5
 torchmetrics==1.1.0
 pycocotools>=2.0.2
