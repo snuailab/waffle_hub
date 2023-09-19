@@ -23,5 +23,10 @@ class InferenceResult(BaseSchema):
 
 
 @dataclass
-class ExportResult(BaseSchema):
-    export_file: str = None
+class ExportOnnxResult(BaseSchema):
+    export_onnx_file: str = None
+
+
+@dataclass
+class ExportWaffleResult(BaseSchema):
+    export_waffle_file: str = None
