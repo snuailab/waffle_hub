@@ -117,7 +117,6 @@ def test_object_detection_hpo(
         search_space,
         epochs=epochs,
         batch_size=batch_size,
-        hold=hold,
     )
 
     db_name = f"{hub.name}.db"
@@ -170,7 +169,6 @@ def test_classification_hpo(
         search_space,
         epochs=epochs,
         batch_size=batch_size,
-        hold=hold,
     )
 
     db_name = f"{hub.name}.db"
@@ -223,7 +221,6 @@ def test_no_hold_classification_hpo(
         search_space,
         epochs=epochs,
         batch_size=batch_size,
-        hold=hold,
     )
 
     assert hasattr(result, "callback")
