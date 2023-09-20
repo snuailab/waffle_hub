@@ -916,7 +916,7 @@ class Hub:
             TrainResult: train result
         """
 
-        @use_cuda("cpu" if device == "cpu" else f"cuda:{device}")
+        @use_cuda("cpu" if device == "cpu" else device)
         def inner(callback: TrainCallback, result: TrainResult):
             try:
                 metric_logger = MetricLogger(
@@ -1184,7 +1184,7 @@ class Hub:
             EvaluateResult: evaluate result
         """
 
-        @use_cuda("cpu" if device == "cpu" else f"cuda:{device}")
+        @use_cuda("cpu" if device == "cpu" else device)
         def inner(dataset: Dataset, callback: EvaluateCallback, result: EvaluateResult):
             try:
                 self.before_evaluate(cfg, dataset)
@@ -1400,7 +1400,7 @@ class Hub:
             InferenceResult: inference result
         """
 
-        @use_cuda("cpu" if device == "cpu" else f"cuda:{device}")
+        @use_cuda("cpu" if device == "cpu" else device)
         def inner(callback: InferenceCallback, result: InferenceResult):
             try:
                 self.before_inference(cfg)
@@ -1565,7 +1565,7 @@ class Hub:
         """
         self.check_train_sanity()
 
-        @use_cuda("cpu" if device == "cpu" else f"cuda:{device}")
+        @use_cuda("cpu" if device == "cpu" else device)
         def inner(callback: ExportCallback, result: ExportResult):
             try:
                 self.before_export(cfg)

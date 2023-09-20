@@ -11,7 +11,6 @@ def use_cuda(device):
             func(*args, **kwargs)
             if torch.cuda.is_available() and device != "cpu":
                 # Memory free
-                torch.cuda.set_device(device)
                 torch.cuda.empty_cache()
 
         return wrapper
