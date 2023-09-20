@@ -1739,7 +1739,9 @@ class Hub:
                 image_size=kwargs.get("image_size", None),
                 confidence_threshold=kwargs.get("confidence_threshold", None),
                 iou_threshold=kwargs.get("iou_threshold", None),
-                device=kwargs.get("device", "0"),
+                device=kwargs.get("device", "cpu"),
+                workers=kwargs.get("workers", 0),
+                hold=kwargs.get("hold", True),
             )
             train_result = train_result.to_dict()
             eval_result = evaluate_result.to_dict()
