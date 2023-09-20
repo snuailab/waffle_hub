@@ -405,7 +405,7 @@ class Hub:
         return hub_name_list
 
     @classmethod
-    def import_waffle(cls, name: str, waffle_file: str, root_dir: str = None) -> "Hub":
+    def from_waffle_file(cls, name: str, waffle_file: str, root_dir: str = None) -> "Hub":
         """Import new Hub with waffle file for inference.
 
         Args:
@@ -652,7 +652,7 @@ class Hub:
         return self.hub_dir / Hub.EVALUATE_FILE
 
     @cached_property
-    def export_waffle_file(self) -> Path:
+    def waffle_file(self) -> Path:
         """Export Waffle file"""
         return self.hub_dir / f"{self.name}.waffle"
 
@@ -1744,10 +1744,8 @@ class Hub:
         Returns:
             ExportWaffleResult: export waffle result
         """
-        io.zip(
-            [self.hub_dir / Hub.CONFIG_DIR, self.hub_dir / Hub.WEIGHTS_DIR], self.export_waffle_file
-        )
+        io.zip([self.hub_dir / Hub.CONFIG_DIR, self.hub_dir / Hub.WEIGHTS_DIR], self.waffle_file)
         result = ExportWaffleResult()
-        result.export_waffle_file = self.export_waffle_file
+        result.export_waffle_file = self.waffle_file
 
         return result

@@ -124,9 +124,9 @@ def _export_waffle(hub):
     return result
 
 
-def _import_waffle(waffle_file: str, source: str, tmpdir: Path, hold: bool = True):
+def _from_waffle_file(waffle_file: str, source: str, tmpdir: Path, hold: bool = True):
     name = "test_import"
-    hub = Hub.import_waffle(name=name, waffle_file=waffle_file, root_dir=tmpdir)
+    hub = Hub.from_waffle_file(name=name, waffle_file=waffle_file, root_dir=tmpdir)
 
     _inference(hub, source, hold=hold)
 
@@ -179,7 +179,7 @@ def _total(
         hub, half=False, hold=hold
     )  # _export_onnx(hub, half=True, hold=hold)  # cpu cannot be half
     result = _export_waffle(hub)
-    _import_waffle(result.export_waffle_file, dataset.raw_image_dir, tmpdir, hold=hold)
+    _from_waffle_file(result.export_waffle_file, dataset.raw_image_dir, tmpdir, hold=hold)
     _feature_extraction(hub, image_size)
     _benchmark(hub, image_size)
     _util(hub)
