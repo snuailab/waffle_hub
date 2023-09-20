@@ -1723,11 +1723,14 @@ class Hub:
             train_result = hub.train(
                 dataset=dataset,
                 epochs=kwargs.get("epochs", None),
-                batch_size=kwargs.get("batch_size", None),
                 image_size=kwargs.get("image_size", None),
-                device=kwargs.get("device", "0"),
-                letter_box=kwargs.get("letter_box", None),
+                batch_size=kwargs.get("batch_size", None),
+                pretrained_model=kwargs.get("pretrained_model", None),
+                letter_box=kwargs.get("letter_box", False),
+                device=kwargs.get("device", "cpu"),
+                workers=kwargs.get("workers", 0),
                 advance_params=params,
+                hold=kwargs.get("hold", True),
             )
 
             evaluate_result = hub.evaluate(

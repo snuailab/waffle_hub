@@ -67,6 +67,8 @@ class OptunaHPO:
         self._objective_direction_mapper = ObjectiveDirectionMapper(direction)
         self._direction = self._objective_direction_mapper.direction
         self._study = None
+        self._sampler = None
+        self._pruner = None
 
     def set_study_name(self, study_name):
         if study_name is None:
@@ -75,6 +77,13 @@ class OptunaHPO:
 
     # TODO : user can customize sheduler / pruner After update config add property and setter
     # TODO : study name must be property and setter
+    @property
+    def sampler(self):
+        return self._sampler
+
+    @property
+    def pruner(self):
+        return self._pruner
 
     def _initialize_sampler(self, hpo_method):
 
