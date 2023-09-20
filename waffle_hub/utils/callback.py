@@ -88,6 +88,7 @@ class ThreadProgressCallback:
         """Force the task to end."""
         self._finished = True
         self._progress = 1.0
+        # self.join()
 
     def register_thread(self, thread: threading.Thread):
         """Register the thread that is running the task."""
@@ -102,6 +103,17 @@ class ThreadProgressCallback:
         """Wait for the thread that is running the task to end."""
         if self._thread is not None:
             self._thread.join()
+
+    def lock(self):
+        if self._thread is not None:
+            lock = threading.Lock()
+            lock.acquire()
+            return lock
+        return None
+
+    def unlock(self, lock):
+        if (self._thread is not None) and (lock is not None):
+            lock.release()
 
 
 class TrainCallback(ThreadProgressCallback):
