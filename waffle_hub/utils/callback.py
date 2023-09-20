@@ -88,7 +88,6 @@ class ThreadProgressCallback:
         """Force the task to end."""
         self._finished = True
         self._progress = 1.0
-        # self.join()
 
     def register_thread(self, thread: threading.Thread):
         """Register the thread that is running the task."""

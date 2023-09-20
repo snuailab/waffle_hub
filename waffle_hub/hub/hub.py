@@ -58,6 +58,7 @@ from waffle_hub.utils.data import (
 )
 from waffle_hub.utils.draw import draw_results
 from waffle_hub.utils.evaluate import evaluate_function
+from waffle_hub.utils.memory import use_cuda
 from waffle_hub.utils.metric_logger import MetricLogger
 
 logger = logging.getLogger(__name__)
@@ -915,9 +916,9 @@ class Hub:
             TrainResult: train result
         """
 
+        @use_cuda("cpu" if device == "cpu" else f"cuda:{device}")
         def inner(callback: TrainCallback, result: TrainResult):
             try:
-                torch.cuda.init()  # for thread
                 metric_logger = MetricLogger(
                     name=self.name,
                     log_dir=self.train_log_dir,
@@ -952,11 +953,6 @@ class Hub:
                 callback.force_finish()
                 callback.set_failed()
                 raise e
-            finally:
-                if cfg.device != "cpu":
-                    # Memory free
-                    torch.cuda.set_device("cpu" if device == "cpu" else f"cuda:{device}")
-                    torch.cuda.empty_cache()
 
         # parse dataset
         if isinstance(dataset, (str, Path)):
@@ -1188,9 +1184,9 @@ class Hub:
             EvaluateResult: evaluate result
         """
 
+        @use_cuda("cpu" if device == "cpu" else f"cuda:{device}")
         def inner(dataset: Dataset, callback: EvaluateCallback, result: EvaluateResult):
             try:
-                torch.cuda.init()  # for thread
                 self.before_evaluate(cfg, dataset)
                 self.on_evaluate_start(cfg)
                 self.evaluating(cfg, callback, dataset)
@@ -1203,11 +1199,6 @@ class Hub:
                 callback.force_finish()
                 callback.set_failed()
                 raise e
-            finally:
-                if cfg.device != "cpu":
-                    # Memory free
-                    torch.cuda.set_device("cpu" if device == "cpu" else f"cuda:{device}")
-                    torch.cuda.empty_cache()
 
         if "," in device:
             warnings.warn("multi-gpu is not supported in evaluation. use first gpu only.")
@@ -1409,9 +1400,9 @@ class Hub:
             InferenceResult: inference result
         """
 
+        @use_cuda("cpu" if device == "cpu" else f"cuda:{device}")
         def inner(callback: InferenceCallback, result: InferenceResult):
             try:
-                torch.cuda.init()  # for thread
                 self.before_inference(cfg)
                 self.on_inference_start(cfg)
                 self.inferencing(cfg, callback)
@@ -1424,11 +1415,6 @@ class Hub:
                 callback.force_finish()
                 callback.set_failed()
                 raise e
-            finally:
-                if cfg.device != "cpu":
-                    # Memory free
-                    torch.cuda.set_device("cpu" if device == "cpu" else f"cuda:{device}")
-                    torch.cuda.empty_cache()
 
         # image_dir, image_path, video_path, dataset_name, dataset
         if isinstance(source, (str, Path)):
@@ -1579,9 +1565,9 @@ class Hub:
         """
         self.check_train_sanity()
 
+        @use_cuda("cpu" if device == "cpu" else f"cuda:{device}")
         def inner(callback: ExportCallback, result: ExportResult):
             try:
-                torch.cuda.init()  # for thread
                 self.before_export(cfg)
                 self.on_export_start(cfg)
                 self.exporting(cfg, callback)
@@ -1594,11 +1580,6 @@ class Hub:
                 callback.force_finish()
                 callback.set_failed()
                 raise e
-            finally:
-                if cfg.device != "cpu":
-                    # Memory free
-                    torch.cuda.set_device("cpu" if device == "cpu" else f"cuda:{device}")
-                    torch.cuda.empty_cache()
 
         # overwrite training config
         train_config = self.get_train_config()
