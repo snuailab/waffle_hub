@@ -1287,29 +1287,48 @@ class Hub:
                 results.append({str(image_info.image_rel_path): [res.to_dict() for res in result]})
 
                 if cfg.draw:
+                    io.make_directory(self.draw_dir)
                     draw = draw_results(
                         image_info.ori_image,
                         result,
                         names=[x["name"] for x in self.categories],
                     )
-                    draw_path = self.draw_dir / Path(image_info.image_rel_path).with_suffix(".png")
-                    io.make_directory(draw_path.parent)
-                    cv2.imwrite(str(draw_path), draw)
+                    bgr_draw = cv2.cvtColor(draw, cv2.COLOR_RGB2BGR)
 
-                if cfg.draw and cfg.source_type == "video":
-                    if writer is None:
-                        h, w = draw.shape[:2]
-                        writer = cv2.VideoWriter(
-                            str(self.inference_dir / Path(cfg.source).with_suffix(".mp4").name),
-                            cv2.VideoWriter_fourcc(*"mp4v"),
-                            dataset.fps,
-                            (w, h),
+                    if cfg.source_type == "video":
+                        if writer is None:
+                            h, w = draw.shape[:2]
+                            writer = cv2.VideoWriter(
+                                str(self.inference_dir / Path(cfg.source).with_suffix(".mp4").name),
+                                cv2.VideoWriter_fourcc(*"mp4v"),
+                                dataset.fps,
+                                (w, h),
+                            )
+                        writer.write(bgr_draw)
+
+                        draw_path = (
+                            self.draw_dir
+                            / Path(cfg.source).stem
+                            / Path(image_info.image_rel_path).with_suffix(".png")
                         )
-                    writer.write(draw)
+                    else:
+                        draw_path = self.draw_dir / Path(image_info.image_rel_path).with_suffix(
+                            ".png"
+                        )
+
+                    io.make_directory(draw_path.parent)
+                    cv2.imwrite(str(draw_path), bgr_draw)
 
                 if cfg.show:
-                    cv2.imshow("result", draw)
-                    cv2.waitKey(0)
+                    if not cfg.draw:
+                        draw = draw_results(
+                            image_info.ori_image,
+                            result,
+                            names=[x["name"] for x in self.categories],
+                        )
+                        bgr_draw = cv2.cvtColor(draw, cv2.COLOR_RGB2BGR)
+                    cv2.imshow("result", bgr_draw)
+                    cv2.waitKey(30)
 
             callback.update(i)
 
