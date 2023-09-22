@@ -1685,8 +1685,7 @@ class Hub:
             "gpu_name": torch.cuda.get_device_name(0) if device != "cpu" else None,
         }
 
-    def _save_hpo_result(self, hpo_results: dict) -> None:
-
+    def _save_hpo_result(self, hpo_results):
         hub_root_dir = self.root_dir / self.name
         hpo_file_path = hub_root_dir / "hpo.json"
         best_hpo_path = hub_root_dir / f"hpo/trial_{hpo_results['best_trial']}"
@@ -1714,58 +1713,9 @@ class Hub:
         search_space: dict,
         **kwargs,
     ) -> dict:
-        """Hyperparameter Optimization (HPO) for benchmarking the model.
-
-        This method performs hyperparameter optimization to find the best set of hyperparameters
-        for benchmarking the model on a given dataset.
-
-        Args:
-            dataset (Dataset): The dataset used for benchmarking.
-            n_trials (int): The number of HPO trials to run.
-            direction (str): The direction of optimization, either "maximize" or "minimize".
-            hpo_method (str): The HPO method to use, e.g., "RandomSampler" or "TPESampler".
-            search_space (dict): The search space for hyperparameters in the form of a dictionary.
-            **kwargs: Additional keyword arguments for hyperparameter optimization and training.
-
-        Returns:
-            dict: A dictionary containing the HPO results, including the best hyperparameters
-            and their corresponding performance metrics.
-
-        Example:
-            >>> hpo_results = hub.hpo(
-                    dataset=your_dataset,
-                    n_trials=100,
-                    direction="maximize",
-                    hpo_method="RandomSampler",
-                    search_space={
-                        "lr0": [0.005, 0.05],
-                        "lrf": [0.001, 0.005],
-                        "batch_size": [16, 32],
-                    },
-                    epochs=10,
-                    image_size=[640, 640],
-                    device="cuda:0",
-                )
-
-        Returns:
-            dict: benchmark result
-            {
-                "best_params": {
-                    "lr0": 0.01,
-                    "lrf": 0.003,
-                    "batch_size": 24,
-                },
-                "best_score": 0.95,
-                "other_results": {
-                    # Additional results for each HPO trial
-                },
-            }
-        """
         optuna_hpo = OptunaHPO(self.root_dir, hpo_method, direction=direction)
-
-        def _hpo_hub_objective(
-            trial: any, dataset: any, params: dict, objective_mapper: callable, **kwargs
-        ) -> float:
+        # TODO : obejctives : direction must be defined by waffle hub
+        def _hpo_hub_objective(trial, dataset, params, objective_mapper, **kwargs):
             torch.cuda.empty_cache()
 
             hub_name = f"{self.name}/hpo/trial_{trial.number}"

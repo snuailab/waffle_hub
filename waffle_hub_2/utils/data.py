@@ -71,40 +71,36 @@ def resize_image(
     W, H = image_size
 
     if letter_box:
-        if w > h:
-            ratio = W / w
-            w_ = W
-            h_ = round(h * ratio)
+        h_ratio = H / h
+        w_ratio = W / w
 
-            total_pad = w_ - h_
+        if w_ratio < h_ratio:
+            resize_shape = (int(w * w_ratio), round(h * w_ratio))
+            total_pad = H - resize_shape[1]
             top = total_pad // 2
             bottom = total_pad - top
             left, right = 0, 0
-
         else:
-            ratio = H / h
-            w_ = round(w * ratio)
-            h_ = H
-
-            total_pad = h_ - w_
+            resize_shape = (round(w * h_ratio), int(h * h_ratio))
+            total_pad = W - resize_shape[0]
             left = total_pad // 2
             right = total_pad - left
             top, bottom = 0, 0
 
-        resized_image = cv2.resize(image, (w_, h_), interpolation=cv2.INTER_CUBIC)
+        resized_image = cv2.resize(image, resize_shape, interpolation=cv2.INTER_LINEAR)
         resized_image = cv2.copyMakeBorder(
             resized_image, top, bottom, left, right, None, value=(114, 114, 114)
         )
 
     else:
-        w_, h_ = W, H
+        resize_shape = (W, H)
         left, top = 0, 0
-        resized_image = cv2.resize(image, (w_, h_), interpolation=cv2.INTER_CUBIC)
+        resized_image = cv2.resize(image, resize_shape, interpolation=cv2.INTER_LINEAR)
 
     return resized_image, ImageInfo(
         ori_image=cv2.cvtColor(image, cv2.COLOR_BGR2RGB),
         ori_shape=(w, h),
-        new_shape=(w_, h_),
+        new_shape=resize_shape,
         input_shape=(W, H),
         pad=(left, top),
     )
