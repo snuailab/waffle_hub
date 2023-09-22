@@ -4,8 +4,8 @@ from itertools import groupby
 from pathlib import Path
 from typing import Union
 
-import cv2
 from waffle_utils.file import io, search
+from waffle_utils.image.io import load_image
 
 from waffle_hub import TaskType
 from waffle_hub.schema.fields import Annotation, Category, Image
@@ -269,7 +269,7 @@ def _import_yolo_classification(self, yolo_root_dir: Path, *args):
             image_path = yolo_root_dir / image_rel_path
             file_name = f"{image_id}{image_path.suffix}"
 
-            height, width = cv2.imread(str(image_path)).shape[:2]
+            height, width = load_image(image_path).shape[:2]
             self.add_images(
                 [
                     Image.new(
@@ -377,7 +377,7 @@ def _import_yolo_images_labels(self, yolo_root_dir: Path, yaml_path: str, task: 
             )  # image rel path: {set_name}/images/{file_name(.EXT)}
             file_name = f"{image_id}{image_path.suffix}"
 
-            height, width = cv2.imread(str(image_path)).shape[:2]
+            height, width = load_image(image_path).shape[:2]
             self.add_images(
                 [
                     Image.new(

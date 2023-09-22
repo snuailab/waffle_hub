@@ -8,6 +8,7 @@ import torch
 from natsort import natsorted
 from torchvision import transforms as T
 from waffle_utils.file import io
+from waffle_utils.image.io import load_image
 
 from waffle_hub.dataset import Dataset
 from waffle_hub.schema.data import ImageInfo
@@ -109,8 +110,8 @@ def resize_image(
 def get_image_transform(image_size: Union[int, list[int]], letter_box: bool = False):
     def transform(image: Union[np.ndarray, str]) -> tuple[torch.Tensor, ImageInfo]:
         if isinstance(image, str):
-            image = cv2.imread(image)
-            image = cv2.cvtColor(image, cv2.COLOR_BGR2RGB)
+            image = load_image(image)
+        image = cv2.cvtColor(image, cv2.COLOR_BGR2RGB)
         image, image_info = resize_image(image, image_size, letter_box)
         return T.ToTensor()(image), image_info
 

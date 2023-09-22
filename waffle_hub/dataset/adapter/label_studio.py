@@ -1,8 +1,8 @@
 from pathlib import Path
 
-import cv2
 from tqdm import tqdm
 from waffle_utils.file import io
+from waffle_utils.image.io import load_image
 
 from waffle_hub import TaskType
 from waffle_hub.schema.fields import Annotation, Category, Image
@@ -23,7 +23,7 @@ def import_object_detection(self, json_file, image_dir=None):
         src_image_path = Path(image_dir) / image_file_name if image_dir else data["data"]["image"]
         io.copy_file(src_image_path, self.raw_image_dir / image_file_name, create_directory=True)
 
-        H, W = cv2.imread(str(src_image_path)).shape[:2]
+        H, W = load_image(src_image_path).shape[:2]
 
         image = Image.new(
             image_id=image_id,
@@ -81,7 +81,7 @@ def import_classification(self, json_file, image_dir):
         src_image_path = Path(image_dir) / image_file_name if image_dir else data["data"]["image"]
         io.copy_file(src_image_path, self.raw_image_dir / image_file_name, create_directory=True)
 
-        H, W = cv2.imread(str(src_image_path)).shape[:2]
+        H, W = load_image(src_image_path).shape[:2]
 
         image = Image.new(
             image_id=image_id,
