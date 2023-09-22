@@ -103,13 +103,14 @@ class HPOMethodConfig(BaseHPOSchema):
     def __init__(self, framework):
         self.framework = framework
 
-    def initialize_method(self, method_type, n_start_trials=3):
+    def initialize_method(self, method_type, search_space=None, n_start_trials=3):
+        print(n_start_trials, search_space)
         if self.framework == "OPTUNA":
             method_type = method_type.upper()
             if method_type == HPOMethod.RANDOMSAMPLER.name:
                 return (RandomSampler(), NopPruner())
             elif method_type == HPOMethod.GRIDSAMPLER.name:
-                return (GridSampler(), NopPruner())
+                return (GridSampler(search_space=search_space), NopPruner())
             elif method_type == HPOMethod.BOHB.name:
                 return (TPESampler(n_startup_trials=n_start_trials), HyperbandPruner())
             elif method_type == HPOMethod.TPESAMPLER.name:
