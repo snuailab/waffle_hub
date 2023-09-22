@@ -61,6 +61,7 @@ def test_object_detection_hpo(
         model_type="yolov8",
         model_size="n",
         categories=dataset.get_category_names(),
+        device="cpu",
         root_dir=tmpdir,
     )
     result = hub.hpo(
@@ -84,6 +85,7 @@ def test_object_detection_hpo(
         batch_size=4,
         pretrained_model=None,
         letter_box=False,
+        device="cpu",
         workers=0,
     )
 
@@ -141,7 +143,7 @@ def test_object_detection_hpo(
                 "cos_lr": (True, False),
                 "hsv_h": [0.01, 0.02],
             },
-            "maximize",
+            "minimize",
             2,
             32,
         ),
@@ -176,6 +178,7 @@ def test_classification_hpo(
         hpo_method,
         search_space=search_space,
         epochs=epochs,
+        device="cpu",
         batch_size=batch_size,
     )
     train_hub = Hub.load(name=name, root_dir=tmpdir)
@@ -190,6 +193,7 @@ def test_classification_hpo(
         batch_size=4,
         pretrained_model=None,
         letter_box=False,
+        device="cpu",
         workers=0,
     )
 
