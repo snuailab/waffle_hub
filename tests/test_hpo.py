@@ -72,10 +72,29 @@ def test_object_detection_hpo(
         epochs=epochs,
         batch_size=batch_size,
     )
+    train_hub = Hub.load(name=name, root_dir=tmpdir)
+    train_hub: Hub = Hub.from_model_config(
+        name=name + "_from_model_config",
+        model_config_file=tmpdir / name / Hub.MODEL_CONFIG_FILE,
+        root_dir=tmpdir,
+    )
+    train_result = train_hub.train(
+        dataset=dataset,
+        epochs=1,
+        batch_size=4,
+        pretrained_model=None,
+        letter_box=False,
+        workers=0,
+    )
 
+    assert len(train_result.metrics) >= 1
+    assert len(train_result.eval_metrics) >= 1
+    assert Path(train_result.best_ckpt_file).exists()
+    # assert Path(result.last_ckpt_file).exists()
     db_name = f"{hub.name}.db"
     last_trial = n_trials - 1
     last_trial_directory_name = f"trial_{last_trial}"
+
     assert isinstance(result, dict)
     assert "best_params" in result
     assert "best_score" in result
@@ -84,6 +103,15 @@ def test_object_detection_hpo(
     assert Path(hub.root_dir / hub.name / "metrics.json").exists()
     assert Path(hub.root_dir / hub.name / "hpo" / last_trial_directory_name).exists()
     assert Path(hub.root_dir / hub.name / db_name).exists()
+
+    assert len(train_result.metrics) >= 1
+    assert len(train_result.eval_metrics) >= 1
+    assert Path(train_result.best_ckpt_file).exists()
+    if train_hub.backend == "ultralytics":
+        if train_hub.task in [TaskType.INSTANCE_SEGMENTATION, TaskType.OBJECT_DETECTION]:
+            assert train_hub.get_train_config().letter_box == True
+        elif train_hub.task == TaskType.CLASSIFICATION:
+            assert train_hub.get_train_config().letter_box == False
 
 
 @pytest.mark.parametrize(
@@ -150,10 +178,29 @@ def test_classification_hpo(
         epochs=epochs,
         batch_size=batch_size,
     )
+    train_hub = Hub.load(name=name, root_dir=tmpdir)
+    train_hub: Hub = Hub.from_model_config(
+        name=name + "_from_model_config",
+        model_config_file=tmpdir / name / Hub.MODEL_CONFIG_FILE,
+        root_dir=tmpdir,
+    )
+    train_result = train_hub.train(
+        dataset=dataset,
+        epochs=1,
+        batch_size=4,
+        pretrained_model=None,
+        letter_box=False,
+        workers=0,
+    )
 
+    assert len(train_result.metrics) >= 1
+    assert len(train_result.eval_metrics) >= 1
+    assert Path(train_result.best_ckpt_file).exists()
+    # assert Path(result.last_ckpt_file).exists()
     db_name = f"{hub.name}.db"
     last_trial = n_trials - 1
     last_trial_directory_name = f"trial_{last_trial}"
+
     assert isinstance(result, dict)
     assert "best_params" in result
     assert "best_score" in result
@@ -162,3 +209,12 @@ def test_classification_hpo(
     assert Path(hub.root_dir / hub.name / "metrics.json").exists()
     assert Path(hub.root_dir / hub.name / "hpo" / last_trial_directory_name).exists()
     assert Path(hub.root_dir / hub.name / db_name).exists()
+
+    assert len(train_result.metrics) >= 1
+    assert len(train_result.eval_metrics) >= 1
+    assert Path(train_result.best_ckpt_file).exists()
+    if train_hub.backend == "ultralytics":
+        if train_hub.task in [TaskType.INSTANCE_SEGMENTATION, TaskType.OBJECT_DETECTION]:
+            assert train_hub.get_train_config().letter_box == True
+        elif train_hub.task == TaskType.CLASSIFICATION:
+            assert train_hub.get_train_config().letter_box == False
