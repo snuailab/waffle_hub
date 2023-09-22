@@ -1,6 +1,6 @@
 import time
 from pathlib import Path
-from typing import Callable
+from typing import Dict
 
 import optuna
 import optuna.visualization as oplt
@@ -39,7 +39,7 @@ class ObjectiveDirectionMapper:
 
         return mapping_functions[self.objectives]
 
-    def map_to_minimize(self, results: dict) -> float:
+    def map_to_minimize(self, results: Dict):
         if "loss" not in results:
             raise ValueError("Invalid results")
         self._objective = "loss"
@@ -48,7 +48,7 @@ class ObjectiveDirectionMapper:
 
         return float(result)
 
-    def map_to_maximize(self, results: dict) -> float:
+    def map_to_maximize(self, results: Dict):
         if "accuracy" not in results:
             raise ValueError("Invalid results")
         self._objective = "accuracy"
@@ -58,7 +58,7 @@ class ObjectiveDirectionMapper:
 
 
 class OptunaHPO:
-    def __init__(self, hub_root: str, hpo_method: str, direction: str):
+    def __init__(self, hub_root, hpo_method, direction):
         self._study_name = None
         self._hub_root = hub_root
         self._config = HPOMethodConfig("OPTUNA")
@@ -69,11 +69,13 @@ class OptunaHPO:
         self._sampler = None
         self._pruner = None
 
-    def set_study_name(self, study_name: str):
+    def set_study_name(self, study_name):
         if study_name is None:
             raise ValueError("Study name cannot be None.")
         self._study_name = study_name
 
+    # TODO : user can customize sheduler / pruner After update config add property and setter
+    # TODO : study name must be property and setter
     @property
     def sampler(self):
         return self._sampler
@@ -82,13 +84,13 @@ class OptunaHPO:
     def pruner(self):
         return self._pruner
 
-    def _initialize_sampler(self, hpo_method: str, search_space=None) -> None:
+    def _initialize_sampler(self, hpo_method, search_space=None):
 
         self._sampler, self._pruner = self._config.initialize_method(
             method_type=hpo_method, search_space=search_space
         )
 
-    def create_study(self, search_space: dict) -> None:
+    def create_study(self, search_space):
         self._initialize_sampler(self._hpo_method, search_space)
         if self._study_name is None:
             raise ValueError("Study name cannot be None.")
@@ -104,21 +106,24 @@ class OptunaHPO:
     def load_study(
         self,
         study_name: str,
-    ) -> None:
+    ):
         self.set_study_name(study_name)
+        # load studies using db
         self._study = optuna.load_study(
             study_name,
             storage=f"sqlite:///{self._hub_root}/{self._study_name}/{self._study_name}.db",
         )
+        # db must be located in study hub
 
-    def visualize_hpo_results(self) -> None:
-
+    def visualize_hpo_results(self):
+        # 시각화 생성
         param_importance = oplt.plot_param_importances(self._study)
         contour = oplt.plot_contour(self._study)
         coordinates = oplt.plot_parallel_coordinate(self._study)
         slice_plot = oplt.plot_slice(self._study)
         optimization_history = oplt.plot_optimization_history(self._study)
 
+        # 생성한 시각화를 이미지 파일로 저장
         pio.write_image(param_importance, self._hub_root / self._study_name / "param_importance.png")
         pio.write_image(contour, self._hub_root / self._study_name / "contour.png")
         pio.write_image(coordinates, self._hub_root / self._study_name / "coordinates.png")
@@ -127,11 +132,9 @@ class OptunaHPO:
             optimization_history, self._hub_root / self._study_name / "optimization_history.png"
         )
 
-    def optimize(
-        self, objective: Callable, dataset: any, n_trials: int, search_space: dict, **kwargs
-    ) -> None:
-        def objective_wrapper(trial: int) -> float:
-            def _get_search_space(trial: int, search_space: dict) -> dict:
+    def optimize(self, objective, dataset, n_trials, search_space, **kwargs):
+        def objective_wrapper(trial):
+            def _get_search_space(trial, search_space):
                 params = {
                     k: trial.suggest_categorical(k, v)
                     if isinstance(v, tuple)
@@ -141,7 +144,6 @@ class OptunaHPO:
                 return params
 
             params = _get_search_space(trial, search_space)
-
             return objective(
                 trial=trial,
                 dataset=dataset,
@@ -152,15 +154,7 @@ class OptunaHPO:
 
         self._study.optimize(objective_wrapper, n_trials=n_trials)
 
-    def run_hpo(
-        self,
-        study_name: str,
-        objective: str,
-        dataset: any,
-        n_trials: int,
-        search_space: dict,
-        **kwargs,
-    ) -> dict:
+    def run_hpo(self, study_name, objective, dataset, n_trials, search_space, **kwargs):
         self.set_study_name(study_name)  # Set the study name using the property setter
         self.create_study(search_space)
         self.optimize(objective, dataset, n_trials, search_space, **kwargs)

@@ -935,7 +935,8 @@ class Dataset:
             root_dir (str, optional): Dataset root directory. Defaults to None.
 
         Example:
-            >>> ds = Dataset.from_yolo("yolo", "classification", "path/to/yolo.yaml")
+            >>> ds = Dataset.from_yolo("yolo", "classification", "path/to/yolo_root_dir")
+            >>> ds = Dataset.from_yolo("yolo", "object_detection", "path/to/yolo_root_dir", "path/to/yolo.yaml")
 
         Returns:
             Dataset: Imported dataset.

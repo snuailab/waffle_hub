@@ -44,12 +44,12 @@ from waffle_hub.hub import Hub
 def test_object_detection_hpo(
     object_detection_dataset: Dataset,
     tmpdir: Path,
-    n_trials,
-    hpo_method,
-    search_space,
-    direction,
-    epochs,
-    batch_size,
+    n_trials: int,
+    hpo_method: str,
+    search_space: dict,
+    direction: str,
+    epochs: int,
+    batch_size: int,
 ):
 
     dataset = object_detection_dataset
@@ -152,12 +152,12 @@ def test_object_detection_hpo(
 def test_classification_hpo(
     classification_dataset: Dataset,
     tmpdir: Path,
-    n_trials,
-    hpo_method,
-    search_space,
-    direction,
-    epochs,
-    batch_size,
+    n_trials: int,
+    hpo_method: str,
+    search_space: dict,
+    direction: str,
+    epochs: int,
+    batch_size: int,
 ):
 
     dataset = classification_dataset
@@ -190,7 +190,7 @@ def test_classification_hpo(
     train_result = train_hub.train(
         dataset=dataset,
         epochs=1,
-        batch_size=4,
+        batch_size=batch_size,
         pretrained_model=None,
         letter_box=False,
         device="cpu",
