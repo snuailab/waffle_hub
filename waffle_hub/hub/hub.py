@@ -1705,9 +1705,15 @@ class Hub:
         )
 
     def hpo(
-        self, dataset, n_trials, direction, hpo_method, search_space, frame_work="optuna", **kwargs
-    ):
-        optuna_hpo = OptunaHPO(self.root_dir, hpo_method, frame_work, direction)
+        self,
+        dataset: Dataset,
+        n_trials: int,
+        direction: str,
+        hpo_method: str,
+        search_space: dict,
+        **kwargs,
+    ) -> dict:
+        optuna_hpo = OptunaHPO(self.root_dir, hpo_method, direction=direction)
         # TODO : obejctives : direction must be defined by waffle hub
         def _hpo_hub_objective(trial, dataset, params, objective_mapper, **kwargs):
             torch.cuda.empty_cache()
@@ -1718,6 +1724,7 @@ class Hub:
                 task=self.task,
                 model_type=self.model_type,
                 model_size=self.model_size,
+                root_dir=self.root_dir,
             )
 
             train_result = hub.train(
@@ -1733,19 +1740,8 @@ class Hub:
                 hold=kwargs.get("hold", True),
             )
 
-            evaluate_result = hub.evaluate(
-                dataset=dataset,
-                set_name="test",
-                image_size=kwargs.get("image_size", None),
-                confidence_threshold=kwargs.get("confidence_threshold", None),
-                iou_threshold=kwargs.get("iou_threshold", None),
-                device=kwargs.get("device", "cpu"),
-                workers=kwargs.get("workers", 0),
-                hold=kwargs.get("hold", True),
-            )
             train_result = train_result.to_dict()
-            eval_result = evaluate_result.to_dict()
-            results = {"accuracy": eval_result, "loss": train_result}
+            results = {"accuracy": train_result, "loss": train_result}
             return objective_mapper.set_direction()(results)
 
         hpo_results = optuna_hpo.run_hpo(

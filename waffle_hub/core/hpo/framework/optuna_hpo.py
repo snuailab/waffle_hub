@@ -58,11 +58,10 @@ class ObjectiveDirectionMapper:
 
 
 class OptunaHPO:
-    def __init__(self, hub_root, hpo_method, frame_work, direction):
+    def __init__(self, hub_root, hpo_method, direction):
         self._study_name = None
         self._hub_root = hub_root
-        self._frame_work = frame_work
-        self._config = HPOMethodConfig(self._frame_work.upper())
+        self._config = HPOMethodConfig("OPTUNA")
         self._hpo_method = hpo_method
         self._objective_direction_mapper = ObjectiveDirectionMapper(direction)
         self._direction = self._objective_direction_mapper.direction
@@ -85,12 +84,14 @@ class OptunaHPO:
     def pruner(self):
         return self._pruner
 
-    def _initialize_sampler(self, hpo_method):
+    def _initialize_sampler(self, hpo_method, search_space=None):
 
-        self._sampler, self._pruner = self._config.initialize_method(hpo_method)
+        self._sampler, self._pruner = self._config.initialize_method(
+            method_type=hpo_method, search_space=search_space
+        )
 
-    def create_study(self):
-        self._initialize_sampler(self._hpo_method)
+    def create_study(self, search_space):
+        self._initialize_sampler(self._hpo_method, search_space)
         if self._study_name is None:
             raise ValueError("Study name cannot be None.")
 
@@ -155,7 +156,7 @@ class OptunaHPO:
 
     def run_hpo(self, study_name, objective, dataset, n_trials, search_space, **kwargs):
         self.set_study_name(study_name)  # Set the study name using the property setter
-        self.create_study()
+        self.create_study(search_space)
         self.optimize(objective, dataset, n_trials, search_space, **kwargs)
         best_value = self._study.best_value
         best_trial = self._study.best_trial.number
