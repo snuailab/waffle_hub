@@ -8,6 +8,7 @@ import plotly.io as pio
 from optuna.pruners import HyperbandPruner
 from optuna.samplers import GridSampler, RandomSampler, TPESampler
 
+from waffle_hub.core.hpo.base_hpo import BaseHPO
 from waffle_hub.schema.configs import HPOMethodConfig
 
 
@@ -26,7 +27,6 @@ class ObjectiveDirectionMapper:
         return self._objective
 
     def set_direction(self):
-        # 매핑 함수 딕셔너리
         mapping_functions = {
             "minimize": self.map_to_minimize,
             "loss": self.map_to_minimize,
@@ -57,14 +57,16 @@ class ObjectiveDirectionMapper:
         return float(result)
 
 
-class OptunaHPO:
-    def __init__(self, hub_root: str, hpo_method: str, direction: str):
+class OptunaHPO(BaseHPO):
+    def __init__(
+        self, hub_root: str, hpo_method: str = "RANDOMSAMPLER", direction: str = "maximize"
+    ):
         self._study_name = None
         self._hub_root = hub_root
         self._config = HPOMethodConfig("OPTUNA")
         self._hpo_method = hpo_method
         self._objective_direction_mapper = ObjectiveDirectionMapper(direction)
-        self._direction = self._objective_direction_mapper.direction
+        self._direction = direction
         self._study = None
         self._sampler = None
         self._pruner = None
@@ -92,7 +94,6 @@ class OptunaHPO:
         self._initialize_sampler(self._hpo_method, search_space)
         if self._study_name is None:
             raise ValueError("Study name cannot be None.")
-
         self._study = optuna.create_study(
             study_name=self._study_name,
             storage=f"sqlite:///{self._hub_root}/{self._study_name}/{self._study_name}.db",
@@ -100,16 +101,11 @@ class OptunaHPO:
             sampler=self._sampler,
             pruner=self._pruner,
         )
-
-    def load_study(
-        self,
-        study_name: str,
-    ) -> None:
-        self.set_study_name(study_name)
-        self._study = optuna.load_study(
-            study_name,
-            storage=f"sqlite:///{self._hub_root}/{self._study_name}/{self._study_name}.db",
-        )
+        return {
+            "direction": self._direction,
+            "sampler": self._sampler.__class__.__name__,
+            "pruner": self._pruner.__class__.__name__,
+        }
 
     def visualize_hpo_results(self) -> None:
 
@@ -130,8 +126,33 @@ class OptunaHPO:
     def optimize(
         self, objective: Callable, dataset: any, n_trials: int, search_space: dict, **kwargs
     ) -> None:
-        def objective_wrapper(trial: int) -> float:
-            def _get_search_space(trial: int, search_space: dict) -> dict:
+        """
+        Runs hyperparameter optimization using Optuna.
+
+        Args:
+            study_name (str): The name of the Optuna study.
+            objective (str): The name of the objective function to optimize.
+            dataset (any): The dataset to use for training.
+            n_trials (int): The number of trials to run.
+            search_space (dict): The search space for the hyperparameters.
+            **kwargs: Additional keyword arguments to pass to the `optimize` method.
+
+        Returns:
+            dict: A dictionary containing the best trial number, best parameters, best score, and total time.
+        """
+
+        def objective_wrapper(trial: optuna.trial.Trial) -> float:
+            """
+            A wrapper function for the objective function to optimize.
+
+            Args:
+                trial : The Optuna trial object.
+
+            Returns:
+                float: The result of the objective function.
+            """
+
+            def _get_search_space(trial: optuna.trial.Trial, search_space: dict) -> dict:
                 params = {
                     k: trial.suggest_categorical(k, v)
                     if isinstance(v, tuple)
@@ -152,6 +173,17 @@ class OptunaHPO:
 
         self._study.optimize(objective_wrapper, n_trials=n_trials)
 
+    def load_hpo(
+        self,
+        root_dir: str,
+        study_name: str,
+    ):
+        self.set_study_name = study_name
+        self._study = optuna.load_study(
+            study_name=self._study_name, storage=f"sqlite:///{root_dir}/{study_name}/{study_name}.db"
+        )
+        return self._study
+
     def run_hpo(
         self,
         study_name: str,
@@ -161,8 +193,22 @@ class OptunaHPO:
         search_space: dict,
         **kwargs,
     ) -> dict:
+        """
+        Runs hyperparameter optimization using Optuna.
+
+        Args:
+            study_name (str): The name of the Optuna study.
+            objective (str): The name of the objective function to optimize.
+            dataset (any): The dataset to use for training.
+            n_trials (int): The number of trials to run.
+            search_space (dict): The search space for the hyperparameters.
+            **kwargs: Additional keyword arguments to pass to the `optimize` method.
+
+        Returns:
+            dict: A dictionary containing the best trial number, best parameters, best score, and total time.
+        """
         self.set_study_name(study_name)  # Set the study name using the property setter
-        self.create_study(search_space)
+        optuna_method_dict = self.create_study(search_space)
         self.optimize(objective, dataset, n_trials, search_space, **kwargs)
         best_value = self._study.best_value
         best_trial = self._study.best_trial.number
@@ -173,4 +219,5 @@ class OptunaHPO:
             "best_params": best_params,
             "best_score": best_value,
             "total_time": total_time,
+            "methods": optuna_method_dict,
         }

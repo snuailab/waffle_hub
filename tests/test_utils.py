@@ -2,15 +2,14 @@ from itertools import permutations
 
 import numpy as np
 import pytest
-
-from waffle_hub.schema.evaluate import (
+from waffle_hub_2.schema.evaluate import (
     ClassificationMetric,
     InstanceSegmentationMetric,
     ObjectDetectionMetric,
 )
-from waffle_hub.schema.fields import Annotation
-from waffle_hub.utils.data import resize_image
-from waffle_hub.utils.evaluate import (
+from waffle_hub_2.schema.fields import Annotation
+from waffle_hub_2.utils.data import resize_image
+from waffle_hub_2.utils.evaluate import (
     evaluate_classification,
     evaluate_object_detection,
     evaluate_segmentation,

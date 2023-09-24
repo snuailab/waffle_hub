@@ -1705,7 +1705,38 @@ class Hub:
             hpo_file_path,
         )
 
-    def hpo(
+    def _hpo_hub_objective(
+        self, trial: any, dataset: any, params: dict, objective_mapper: callable, **kwargs
+    ) -> float:
+        torch.cuda.empty_cache()
+
+        hub_name = f"{self.name}/hpo/trial_{trial.number}"
+        hub = self.new(
+            name=hub_name,
+            task=self.task,
+            model_type=self.model_type,
+            model_size=self.model_size,
+            root_dir=self.root_dir,
+        )
+
+        train_result = hub.train(
+            dataset=dataset,
+            epochs=kwargs.get("epochs", None),
+            image_size=kwargs.get("image_size", None),
+            batch_size=kwargs.get("batch_size", None),
+            pretrained_model=kwargs.get("pretrained_model", None),
+            letter_box=kwargs.get("letter_box", False),
+            device=kwargs.get("device", "cpu"),
+            workers=kwargs.get("workers", 0),
+            advance_params=params,
+            hold=kwargs.get("hold", True),
+        )
+
+        train_result = train_result.to_dict()
+        results = {"accuracy": train_result, "loss": train_result}
+        return objective_mapper.set_direction()(results)
+
+    def hpo_new(
         self,
         dataset: Dataset,
         n_trials: int,
@@ -1762,48 +1793,27 @@ class Hub:
             }
         """
         optuna_hpo = OptunaHPO(self.root_dir, hpo_method, direction=direction)
-
-        def _hpo_hub_objective(
-            trial: any, dataset: any, params: dict, objective_mapper: callable, **kwargs
-        ) -> float:
-            torch.cuda.empty_cache()
-
-            hub_name = f"{self.name}/hpo/trial_{trial.number}"
-            hub = self.new(
-                name=hub_name,
-                task=self.task,
-                model_type=self.model_type,
-                model_size=self.model_size,
-                root_dir=self.root_dir,
-            )
-
-            train_result = hub.train(
-                dataset=dataset,
-                epochs=kwargs.get("epochs", None),
-                image_size=kwargs.get("image_size", None),
-                batch_size=kwargs.get("batch_size", None),
-                pretrained_model=kwargs.get("pretrained_model", None),
-                letter_box=kwargs.get("letter_box", False),
-                device=kwargs.get("device", "cpu"),
-                workers=kwargs.get("workers", 0),
-                advance_params=params,
-                hold=kwargs.get("hold", True),
-            )
-
-            train_result = train_result.to_dict()
-            results = {"accuracy": train_result, "loss": train_result}
-            return objective_mapper.set_direction()(results)
-
         hpo_results = optuna_hpo.run_hpo(
             study_name=self.name,
-            objective=_hpo_hub_objective,
+            objective=self._hpo_hub_objective,
             dataset=dataset,
             n_trials=n_trials,
             direction=direction,
             search_space=search_space,
             **kwargs,
         )
-
         self._save_hpo_result(hpo_results)
-
         return hpo_results
+
+    def hpo_load(self, root_dir: str = None, name: str = None):
+        if root_dir == None:
+            root_dir = self.root_dir
+        if name == None:
+            name = self.name
+        hpo_file = root_dir / name / "hpo.json"
+        if hpo_file.exists():
+            optuna_hpo = OptunaHPO(name, root_dir)
+            hpo_study = optuna_hpo.load_hpo(root_dir=root_dir, study_name=name)
+            return hpo_study
+        else:
+            raise ValueError(f"Hub {name} does not have hpo result.")

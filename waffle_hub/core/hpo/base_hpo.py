@@ -1,56 +1,50 @@
-from abc import abstractmethod
+from abc import ABC, abstractmethod
+from typing import Callable
 
-from waffle_hub.hub import Hub
 
+class BaseHPO(ABC):
+    """
+    Base class for hyperparameter optimization.
+    """
 
-class BaseHPO:
-    def __init__(
+    @abstractmethod
+    def run_hpo(
         self,
-        percent: float = 0.3,
-        search_opt: str = "m",
-        method: str = "BOHB",
-        *args,
+        study_name: str,
+        objective: str,
+        dataset: any,
+        n_trials: int,
+        search_space: dict,
         **kwargs,
-    ):
-        """Base HPO
+    ) -> dict:
+        """
+        Runs hyperparameter optimization.
 
         Args:
-            hub (Hub): Hub
-            percent (float, optional) : search space scop. Defaults to 0.3
-            search_opt (str, optional) : search params option. Default to medium
-                m(medium) : only learning rate
-                l(long) : learning rate and augmentation params
+            study_name (str): The name of the study.
+            objective (str): The name of the objective function to optimize.
+            dataset (any): The dataset to use for training.
+            n_trials (int): The number of trials to run.
+            search_space (dict): The search space for the hyperparameters.
+            **kwargs: Additional keyword arguments to pass to the `optimize` method.
+
+        Returns:
+            dict: A dictionary containing the best trial number, best parameters, best score, and total time.
         """
-        self.percent = percent
-        self.search_opt = search_opt
-        self.default_params = None
-        self.scope_params = None
-
-    # default params, scope_params, method -> getter setter
-    # initialize them by params
-    @property
-    def _default_params(self) -> dict:
-        # property
-        # default param 선언
         pass
 
-    @property
-    def _scope_params(self) -> dict:
-        # property
-        # percent 범위대로 계산 후 반환
-        # search_opt, percent 계산 후 반환
-        pass
+    @abstractmethod
+    def optimize(
+        self, objective: Callable, dataset: any, n_trials: int, search_space: dict, **kwargs
+    ) -> None:
+        """
+        Optimizes hyperparameters.
 
-    @_default_params.setter
-    def _default_params(
-        self,
-    ):
-        # TODO: define default params
-        pass
-
-    @_scope_params.setter
-    def _scope_params(
-        self,
-    ):
-        # TODO: if selecting_args are not None :
+        Args:
+            objective (Callable): The objective function to optimize.
+            dataset (any): The dataset to use for training.
+            n_trials (int): The number of trials to run.
+            search_space (dict): The search space for the hyperparameters.
+            **kwargs: Additional keyword arguments to pass to the `objective` function.
+        """
         pass
