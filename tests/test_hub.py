@@ -5,10 +5,11 @@ from pathlib import Path
 
 import pytest
 import torch
-from waffle_hub_2 import TaskType
-from waffle_hub_2.dataset import Dataset
-from waffle_hub_2.hub import Hub
-from waffle_hub_2.schema.result import (
+
+from waffle_hub import TaskType
+from waffle_hub.dataset import Dataset
+from waffle_hub.hub import Hub
+from waffle_hub.schema.result import (
     EvaluateResult,
     ExportResult,
     InferenceResult,
