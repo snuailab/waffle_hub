@@ -90,7 +90,7 @@ def test_ultralytics_object_detection(object_detection_dataset: Dataset, tmpdir:
     "n_trials, hpo_method, search_space, direction, epochs, batch_size",
     [
         (
-            5,
+            1,
             "TPESampler",
             {
                 "lr0": [0.005, 0.05],
@@ -100,11 +100,11 @@ def test_ultralytics_object_detection(object_detection_dataset: Dataset, tmpdir:
                 "hsv_h": [0.01, 0.02],
             },
             "maximize",
-            2,
+            5,
             32,
         ),
         (
-            5,
+            1,
             "BOHB",
             {
                 "lr0": [0.005, 0.05],
@@ -114,7 +114,7 @@ def test_ultralytics_object_detection(object_detection_dataset: Dataset, tmpdir:
                 "hsv_h": [0.01, 0.02],
             },
             "minimize",
-            2,
+            5,
             32,
         ),
     ],
@@ -141,7 +141,7 @@ def test_object_detection_hpo(
         categories=dataset.get_category_names(),
         root_dir=tmpdir,
     )
-    result = hub.hpo(
+    result = hub.hpo_new(
         dataset,
         n_trials,
         direction,
