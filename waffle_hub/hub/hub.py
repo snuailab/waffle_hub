@@ -1571,7 +1571,7 @@ class Hub:
         pass
 
     def after_export_onnx(self, cfg: ExportOnnxConfig, result: ExportOnnxResult):
-        result.export_onnx_file = self.onnx_file
+        result.onnx_file = self.onnx_file
 
     def export_onnx(
         self,
@@ -1606,7 +1606,7 @@ class Hub:
                 image_size=None,  # use train option
                 ...
             )
-            >>> export_onnx_result.export_onnx_file
+            >>> export_onnx_result.onnx_file
             hubs/my_hub/weights/model.onnx
 
         Returns:
@@ -1739,13 +1739,13 @@ class Hub:
             root_dir (str, optional): hub root directory. Defaults to None.
         Example:
             >>> export_waffle_result = hub.export_waffle()
-            >>> export_waffle_result.export_waffle_file
+            >>> export_waffle_result.waffle_file
             hubs/my_hub/my_hub.waffle
         Returns:
             ExportWaffleResult: export waffle result
         """
         io.zip([self.hub_dir / Hub.CONFIG_DIR, self.hub_dir / Hub.WEIGHTS_DIR], self.waffle_file)
         result = ExportWaffleResult()
-        result.export_waffle_file = self.waffle_file
+        result.waffle_file = self.waffle_file
 
         return result
