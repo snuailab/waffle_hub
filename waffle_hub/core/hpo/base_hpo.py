@@ -31,7 +31,8 @@ class BaseHPO(ABC):
         Returns:
             dict: A dictionary containing the best trial number, best parameters, best score, and total time.
         """
-        pass
+        # not implemented error 를 추가해줘야함
+        raise NotImplementedError("run_hpo method is not implemented in the inherited class.")
 
     @abstractmethod
     def optimize(
@@ -47,4 +48,4 @@ class BaseHPO(ABC):
             search_space (dict): The search space for the hyperparameters.
             **kwargs: Additional keyword arguments to pass to the `objective` function.
         """
-        pass
+        raise NotImplementedError("run_hpo method is not implemented in the inherited class.")
