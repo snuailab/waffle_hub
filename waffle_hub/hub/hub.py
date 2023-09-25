@@ -7,7 +7,6 @@ Hub is a multi-backend compatible interface for model training, evaluation, infe
     Check out docstrings for more details.
 
 """
-import gc
 import importlib
 import logging
 import os
@@ -58,7 +57,7 @@ from waffle_hub.utils.data import (
 )
 from waffle_hub.utils.draw import draw_results
 from waffle_hub.utils.evaluate import evaluate_function
-from waffle_hub.utils.memory import use_cuda
+from waffle_hub.utils.memory import device_context
 from waffle_hub.utils.metric_logger import MetricLogger
 
 logger = logging.getLogger(__name__)
@@ -916,7 +915,7 @@ class Hub:
             TrainResult: train result
         """
 
-        @use_cuda("cpu" if device == "cpu" else device)
+        @device_context("cpu" if device == "cpu" else device)
         def inner(callback: TrainCallback, result: TrainResult):
             try:
                 metric_logger = MetricLogger(
@@ -1184,7 +1183,7 @@ class Hub:
             EvaluateResult: evaluate result
         """
 
-        @use_cuda("cpu" if device == "cpu" else device)
+        @device_context("cpu" if device == "cpu" else device)
         def inner(dataset: Dataset, callback: EvaluateCallback, result: EvaluateResult):
             try:
                 self.before_evaluate(cfg, dataset)
@@ -1400,7 +1399,7 @@ class Hub:
             InferenceResult: inference result
         """
 
-        @use_cuda("cpu" if device == "cpu" else device)
+        @device_context("cpu" if device == "cpu" else device)
         def inner(callback: InferenceCallback, result: InferenceResult):
             try:
                 self.before_inference(cfg)
@@ -1565,7 +1564,7 @@ class Hub:
         """
         self.check_train_sanity()
 
-        @use_cuda("cpu" if device == "cpu" else device)
+        @device_context("cpu" if device == "cpu" else device)
         def inner(callback: ExportCallback, result: ExportResult):
             try:
                 self.before_export(cfg)
