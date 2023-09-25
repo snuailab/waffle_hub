@@ -1,7 +1,7 @@
 import torch
 
 
-def use_cuda(device):
+def device_context(device):
     """For gpu memory decorator"""
 
     def decorator(func):
