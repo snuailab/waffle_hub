@@ -1693,6 +1693,7 @@ class Hub:
         shutil.rmtree(hub_root_dir / "configs")
 
         for name in os.listdir(best_hpo_path):
+            print(name)
             src_path = best_hpo_path / name
             dst_path = hub_root_dir / name
 
@@ -1701,7 +1702,7 @@ class Hub:
             else:
                 io.copy_file(src_path, dst_path)
         io.save_json(
-            [hpo_results],
+            hpo_results,
             hpo_file_path,
         )
 
@@ -1733,10 +1734,9 @@ class Hub:
         )
 
         train_result = train_result.to_dict()
-        results = {"accuracy": train_result, "loss": train_result}
-        return objective_mapper.set_direction()(results)
+        return objective_mapper.set_direction()(train_result)
 
-    def hpo_new(
+    def hpo(
         self,
         dataset: Dataset,
         n_trials: int,
@@ -1792,6 +1792,14 @@ class Hub:
                 },
             }
         """
+        # load_hpo
+        hpo_file = self.root_dir / self.name / "hpo.json"
+
+        if hpo_file.exists():
+            optuna_hpo = OptunaHPO(self.name, self.root_dir)
+            hpo_study = optuna_hpo.load_hpo(root_dir=self.root_dir, study_name=self.name)
+            return hpo_study
+
         optuna_hpo = OptunaHPO(self.root_dir, hpo_method, direction=direction)
         hpo_results = optuna_hpo.run_hpo(
             study_name=self.name,
@@ -1804,16 +1812,3 @@ class Hub:
         )
         self._save_hpo_result(hpo_results)
         return hpo_results
-
-    def hpo_load(self, root_dir: str = None, name: str = None):
-        if root_dir == None:
-            root_dir = self.root_dir
-        if name == None:
-            name = self.name
-        hpo_file = root_dir / name / "hpo.json"
-        if hpo_file.exists():
-            optuna_hpo = OptunaHPO(name, root_dir)
-            hpo_study = optuna_hpo.load_hpo(root_dir=root_dir, study_name=name)
-            return hpo_study
-        else:
-            raise ValueError(f"Hub {name} does not have hpo result.")

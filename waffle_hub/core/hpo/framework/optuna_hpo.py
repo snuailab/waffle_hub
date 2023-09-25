@@ -40,21 +40,20 @@ class ObjectiveDirectionMapper:
         return mapping_functions[self.objectives]
 
     def map_to_minimize(self, results: dict) -> float:
-        if "loss" not in results:
+        if results == None:
             raise ValueError("Invalid results")
         self._objective = "loss"
         self._direction = "minimize"
-        result = results["loss"]["metrics"][-1][4]["value"]
-
-        return float(result)
+        loss = results["metrics"][-1][4]["value"]
+        return float(loss)
 
     def map_to_maximize(self, results: dict) -> float:
-        if "accuracy" not in results:
+        if results == None:
             raise ValueError("Invalid results")
         self._objective = "accuracy"
         self._direction = "maximize"
-        result = results["accuracy"]["eval_metrics"][0]["value"]
-        return float(result)
+        acc = results["eval_metrics"][0]["value"]
+        return float(acc)
 
 
 class OptunaHPO(BaseHPO):
