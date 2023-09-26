@@ -103,6 +103,17 @@ class ThreadProgressCallback:
         if self._thread is not None:
             self._thread.join()
 
+    def lock(self):
+        if self._thread is not None:
+            lock = threading.Lock()
+            lock.acquire()
+            return lock
+        return None
+
+    def unlock(self, lock):
+        if (self._thread is not None) and (lock is not None):
+            lock.release()
+
 
 class TrainCallback(ThreadProgressCallback):
     def __init__(self, total_steps: int, get_metric_func):
