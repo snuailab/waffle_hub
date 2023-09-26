@@ -158,7 +158,9 @@ class Dataset:
             for image in self.get_images(image_ids):
                 annotations = self.get_annotations(image.image_id)
                 io.copy_file(
-                    self.raw_image_dir / image.file_name, ds.raw_image_dir / image.file_name
+                    self.raw_image_dir / image.file_name,
+                    ds.raw_image_dir / image.file_name,
+                    create_directory=True,
                 )
                 ds.add_images([image])
                 ds.add_annotations(annotations)
@@ -208,7 +210,9 @@ class Dataset:
 
                 if annotations:
                     io.copy_file(
-                        self.raw_image_dir / image.file_name, ds.raw_image_dir / image.file_name
+                        self.raw_image_dir / image.file_name,
+                        ds.raw_image_dir / image.file_name,
+                        create_directory=True,
                     )
                     ds.add_images([image])
                     ds.add_annotations(annotations)
@@ -1404,7 +1408,7 @@ class Dataset:
         for item in images:
             item_id = item.image_id
             item_path = self.image_dir / f"{item_id}.json"
-            io.save_json(item.to_dict(), item_path)
+            io.save_json(item.to_dict(), item_path, create_directory=True)
 
     def add_categories(self, categories: Union[Category, list[Category]]):
         """Add "Category"s to dataset.
@@ -1426,7 +1430,7 @@ class Dataset:
         for item in categories:
             item_id = item.category_id
             item_path = self.category_dir / f"{item_id}.json"
-            io.save_json(item.to_dict(), item_path)
+            io.save_json(item.to_dict(), item_path, create_directory=True)
 
         self.save_dataset_info()
 
@@ -1664,4 +1668,4 @@ class Dataset:
             np_image = load_image(self.raw_image_dir / image.file_name)
             annotations = self.get_annotations(image.image_id)
             drawn_image = draw_results(np_image, annotations, names)
-            save_image(self.draw_dir / image.file_name, drawn_image)
+            save_image(self.draw_dir / image.file_name, drawn_image, create_directory=True)

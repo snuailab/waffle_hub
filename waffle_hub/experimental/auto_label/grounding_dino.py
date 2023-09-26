@@ -9,6 +9,7 @@ from groundingdino.models import build_model
 from groundingdino.util.slconfig import SLConfig
 from groundingdino.util.utils import clean_state_dict, get_phrases_from_posmap
 from waffle_utils.file import io
+from waffle_utils.image.io import save_image
 from waffle_utils.log import initialize_logger
 
 from waffle_hub.dataset import Dataset
@@ -156,7 +157,7 @@ if __name__ == "__main__":
     class_name = args.class_name
     class2id = {name: i for i, name in enumerate([class_name])}
     id2class = {i: name for name, i in class2id.items()}
-    
+
     box_threshold = args.box_threshold
     text_threshold = args.text_threshold
 
@@ -232,8 +233,8 @@ if __name__ == "__main__":
                 names=[class_name],
             )
             draw_path = draw_dir / file_name.with_suffix(".png")
-            io.make_directory(draw_path.parent)
-            cv2.imwrite(str(draw_path), draw)
+
+            save_image(draw_path, draw, create_directory=True)
 
     # save coco format
     io.save_json(coco, output_dir / "coco.json", create_directory=True)

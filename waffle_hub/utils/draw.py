@@ -6,6 +6,7 @@ import cv2
 import numpy as np
 from PIL import Image, ImageDraw, ImageFont
 from waffle_utils.file.network import get_file_from_url
+from waffle_utils.image.io import load_image
 
 from waffle_hub import TaskType
 from waffle_hub.schema.fields import Annotation
@@ -140,7 +141,7 @@ def draw_results(
 ):
 
     if isinstance(image, str):
-        image = cv2.imread(image)
+        image = load_image(image)
 
     task_results = {task: [] for task in TaskType}
     for result in results:

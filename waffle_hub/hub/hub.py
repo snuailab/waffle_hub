@@ -23,7 +23,9 @@ import numpy as np
 import torch
 import tqdm
 from waffle_utils.file import io
+from waffle_utils.image.io import save_image
 from waffle_utils.utils import type_validator
+from waffle_utils.video.io import create_video_writer
 
 from waffle_hub import BACKEND_MAP, EXPORT_MAP, TaskType
 from waffle_hub.dataset import Dataset
@@ -1339,29 +1341,43 @@ class Hub:
                 results.append({str(image_info.image_rel_path): [res.to_dict() for res in result]})
 
                 if cfg.draw:
+                    io.make_directory(self.draw_dir)
                     draw = draw_results(
                         image_info.ori_image,
                         result,
                         names=[x["name"] for x in self.categories],
                     )
-                    draw_path = self.draw_dir / Path(image_info.image_rel_path).with_suffix(".png")
-                    io.make_directory(draw_path.parent)
-                    cv2.imwrite(str(draw_path), draw)
 
-                if cfg.draw and cfg.source_type == "video":
-                    if writer is None:
-                        h, w = draw.shape[:2]
-                        writer = cv2.VideoWriter(
-                            str(self.inference_dir / Path(cfg.source).with_suffix(".mp4").name),
-                            cv2.VideoWriter_fourcc(*"mp4v"),
-                            dataset.fps,
-                            (w, h),
+                    if cfg.source_type == "video":
+                        if writer is None:
+                            h, w = draw.shape[:2]
+                            writer = create_video_writer(
+                                str(self.inference_dir / Path(cfg.source).with_suffix(".mp4").name),
+                                dataset.fps,
+                                (w, h),
+                            )
+                        writer.write(draw)
+
+                        draw_path = (
+                            self.draw_dir
+                            / Path(cfg.source).stem
+                            / Path(image_info.image_rel_path).with_suffix(".png")
                         )
-                    writer.write(draw)
+                    else:
+                        draw_path = self.draw_dir / Path(image_info.image_rel_path).with_suffix(
+                            ".png"
+                        )
+                    save_image(draw_path, draw, create_directory=True)
 
                 if cfg.show:
+                    if not cfg.draw:
+                        draw = draw_results(
+                            image_info.ori_image,
+                            result,
+                            names=[x["name"] for x in self.categories],
+                        )
                     cv2.imshow("result", draw)
-                    cv2.waitKey(0)
+                    cv2.waitKey(1)
 
             callback.update(i)
 
@@ -1592,7 +1608,7 @@ class Hub:
             device (str, optional): device. "cpu" or "gpu_id". Defaults to "0".
             hold (bool, optional): hold or not.
                 If True then it holds until task finished.
-                If False then return Inferece Callback and run in background. Defaults to True.
+                If False then return Inference Callback and run in background. Defaults to True.
 
         Example:
             >>> export_onnx_result = hub.export_onnx(
