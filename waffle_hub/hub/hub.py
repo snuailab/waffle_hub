@@ -1325,7 +1325,7 @@ class Hub:
                             names=[x["name"] for x in self.categories],
                         )
                     cv2.imshow("result", draw)
-                    cv2.waitKey(30)
+                    cv2.waitKey(1)
 
             callback.update(i)
 
