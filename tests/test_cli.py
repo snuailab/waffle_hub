@@ -1,3 +1,4 @@
+import os
 import subprocess
 from pathlib import Path
 
@@ -14,16 +15,6 @@ def run_cli(cmd):
 @pytest.fixture(scope="session")
 def test_dir(tmpdir_factory):
     return Path(tmpdir_factory.mktemp("test"))
-
-
-def test_dataset_new(test_dir: Path):
-    cmd = f"python -m waffle_hub.dataset.cli new \
-        --name new \
-        --root-dir {test_dir / 'datasets'} \
-        --task classification \
-    "
-    ret = run_cli(cmd)
-    assert ret.returncode == 0
 
 
 def test_dataset_from_coco(test_dir: Path):
@@ -105,7 +96,7 @@ def test_dataset_export(test_dir: Path):
     "
     ret = run_cli(cmd)
     assert ret.returncode == 0
-    assert (test_dir / "datasets" / "from_coco" / "exports" / "YOLO").exists()
+    assert (test_dir / "datasets" / "from_coco" / "exports" / "ULTRALYTICS").exists()
 
 
 def test_dataset_clone(test_dir: Path):
@@ -288,8 +279,8 @@ def test_hub_evaluate(test_dir: Path):
     assert (test_dir / "hubs" / "test" / "evaluate.json").exists()
 
 
-def test_hub_export(test_dir: Path):
-    cmd = f'python -m waffle_hub.hub.cli export \
+def test_hub_export_onnx(test_dir: Path):
+    cmd = f'python -m waffle_hub.hub.cli export_onnx \
         --name test \
         --root-dir {test_dir / "hubs"} \
         --device cpu \
@@ -297,3 +288,58 @@ def test_hub_export(test_dir: Path):
     ret = run_cli(cmd)
     assert ret.returncode == 0
     assert (test_dir / "hubs" / "test" / "weights" / "model.onnx").exists()
+
+
+def test_hub_export_waffle(test_dir: Path):
+    cmd = f'python -m waffle_hub.hub.cli export_waffle \
+        --name test \
+        --root-dir {test_dir / "hubs"} \
+    '
+    ret = run_cli(cmd)
+    assert ret.returncode == 0
+    assert (test_dir / "hubs" / "test" / "test.waffle").exists()
+
+
+def test_hub_from_waffle_file(test_dir: Path):
+    cmd = f'python -m waffle_hub.hub.cli from_waffle_file \
+        --name from_waffle_file_test \
+        --waffle_file {test_dir / "hubs" / "test" / "test.waffle"} \
+        --root-dir {test_dir / "hubs"} \
+    '
+    ret = run_cli(cmd)
+    assert ret.returncode == 0
+    assert (test_dir / "hubs" / "from_waffle_file_test").exists()
+
+
+def test_from_waffle_file_inference(test_dir: Path):
+    cmd = f'python -m waffle_hub.hub.cli inference \
+        --root-dir {test_dir / "hubs"} \
+        --name from_waffle_file_test \
+        --source {test_dir / "datasets" / "from_coco" / "raw"} \
+        --confidence-threshold 0.25 \
+        --device cpu \
+        --workers 0 \
+    '
+    ret = run_cli(cmd)
+    assert ret.returncode == 0
+    assert (test_dir / "hubs" / "from_waffle_file_test" / "inferences").exists()
+
+
+def test_hub_delete(test_dir: Path):
+    # delete_artifact test
+    cmd = f"python -m waffle_hub.hub.cli delete_artifact \
+        --name  test \
+        --root-dir {test_dir / 'hubs'} \
+    "
+    ret = run_cli(cmd)
+    assert ret.returncode == 0
+    assert not (test_dir / "hubs" / "test" / "artifacts").exists()
+
+    # delete_hub test
+    cmd = f"python -m waffle_hub.hub.cli delete_hub \
+        --name  from_waffle_file_test \
+        --root-dir {test_dir / 'hubs'} \
+    "
+    ret = run_cli(cmd)
+    assert ret.returncode == 0
+    assert not (test_dir / "hubs" / "from_waffle_file_test").exists()
