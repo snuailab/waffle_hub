@@ -9,6 +9,43 @@ from waffle_hub.schema.fields import Annotation, Category, Image
 
 
 def import_object_detection(self, json_file, image_dir=None):
+    """
+    Label studio object detection format
+
+    [
+        {
+            "id": 1,
+            "data": {
+                "image": "/data/upload/1/1.jpg"  # {data_path}/{project_id}/{file_name}
+            },
+            "file_upload": "1.jpg",  # {file_name}
+            "annotations": [
+                {
+                    "id": 1,
+                    "result": [
+                        {
+                            "id": 1,
+                            "type": "rectanglelabels",
+                            "value": {
+                                "rectanglelabels": ["cat"],
+                                "x": 20.3,  # left  # 0 ~ 100 (%)
+                                "y": 34.2,  # top  # 0 ~ 100 (%)
+                                "width": 10.4,  # width  # 0 ~ 100 (%)
+                                "height": 10.2  # height  # 0 ~ 100 (%)
+                            },
+                            ...
+                        },
+                        ...
+                    ],
+                    ...
+                },
+                ...
+            ],
+            ...
+        },
+        ...
+    ]
+    """
 
     images = []
     annotations = []
@@ -35,15 +72,11 @@ def import_object_detection(self, json_file, image_dir=None):
 
         for annotation in data["annotations"]:
             for result in annotation["result"]:
-                # get labeling info
-                if "rectanglelabels" in result["value"].keys():
-                    category = result["value"]["rectanglelabels"][0]
-                elif "label" in result["value"].keys():
-                    category = result["value"]["label"][0]
-                else:
-                    print(f"no category info in {data['id']}")
-                    raise
+                if "rectanglelabels" not in result["value"]:
+                    continue
+                value = result["value"]
 
+                category = value["rectanglelabels"][0]
                 if category not in category_to_id:
                     category_to_id[category] = len(category_to_id) + 1
                     categories.append(
@@ -54,10 +87,10 @@ def import_object_detection(self, json_file, image_dir=None):
                         )
                     )
 
-                x = result["value"]["x"] * W / 100
-                y = result["value"]["y"] * H / 100
-                width = result["value"]["width"] * W / 100
-                height = result["value"]["height"] * H / 100
+                x = value["x"] * W / 100
+                y = value["y"] * H / 100
+                width = value["width"] * W / 100
+                height = value["height"] * H / 100
 
                 annotations.append(
                     Annotation.object_detection(
@@ -75,6 +108,39 @@ def import_object_detection(self, json_file, image_dir=None):
 
 
 def import_classification(self, json_file, image_dir):
+    """
+    Label studio classification format
+
+    [
+        {
+            "id": 1,
+            "data": {
+                "image": "/data/upload/1/1.jpg"  # {data_path}/{project_id}/{file_name}
+            },
+            "file_upload": "1.jpg",  # {file_name}
+            "annotations": [
+                {
+                    "id": 1,
+                    "result": [
+                        {
+                            "id": 1,
+                            "type": "choices",
+                            "value": {
+                                "choices": ["cat"]
+                            },
+                            ...
+                        },
+                        ...
+                    ],
+                    ...
+                },
+                ...
+            ],
+            ...
+        },
+        ...
+    ]
+    """
 
     images = []
     annotations = []
@@ -100,24 +166,28 @@ def import_classification(self, json_file, image_dir):
         images.append(image)
 
         for annotation in data["annotations"]:
-            category = annotation["result"][0]["value"]["choices"][0]
+            for result in annotation["result"]:
+                if "choices" not in result["value"]:
+                    continue
+                value = result["value"]
 
-            if category not in category_to_id:
-                category_to_id[category] = len(category_to_id) + 1
-                categories.append(
-                    Category.classification(
+                category = value["choices"][0]
+                if category not in category_to_id:
+                    category_to_id[category] = len(category_to_id) + 1
+                    categories.append(
+                        Category.classification(
+                            category_id=category_to_id[category],
+                            name=category,
+                        )
+                    )
+
+                annotations.append(
+                    Annotation.classification(
+                        annotation_id=len(annotations) + 1,
+                        image_id=image_id,
                         category_id=category_to_id[category],
-                        name=category,
                     )
                 )
-
-            annotations.append(
-                Annotation.classification(
-                    annotation_id=len(annotations) + 1,
-                    image_id=image_id,
-                    category_id=category_to_id[category],
-                )
-            )
 
     self.add_images(images)
     self.add_categories(categories)
