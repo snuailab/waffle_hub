@@ -1,5 +1,5 @@
 dataset_path: /home/daeun/workspace/waffle_hub/datasets/mnist_classification/exports/ULTRALYTICS
-epochs: 2
+epochs: 3
 batch_size: 24
 image_size:
 - 24
