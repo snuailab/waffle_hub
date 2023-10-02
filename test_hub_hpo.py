@@ -11,10 +11,6 @@ from waffle_hub.dataset import Dataset
 from waffle_hub.hub import Hub
 
 
-def simple_func(x, y, z, a, q, w, e, r, t, u, i, o):
-    return x**2 + (y + z + a + q + w + e) / 2 + (r + t + y + u + i + o) * 2
-
-
 def test_classification_hpo():
     hold = True
     dataset = Dataset.load(
