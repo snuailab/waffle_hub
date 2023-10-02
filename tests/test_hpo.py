@@ -48,21 +48,19 @@ def test_object_detection_hpo(
     hub = Hub.new(
         name=name,
         backend="ultralytics",
-        task=TaskType.OBJECT_DETECTION,
+        task=TaskType.CLASSIFICATION,
         model_type="yolov8",
         model_size="n",
         categories=dataset.get_category_names(),
-        device="cpu",
         root_dir=tmpdir,
     )
-    result = hub.hpo_new(
+    result = hub.hpo(
         dataset,
         n_trials,
         direction,
         hpo_method,
         search_space=search_space,
-        epochs=epochs,
-        batch_size=batch_size,
+        objective=None,
     )
     train_hub = Hub.load(name=name, root_dir=tmpdir)
     train_hub: Hub = Hub.from_model_config(
@@ -113,7 +111,7 @@ def test_object_detection_hpo(
     "n_trials, hpo_method, search_space, direction, epochs, batch_size",
     [
         (
-            1,
+            2,
             "GridSampler",
             {
                 "lr0": [0.005, 0.05],
@@ -157,19 +155,21 @@ def test_classification_hpo(
         batch_size=batch_size,
     )
     train_hub = Hub.load(name=name, root_dir=tmpdir)
+    train_config = train_hub.get_train_config()
     train_hub: Hub = Hub.from_model_config(
         name=name + "_from_model_config",
         model_config_file=tmpdir / name / Hub.MODEL_CONFIG_FILE,
         root_dir=tmpdir,
     )
     train_result = train_hub.train(
-        dataset=dataset,
-        epochs=1,
-        batch_size=batch_size,
-        pretrained_model=None,
-        letter_box=False,
+        dataset=train_config.dataset,
+        epochs=train_config.epochs,
+        batch_size=train_config.batch_size,
+        letter_box=train_config.letter_box,
         device="cpu",
         workers=0,
+        image_size=train_config.image_size,
+        advance_params=train_config.advance_params,
     )
 
     assert len(train_result.metrics) >= 1

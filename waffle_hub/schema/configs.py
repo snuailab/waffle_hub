@@ -1,11 +1,7 @@
 from dataclasses import dataclass
-from typing import Dict, Union
+from typing import Union
 
-from optuna.pruners import HyperbandPruner, NopPruner
-from optuna.samplers import GridSampler, RandomSampler, TPESampler
-
-from waffle_hub import HPOMethod, Objective, SearchOption
-from waffle_hub.schema.base_schema import BaseHPOSchema, BaseSchema
+from waffle_hub.schema.base_schema import BaseSchema
 
 
 @dataclass
@@ -81,60 +77,9 @@ class ExportConfig(BaseSchema):
 
 @dataclass
 class HPOConfig(BaseSchema):
-    dataset_path: str = None
-    epochs: int = None
-    batch_size: int = None
-    image_size: list[int] = None
-    learning_rate: list[float] = None
-    letter_box: bool = None
-    pretrained_model: str = None
-    device: str = None
-    workers: int = None
-    seed: int = None
-    advance_params: dict = None
-    verbose: bool = None
-
-
-# TODO: Whenever a new combination of sampler and pruner (i.e., method) is added,
-# each framework-specific config needs to be modified separately. (Issue)
-
-
-class HPOMethodConfig(BaseHPOSchema):
-    def __init__(self, framework):
-        self.framework = framework
-
-    def initialize_method(self, method_type, search_space=None, n_start_trials=3):
-        print(n_start_trials, search_space)
-        if self.framework == "OPTUNA":
-            method_type = method_type.upper()
-            if method_type == HPOMethod.RANDOMSAMPLER.name:
-                return (RandomSampler(), NopPruner())
-            elif method_type == HPOMethod.GRIDSAMPLER.name:
-                return (GridSampler(search_space=search_space), NopPruner())
-            elif method_type == HPOMethod.BOHB.name:
-                return (TPESampler(n_startup_trials=n_start_trials), HyperbandPruner())
-            elif method_type == HPOMethod.TPESAMPLER.name:
-                return (TPESampler(n_startup_trials=n_start_trials), NopPruner())
-            else:
-                raise ValueError(f"Invalid sampler_type: {method_type}")
-        elif self.framework == "RAYTUNE":
-            pass
-        else:
-            raise ValueError("Framework mismatch")
-
-    def search_space_scope(self, search_opt="m"):
-        return
-
-
-class RaytuneHpoMethodConfig(BaseHPOSchema):
-    framework = "RAYTUNE"
-
-    def __init__(cls):
-        super().__init__(cls.framework)
-
-    def initialize_sampler(self, method_type):
-        if self.framework == "RAYTUNE":
-            # TODO : initialize raytune methods
-            pass
-        else:
-            raise ValueError("Framework mismatch")
+    sampler: str = None
+    pruner: str = None
+    metric: str = None
+    direction: str = None
+    n_trials: int = None
+    search_space: dict = None

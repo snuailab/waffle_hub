@@ -1,3 +1,3 @@
-from .framework.optuna_hpo import OptunaHPO
+from .adapter.optuna_hpo import OptunaHPO
 
 __all__ = ["OptunaHPO"]

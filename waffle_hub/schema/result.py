@@ -25,3 +25,11 @@ class InferenceResult(BaseSchema):
 @dataclass
 class ExportResult(BaseSchema):
     export_file: str = None
+
+
+@dataclass
+class HPOResult(BaseSchema):
+    best_trial: int = None
+    best_params: dict = None
+    best_score: float = None
+    total_time: str = None

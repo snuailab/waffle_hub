@@ -17,7 +17,7 @@ import time
 import warnings
 from functools import cached_property
 from pathlib import Path, PurePath
-from typing import Union
+from typing import Callable, Union
 
 import cpuinfo
 import cv2
@@ -34,12 +34,17 @@ from waffle_hub.hub.model.wrapper import get_parser
 from waffle_hub.schema.configs import (
     EvaluateConfig,
     ExportConfig,
-    HPOConfig,
     InferenceConfig,
     ModelConfig,
     TrainConfig,
 )
 from waffle_hub.schema.data import ImageInfo
+from waffle_hub.schema.evaluate import (
+    ClassificationMetric,
+    InstanceSegmentationMetric,
+    ObjectDetectionMetric,
+    TextRecognitionMetric,
+)
 from waffle_hub.schema.fields import Category
 from waffle_hub.schema.result import (
     EvaluateResult,
@@ -1444,6 +1449,7 @@ class Hub:
 
         # overwrite training config
         train_config = self.get_train_config()
+
         if image_size is None:
             image_size = train_config.image_size
         if letter_box is None:
@@ -1685,39 +1691,20 @@ class Hub:
             "gpu_name": torch.cuda.get_device_name(0) if device != "cpu" else None,
         }
 
-    def _save_hpo_result(self, hpo_results: dict) -> None:
-
-        hub_root_dir = self.root_dir / self.name
-        hpo_file_path = hub_root_dir / "hpo.json"
-        best_hpo_path = hub_root_dir / f"hpo/trial_{hpo_results['best_trial']}"
-        shutil.rmtree(hub_root_dir / "configs")
-
-        for name in os.listdir(best_hpo_path):
-            print(name)
-            src_path = best_hpo_path / name
-            dst_path = hub_root_dir / name
-
-            if os.path.isdir(src_path):
-                io.copy_files_to_directory(src_path, dst_path, create_directory=True)
-            else:
-                io.copy_file(src_path, dst_path)
-        io.save_json(
-            hpo_results,
-            hpo_file_path,
-        )
-
-    def _hpo_hub_objective(
-        self, trial: any, dataset: any, params: dict, objective_mapper: callable, **kwargs
-    ) -> float:
+    def _hpo_hub_objective(self, **kwargs) -> float:
         torch.cuda.empty_cache()
 
-        hub_name = f"{self.name}/hpo/trial_{trial.number}"
-        hub = self.new(
-            name=hub_name,
+        trial = kwargs.get("trial", None)
+        dataset = kwargs.get("dataset", None)
+        metric = kwargs.get("metric", None)
+        selected_params = kwargs.get("advance_params", None)
+
+        hub = Hub.new(
+            name=f"trial_{trial.number}",
+            root_dir=self.hub_dir / "hpo",
             task=self.task,
             model_type=self.model_type,
             model_size=self.model_size,
-            root_dir=self.root_dir,
         )
 
         train_result = hub.train(
@@ -1729,86 +1716,74 @@ class Hub:
             letter_box=kwargs.get("letter_box", False),
             device=kwargs.get("device", "cpu"),
             workers=kwargs.get("workers", 0),
-            advance_params=params,
+            advance_params=selected_params,
             hold=kwargs.get("hold", True),
         )
 
-        train_result = train_result.to_dict()
-        return objective_mapper.set_direction()(train_result)
+        # TODO : train_result.eval_metrics [dict] -> EvalMetricClass
+        for metric_value in train_result.eval_metrics:
+            if metric_value["tag"] == metric:
+                result = metric_value["value"]
+                break
+        return float(result)
 
     def hpo(
         self,
-        dataset: Dataset,
-        n_trials: int,
-        direction: str,
-        hpo_method: str,
-        search_space: dict,
+        dataset: Union[Dataset, str] = None,
+        dataset_root_dir: Union[str, Path] = None,
+        sampler: Union[dict, str] = None,
+        pruner: Union[dict, str] = None,
+        direction: str = None,
+        n_trials: int = None,
+        metric: str = None,
+        search_space: dict = None,
         **kwargs,
     ) -> dict:
-        """Hyperparameter Optimization (HPO) for benchmarking the model.
+        # Task Type Check
+        if self.task == TaskType.OBJECT_DETECTION:
+            if metric not in ObjectDetectionMetric.__annotations__.keys():
+                raise ValueError(f"Invalid metric: {metric}")
+        elif self.task == TaskType.TEXT_RECOGNITION:
+            if not TextRecognitionMetric.__annotations__.keys():
+                raise ValueError(f"Invalid metric: {metric}")
+        elif self.task == TaskType.CLASSIFICATION:
+            if metric not in ClassificationMetric.__annotations__.keys():
+                raise ValueError(f"Invalid metric: {metric}")
+        elif self.task == TaskType.INSTANCE_SEGMENTATION:
+            if metric not in InstanceSegmentationMetric.__annotations__.keys():
+                raise ValueError(f"Invalid metric: {metric}")
+        else:
+            raise ValueError(f"Unsupported task type: {self.task}")
 
-        This method performs hyperparameter optimization to find the best set of hyperparameters
-        for benchmarking the model on a given dataset.
-
-        Args:
-            dataset (Dataset): The dataset used for benchmarking.
-            n_trials (int): The number of HPO trials to run.
-            direction (str): The direction of optimization, either "maximize" or "minimize".
-            hpo_method (str): The HPO method to use, e.g., "RandomSampler" or "TPESampler".
-            search_space (dict): The search space for hyperparameters in the form of a dictionary.
-            **kwargs: Additional keyword arguments for hyperparameter optimization and training.
-
-        Returns:
-            dict: A dictionary containing the HPO results, including the best hyperparameters
-            and their corresponding performance metrics.
-
-        Example:
-            >>> hpo_results = hub.hpo(
-                    dataset=your_dataset,
-                    n_trials=100,
-                    direction="maximize",
-                    hpo_method="RandomSampler",
-                    search_space={
-                        "lr0": [0.005, 0.05],
-                        "lrf": [0.001, 0.005],
-                        "batch_size": [16, 32],
-                    },
-                    epochs=10,
-                    image_size=[640, 640],
-                    device="cuda:0",
+        # Dataset Check
+        if isinstance(dataset, (str, Path)):
+            if Path(dataset).exists():
+                dataset = Path(dataset)
+                dataset = Dataset.load(
+                    name=dataset.parts[-1], root_dir=dataset.parents[0].absolute()
                 )
+            elif dataset in Dataset.get_dataset_list(dataset_root_dir):
+                dataset = Dataset.load(name=dataset, root_dir=dataset_root_dir)
+            else:
+                raise FileNotFoundError(f"Dataset {dataset} is not exist.")
 
-        Returns:
-            dict: benchmark result
-            {
-                "best_params": {
-                    "lr0": 0.01,
-                    "lrf": 0.003,
-                    "batch_size": 24,
-                },
-                "best_score": 0.95,
-                "other_results": {
-                    # Additional results for each HPO trial
-                },
-            }
-        """
-        # load_hpo
-        hpo_file = self.root_dir / self.name / "hpo.json"
+        optuna_hpo = OptunaHPO(
+            study_name=self.name,
+            root_dir=self.root_dir,
+            sampler=sampler,
+            pruner=pruner,
+            direction=direction,
+            n_trials=n_trials,
+            search_space=search_space,
+            metric=metric,
+            is_hub=True,
+        )
 
-        if hpo_file.exists():
-            optuna_hpo = OptunaHPO(self.name, self.root_dir)
-            hpo_study = optuna_hpo.load_hpo(root_dir=self.root_dir, study_name=self.name)
-            return hpo_study
-
-        optuna_hpo = OptunaHPO(self.root_dir, hpo_method, direction=direction)
         hpo_results = optuna_hpo.run_hpo(
             study_name=self.name,
             objective=self._hpo_hub_objective,
             dataset=dataset,
-            n_trials=n_trials,
-            direction=direction,
-            search_space=search_space,
             **kwargs,
         )
-        self._save_hpo_result(hpo_results)
+
         return hpo_results

@@ -80,22 +80,17 @@ class SplitMethod(BaseEnum):
     STRATIFIED = enum.auto()
 
 
-class HPOMethod(BaseEnum):
-    RANDOMSAMPLER = "RANDOMSAMPLER"
-    GRIDSAMPLER = "GRIDSAMPLER"
-    BOHB = "BOHB"
-    TPESAMPLER = "TPESAMPLER"
+class SamplerType(BaseEnum):
+    RANDOMSAMPLER = enum.auto()
+    GRIDSAMPLER = enum.auto()
+    TPESAMPLER = enum.auto()
 
 
-class SearchOption(BaseEnum):
-    FAST = "FAST"
-    MEDIUM = "MEDIUM"
-    LONG = "LONG"
-
-
-class Objective(BaseEnum):
-    MINIMIZE_LOSS = ("MINIMIZE", "LOSS")
-    MAXIMIZE_ACCURACY = ("MAXIMIZE", "ACCURACY")
+class PrunerType(BaseEnum):
+    MEDIANPRUNER = enum.auto()
+    PERCENTILEPRUNER = enum.auto()
+    SUCCESSIVEHALVINGPRUNER = enum.auto()
+    NOPRUNER = enum.auto()
 
 
 EXPORT_MAP = OrderedDict(
@@ -135,3 +130,45 @@ for key in list(EXPORT_MAP.keys()):
 for key in list(BACKEND_MAP.keys()):
     BACKEND_MAP[str(key).lower()] = BACKEND_MAP[key]
     BACKEND_MAP[str(key).upper()] = BACKEND_MAP[key]
+
+SAMPLER_MAP = OrderedDict(
+    {
+        SamplerType.RANDOMSAMPLER: {
+            "import_path": "optuna.samplers",
+            "class_name": "RandomSampler",
+        },
+        SamplerType.GRIDSAMPLER: {
+            "import_path": "optuna.samplers",
+            "class_name": "GridSampler",
+        },
+        SamplerType.TPESAMPLER: {
+            "import_path": "optuna.samplers",
+            "class_name": "TPESampler",
+        },
+    }
+)
+
+PRUNER_MAP = OrderedDict(
+    {
+        PrunerType.MEDIANPRUNER: {
+            "import_path": "optuna.pruners",
+            "class_name": "MedianPruner",
+        },
+        PrunerType.SUCCESSIVEHALVINGPRUNER: {
+            "import_path": "optuna.pruners",
+            "class_name": "SuccessiveHalvingPruner",
+        },
+        PrunerType.NOPRUNER: {
+            "import_path": "optuna.pruners",
+            "class_name": "NopPruner",
+        },
+    }
+)
+
+for key in list(SAMPLER_MAP.keys()):
+    SAMPLER_MAP[str(key).lower()] = SAMPLER_MAP[key]
+    SAMPLER_MAP[str(key).upper()] = SAMPLER_MAP[key]
+
+for key in list(PRUNER_MAP.keys()):
+    PRUNER_MAP[str(key).lower()] = PRUNER_MAP[key]
+    PRUNER_MAP[str(key).upper()] = PRUNER_MAP[key]
