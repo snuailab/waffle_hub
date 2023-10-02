@@ -65,7 +65,7 @@ class InferenceConfig(BaseSchema):
 
 
 @dataclass
-class ExportConfig(BaseSchema):
+class ExportOnnxConfig(BaseSchema):
     image_size: Union[int, list[int]] = None
     batch_size: int = None
     input_name: list[str] = None

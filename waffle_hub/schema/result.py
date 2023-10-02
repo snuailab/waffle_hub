@@ -33,3 +33,12 @@ class HPOResult(BaseSchema):
     best_params: dict = None
     best_score: float = None
     total_time: str = None
+
+
+class ExportOnnxResult(BaseSchema):
+    onnx_file: str = None
+
+
+@dataclass
+class ExportWaffleResult(BaseSchema):
+    waffle_file: str = None
