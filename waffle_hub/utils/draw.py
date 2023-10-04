@@ -2,7 +2,6 @@ import logging
 from pathlib import Path
 from typing import Union
 
-import cv2
 import numpy as np
 from PIL import Image, ImageDraw, ImageFont
 from waffle_utils.file.network import get_file_from_url
@@ -11,10 +10,6 @@ from waffle_utils.image.io import load_image
 from waffle_hub import TaskType
 from waffle_hub.schema.fields import Annotation
 
-FONT_FACE = cv2.FONT_HERSHEY_DUPLEX
-FONT_SCALE = 1.0
-FONT_WEIGHT = 2
-THICKNESS = 2
 FONT_URL = "https://raw.githubusercontent.com/snuailab/assets/main/waffle/fonts/gulim.ttc"
 FONT_NAME = "gulim.ttc"
 
@@ -33,15 +28,33 @@ def draw_classification(
     category_id: int = annotation.category_id
     score: float = annotation.score
 
-    image = cv2.putText(
-        image,
+    # calculate font size and thickness
+    font_scale = max(image.shape[0], image.shape[1]) / 1000
+    font_scale = 1.0 if font_scale < 1.0 else font_scale
+    font_size = int(font_scale * 25)
+    thinckness = int(font_scale) * 2
+
+    # download font
+    try:
+        if not Path(FONT_NAME).exists():
+            get_file_from_url(FONT_URL, FONT_NAME, True)
+
+        font = ImageFont.truetype(FONT_NAME, font_size)
+    except:
+        font = ImageFont.load_default()
+        logging.warning("Don't load font file, Using default font.")
+
+    img_pil = Image.fromarray(image)
+    draw = ImageDraw.Draw(img_pil)
+    draw.text(
+        (loc_x, loc_y - font_size),
         f"{names[category_id-1]}" + (f": {score:.2f}" if score else ""),
-        (loc_x, loc_y),
-        FONT_FACE,
-        FONT_SCALE,
-        colors[category_id - 1],
-        FONT_WEIGHT,
+        font=font,
+        fill=tuple(colors[category_id - 1]),
+        stroke_width=thinckness,
     )
+    image = np.array(img_pil)
+
     return image
 
 
@@ -58,22 +71,39 @@ def draw_object_detection(
     category_id: int = annotation.category_id
     score: float = annotation.score
 
-    image = cv2.putText(
-        image,
+    # calculate font size and thickness
+    font_scale = max(image.shape[0], image.shape[1]) / 1000
+    font_scale = 1.0 if font_scale < 1.0 else font_scale
+    font_size = int(font_scale * 15)
+    thinckness = int(font_scale) * 2
+
+    # download font
+    try:
+        if not Path(FONT_NAME).exists():
+            get_file_from_url(FONT_URL, FONT_NAME, True)
+        font = ImageFont.truetype(FONT_NAME, font_size)
+    except:
+        font = ImageFont.load_default()
+        logging.warning("Don't load font file, Using default font.")
+
+    img_pil = Image.fromarray(image)
+    draw = ImageDraw.Draw(img_pil)
+    draw.text(
+        (int(x1), int(y1) - font_size),
         f"{names[category_id-1]}" + (f": {score:.2f}" if score else ""),
-        (int(x1), int(y1) - 3),
-        FONT_FACE,
-        FONT_SCALE,
-        colors[category_id - 1],
-        FONT_WEIGHT,
+        font=font,
+        fill=tuple(colors[category_id - 1]),
+        stroke_width=thinckness,
     )
-    image = cv2.rectangle(
-        image,
-        (int(x1), int(y1)),
-        (int(x2), int(y2)),
-        colors[category_id - 1],
-        THICKNESS,
+
+    draw.rectangle(
+        (int(x1), int(y1), int(x2), int(y2)),
+        outline=tuple(colors[category_id - 1]),
+        width=thinckness,
     )
+
+    image = np.array(img_pil)
+
     return image
 
 
@@ -89,16 +119,17 @@ def draw_instance_segmentation(
     if len(segments) == 0:
         return image
 
-    alpha = np.zeros_like(image)
+    pil_image = Image.fromarray(image)
+    draw = ImageDraw.Draw(pil_image, "RGBA")
+    fill_color = tuple(colors[annotation.category_id - 1])
+    fill_color = fill_color + (120,)
     for segment in segments:
-        segment = np.array(segment).reshape(-1, 2).astype(int)
-        alpha = cv2.fillPoly(
-            alpha,
-            [segment],
-            colors[annotation.category_id - 1],
+        draw.polygon(
+            segment,
+            fill=fill_color,
         )
-    mask = alpha > 0
-    image[mask] = cv2.addWeighted(alpha, 0.3, image, 0.7, 0)[mask]
+
+    image = np.array(pil_image)
 
     return image
 
@@ -109,12 +140,16 @@ def draw_text_recognition(
     loc_x: int = 0,
     loc_y: int = 10,
 ):
+    # calculate font size and thickness
+    font_scale = max(image.shape[0], image.shape[1]) / 1000
+    font_size = int((0.7 if font_scale < 0.7 else font_scale) * 25)
+    thinckness = int(font_scale) * 2
+
     # download font
     try:
-        global FONT_NAME
         if not Path(FONT_NAME).exists():
             get_file_from_url(FONT_URL, FONT_NAME, True)
-        font = ImageFont.truetype(FONT_NAME, int(FONT_SCALE) * 25)
+        font = ImageFont.truetype(FONT_NAME, font_size)
     except:
         font = ImageFont.load_default()
         logging.warning("Don't load font file, Using default font.")
@@ -126,7 +161,7 @@ def draw_text_recognition(
         annotation.caption,
         font=font,
         fill=tuple(colors[0]),
-        stroke_width=FONT_WEIGHT,
+        stroke_width=thinckness,
     )
 
     image = np.array(img_pil)
@@ -147,13 +182,16 @@ def draw_results(
     for result in results:
         task_results[result.task.upper()].append(result)
 
+    font_scale = max(image.shape[0], image.shape[1]) / 1000
+    font_scale = 1.0 if font_scale < 1.0 else font_scale
+    font_size = int(font_scale * 25)
     for i, result in enumerate(task_results[TaskType.CLASSIFICATION], start=1):
         image = draw_classification(
             image,
             result,
             names=names,
             loc_x=10,
-            loc_y=30 * i,
+            loc_y=font_size * i,
         )
 
     for i, result in enumerate(task_results[TaskType.OBJECT_DETECTION], start=1):
