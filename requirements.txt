@@ -29,9 +29,6 @@ pycocotools>=2.0.2
 py-cpuinfo>=8.0.0
 shapely>=2.0.0
 fire==0.5.0
-<<<<<<< HEAD
 optuna==3.2.0
 plotly==5.16.1
-=======
->>>>>>> upstream/0.2.14
 Pillow==9.5.0
