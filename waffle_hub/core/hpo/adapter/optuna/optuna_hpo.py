@@ -4,28 +4,25 @@ import logging
 import os
 import warnings
 from functools import cached_property
-from pathlib import Path
+from pathlib import Path, PurePath
 from typing import Callable, Union
 
 import optuna
 import optuna.visualization as oplt
 import plotly.io as pio
-from optuna.pruners import NopPruner
-from optuna.samplers import RandomSampler
 from waffle_utils.file import io
 from waffle_utils.utils import type_validator
 
-from waffle_hub import PRUNER_MAP, SAMPLER_MAP
-
-# from waffle_hub.core.hpo.base_hpo import BaseHPO
 from waffle_hub.schema.configs import HPOConfig
 from waffle_hub.schema.result import HPOResult
+
+from .config import PRUNER_MAP, SAMPLER_MAP
+from .hpo_helper import ChoiceMethod, draw_error_image
 
 logger = logging.getLogger(__name__)
 
 
 class OptunaHPO:
-    # DEFAULT_HPO_PARAMS = None
     # directory settings
     DEFAULT_HPO_ROOT_DIR = Path("./hubs")
 
@@ -46,12 +43,10 @@ class OptunaHPO:
         pruner: Union[dict, str] = None,
         direction: str = None,
         n_trials: int = None,
-        search_space: dict = None,
+        search_space: Union[dict, str] = None,
         metric: str = None,
         is_hub: bool = None,
     ):
-        # if self.DEFAULT_HPO_PARAMS is None:
-        #     raise AttributeError("DEFAULT_HPO_PARAMS is not set.")
 
         # hpo study configuration
         self.study_name: str = study_name
@@ -88,6 +83,11 @@ class OptunaHPO:
     def hpo_result_file(self) -> Path:
         """HPO Result json File"""
         return self.hpo_dir / OptunaHPO.HPO_RESULT_FILE
+
+    @cached_property
+    def hpo_config_dir(self) -> Path:
+        """HPO Config Directory"""
+        return self.hpo_dir / OptunaHPO.CONFIG_DIR
 
     @cached_property
     def hpo_artifacts_dir(self) -> Path:
@@ -151,11 +151,22 @@ class OptunaHPO:
         return self.__search_space
 
     @search_space.setter
-    @type_validator(dict)
     def search_space(self, v):
-        if v is None:
-            warnings.warn("HPO search_space is not set. Set to None.")
-        self.__search_space = v
+        if isinstance(v, (str, PurePath)):
+            # chck if it is yaml or json
+            if Path(v).exists():
+                if Path(v).suffix in [".yaml", ".yml"]:
+                    self.__search_space = io.load_yaml(v)
+                elif Path(v).suffix in [".json"]:
+                    self.__search_space = io.load_json(v)
+                else:
+                    raise ValueError(f"search space file should be yaml or json {v}")
+            else:
+                raise ValueError(f"search space file does not exist {v}")
+        elif isinstance(v, dict):
+            self.__search_space = v
+        elif not isinstance(v, dict):
+            raise ValueError(f"search space should be dict or file path {v}")
 
     @property
     def metric(self) -> str:
@@ -196,7 +207,7 @@ class OptunaHPO:
             metric=self.metric,
             direction=self.direction,
             n_trials=self.n_trials,
-            search_space=self.search_space,
+            search_space=self.search_space if self.search_space else {},
         ).save_yaml(self.hpo_config_file)
 
     def get_hpo_config(self) -> HPOConfig:
@@ -221,14 +232,6 @@ class OptunaHPO:
             )
         return method_name, method_params
 
-    # def get_default_hpo_config(self):
-    #     return HPOConfig(
-    #         sampler="randomsampler",
-    #         pruner="nopruner",
-    #         direction="maximize",
-    #         n_trials=100,
-    #     )
-
     def get_hpo_config(self) -> HPOConfig:
         """Get hpo config from hpo config file.
 
@@ -240,8 +243,7 @@ class OptunaHPO:
     def _save_hpo_result(self, hpo_results: HPOResult) -> None:
         if self.is_hub:
             best_hpo_root_dir = self.hpo_dir / "hpo" / f"trial_{hpo_results['best_trial']}"
-
-            io.copy_file(best_hpo_root_dir / "configs" / "train.yaml", self.CONFIG_DIR)
+            io.copy_file(best_hpo_root_dir / "configs" / "train.yaml", self.hpo_config_dir)
 
             for file_name in ["evaluate.json", "metrics.json", "train.py"]:
                 io.copy_file(best_hpo_root_dir / file_name, self.hpo_dir)
@@ -252,9 +254,8 @@ class OptunaHPO:
         sampler_module = importlib.import_module(method["import_path"])
         sampler_class_name = method["class_name"]
 
-        if (
-            sampler_class_name == "NopPruner"
-        ):  # 'wrapper_descriptor' object has no attribute '__code__'
+        if sampler_class_name == "NopPruner":
+            # 'wrapper_descriptor' object has no attribute '__code__'
             return getattr(sampler_module, sampler_class_name)
 
         if not hasattr(sampler_module, sampler_class_name):
@@ -281,12 +282,12 @@ class OptunaHPO:
         return sampler_instance
 
     def get_sampler(self, sampler_name: str, **kwargs):
-        method = SAMPLER_MAP[sampler_name]
+        method = SAMPLER_MAP[sampler_name.lower()]
         sampler_instance = self.get_hpo_method(method, **kwargs)
         return sampler_instance
 
     def get_pruner(self, pruner_name: str, **kwargs):
-        method = PRUNER_MAP[pruner_name]
+        method = PRUNER_MAP[pruner_name.lower()]
         pruner_instance = self.get_hpo_method(method, **kwargs)
         return pruner_instance
 
@@ -313,65 +314,77 @@ class OptunaHPO:
         return self.get_method_params(method)
 
     def create_study(self, sampler, pruner) -> None:
-        # sampler, pruner = self._initialize_sampler("BOHB", search_space)
         if self.study_name is None:
             raise ValueError("Study name cannot be None.")
-
-        # # make study directory
-        # if not os.path.exists(self.hpo_dir):
-        #     io.make_directory(self.hpo_dir)
-
         self._study = optuna.create_study(
             study_name=self.study_name,
             storage=self.storage_name,
             direction=self.direction,
-            sampler=RandomSampler(),
-            pruner=NopPruner(),
+            sampler=sampler,
+            pruner=pruner,
+            load_if_exists=True,
         )
 
+    def draw_hpo_plot(self, plot_name: str, study: optuna.Study = None, **kwargs) -> None:
+        if study is None:
+            study = self._study
+        try:
+            pio.write_image(
+                getattr(oplt, plot_name)(self._study, **kwargs),
+                self.hpo_artifacts_dir / f"{plot_name}.png",
+            )
+        except RuntimeError as e:
+            warnings.warn(f"{plot_name} : {str(e)}")
+            draw_error_image(
+                message=str(e), image_path=str(self.hpo_artifacts_dir / f"{plot_name}.png")
+            )
+
     def visualize_hpo_results(self) -> None:
-        if not os.path.exists(self.hpo_artifacts_dir):
+        if not self.hpo_artifacts_dir.exists():
             io.make_directory(self.hpo_artifacts_dir)
-        pio.write_image(
-            oplt.plot_param_importances(self._study), self.hpo_artifacts_dir / "param_importance.png"
-        )
-        pio.write_image(oplt.plot_contour(self._study), self.hpo_artifacts_dir / "contour.png")
-        pio.write_image(
-            oplt.plot_parallel_coordinate(self._study), self.hpo_artifacts_dir / "coordinates.png"
-        )
-        pio.write_image(oplt.plot_slice(self._study), self.hpo_artifacts_dir / "slice_plot.png")
-        pio.write_image(
-            oplt.plot_optimization_history(self._study),
-            self.hpo_artifacts_dir / "optimization_history.png",
-        )
+        for visualize in [
+            "plot_param_importances",
+            "plot_contour",
+            "plot_parallel_coordinate",
+            "plot_slice",
+            "plot_optimization_history",
+        ]:
+            self.draw_hpo_plot(visualize)
+
+    def _get_search_space(self, trial: optuna.trial.Trial, search_space: dict, is_hub: bool) -> dict:
+        hub_params = {}
+        params = {}
+
+        for k, v in search_space.items():
+            choice_name = k
+            method_name = v["method"]
+            choices = v["search_space"]
+            kwargs = v["kwargs"]
+
+            choice_value = ChoiceMethod(
+                choice_name=choice_name, method_name=method_name, choices=choices, **kwargs
+            )(trial)
+
+            if k in ["batch_size", "image_size", "learning_rate", "letter_box", "epochs"]:
+                hub_params[k] = choice_value
+            else:
+                params[k] = choice_value
+
+        if is_hub:
+            hub_params.update({"advance_params": params})
+            return hub_params
+
+        return params
 
     def optimize(self, objective: Callable, **kwargs) -> None:
         def objective_wrapper(trial: optuna.trial.Trial) -> float:
-            def _get_search_space(trial: optuna.trial.Trial, search_space: dict) -> dict:
-                if "advance_params" in search_space:
-                    advance_params = search_space.pop("advance_params")
-                    advance_params = {
-                        k: trial.suggest_categorical(k, v)
-                        if isinstance(v, tuple)
-                        else trial.suggest_float(k, v[0], v[1])
-                        for k, v in advance_params.items()
-                    }
-                    params.update({"advance_params": advance_params})
-                params = {
-                    k: trial.suggest_categorical(k, v)
-                    if isinstance(v, tuple)
-                    else trial.suggest_float(k, v[0], v[1])
-                    for k, v in search_space.items()
-                }
-                return params
+            search_space_values = self._get_search_space(trial, self.search_space, self.is_hub)
 
-            params = _get_search_space(trial, self.search_space)
-            kwargs.update(params)
-            kwargs.update({"trial": trial})
-            kwargs.update({"metric": self.metric})
-            return objective(
-                **kwargs,
-            )
+            if self.is_hub:
+                search_space_values.update({"metric": self.metric, "trial": trial})
+
+            kwargs.update(search_space_values)
+            return objective(**kwargs)
 
         self._study.optimize(objective_wrapper, n_trials=self.n_trials)
 
@@ -388,8 +401,20 @@ class OptunaHPO:
     def run_hpo(
         self,
         objective: Callable,
+        visualize_hpo: bool = True,
         **kwargs,
     ) -> HPOResult:
+        """
+        Run hyperparameter optimization (HPO) using Optuna.
+
+        Args:
+            objective (Callable): The objective function to optimize.
+            visualize_hpo (bool, optional): Whether to visualize the HPO results. Defaults to True.
+            **kwargs: Additional keyword arguments to pass to the Optuna optimize function.
+
+        Returns:
+            HPOResult: An object containing the results of HPO.
+        """
         sampler = self.get_sampler(self.sampler_name, **self.sampler_param)
         pruner = self.get_pruner(self.pruner_name, **self.pruner_param)
         self.create_study(sampler, pruner)
@@ -401,5 +426,6 @@ class OptunaHPO:
             total_time=str(self._study.trials_dataframe()["duration"].sum()),
         )
         self._save_hpo_result(hpo_results)
-        self.visualize_hpo_results()
+        if visualize_hpo:
+            self.visualize_hpo_results()
         return hpo_results

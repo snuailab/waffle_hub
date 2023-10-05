@@ -7,17 +7,15 @@ Hub is a multi-backend compatible interface for model training, evaluation, infe
     Check out docstrings for more details.
 
 """
-import enum
 import importlib
 import logging
 import os
-import shutil
 import threading
 import time
 import warnings
 from functools import cached_property
 from pathlib import Path, PurePath
-from typing import Callable, Union
+from typing import Union
 
 import cpuinfo
 import cv2
@@ -30,7 +28,7 @@ from waffle_utils.utils import type_validator
 from waffle_utils.video.io import create_video_writer
 
 from waffle_hub import BACKEND_MAP, EXPORT_MAP, TaskType
-from waffle_hub.core.hpo import OptunaHPO
+from waffle_hub.core.hpo.adapter.optuna import OptunaHPO
 from waffle_hub.dataset import Dataset
 from waffle_hub.hub.model.wrapper import get_parser
 from waffle_hub.schema.configs import (
@@ -1155,6 +1153,7 @@ class Hub:
             enumerate(dataloader, start=1), total=len(dataloader)
         ):
             result_batch = model(images.to(device))
+
             result_batch = result_parser(result_batch, image_infos)
 
             preds.extend(result_batch)
@@ -1808,7 +1807,6 @@ class Hub:
             hold=kwargs.get("hold", True),
         )
 
-        # TODO : train_result.eval_metrics [dict] -> EvalMetricClass
         for metric_value in train_result.eval_metrics:
             if metric_value["tag"] == metric:
                 result = metric_value["value"]
@@ -1827,6 +1825,23 @@ class Hub:
         search_space: dict = None,
         **kwargs,
     ) -> dict:
+        """
+        Perform hyperparameter optimization (HPO) for the current task.
+
+        Args:
+            dataset (Union[Dataset, str], optional): The dataset to use for HPO. Can be a `Dataset` object or the name of a dataset. Defaults to None.
+            dataset_root_dir (Union[str, Path], optional): The root directory of the dataset. Defaults to None.
+            sampler (Union[dict, str], optional): The sampler to use for HPO. Can be a dictionary of sampler parameters or the name of a built-in sampler. Defaults to None.
+            pruner (Union[dict, str], optional): The pruner to use for HPO. Can be a dictionary of pruner parameters or the name of a built-in pruner. Defaults to None.
+            direction (str, optional): The direction of optimization. Can be 'maximize' or 'minimize'. Defaults to None.
+            n_trials (int, optional): The number of trials to run for HPO. Defaults to None.
+            metric (str, optional): The metric to optimize for. Defaults to None.
+            search_space (dict, optional): The search space for HPO. Defaults to None.
+            **kwargs: Additional keyword arguments to pass to the HPO function.
+
+        Returns:
+            dict: A dictionary containing the results of HPO.
+        """
         # Task Type Check
         if self.task == TaskType.OBJECT_DETECTION:
             if metric not in ObjectDetectionMetric.__annotations__.keys():
@@ -1871,6 +1886,7 @@ class Hub:
             study_name=self.name,
             objective=self._hpo_hub_objective,
             dataset=dataset,
+            verbose_warning=False,
             **kwargs,
         )
 
