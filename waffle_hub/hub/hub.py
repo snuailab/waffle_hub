@@ -1814,80 +1814,25 @@ class Hub:
         return float(result)
 
     def hpo(
-        self,
-        dataset: Union[Dataset, str] = None,
-        dataset_root_dir: Union[str, Path] = None,
-        sampler: Union[dict, str] = None,
-        pruner: Union[dict, str] = None,
-        direction: str = None,
-        n_trials: int = None,
-        metric: str = None,
-        search_space: dict = None,
-        **kwargs,
-    ) -> dict:
+        self, dataset, n_trials, direction, hpo_method, search_space, frame_work="optuna", **kwargs
+    ):
+        optuna_hpo = OptunaHPO(self.root_dir, hpo_method, frame_work, direction)
+        # TODO : obejctives : direction must be defined by waffle hub
+        def _hpo_hub_objective(trial, dataset, params, objective_mapper, **kwargs):
+            torch.cuda.empty_cache()
+
+            hub_name = f"{self.name}/hpo/trial_{trial.number}"
+            hub = self.new(
+                name=hub_name,
+                task=self.task,
+                model_type=self.model_type,
+                model_size=self.model_size,
+            )
+
         """
-        Perform hyperparameter optimization (HPO) for the current task.
-
-        Args:
-            dataset (Union[Dataset, str], optional): The dataset to use for HPO. Can be a `Dataset` object or the name of a dataset. Defaults to None.
-            dataset_root_dir (Union[str, Path], optional): The root directory of the dataset. Defaults to None.
-            sampler (Union[dict, str], optional): The sampler to use for HPO. Can be a dictionary of sampler parameters or the name of a built-in sampler. Defaults to None.
-            pruner (Union[dict, str], optional): The pruner to use for HPO. Can be a dictionary of pruner parameters or the name of a built-in pruner. Defaults to None.
-            direction (str, optional): The direction of optimization. Can be 'maximize' or 'minimize'. Defaults to None.
-            n_trials (int, optional): The number of trials to run for HPO. Defaults to None.
-            metric (str, optional): The metric to optimize for. Defaults to None.
-            search_space (dict, optional): The search space for HPO. Defaults to None.
-            **kwargs: Additional keyword arguments to pass to the HPO function.
-
         Returns:
             dict: A dictionary containing the results of HPO.
         """
-        # Task Type Check
-        if self.task == TaskType.OBJECT_DETECTION:
-            if metric not in ObjectDetectionMetric.__annotations__.keys():
-                raise ValueError(f"Invalid metric: {metric}")
-        elif self.task == TaskType.TEXT_RECOGNITION:
-            if not TextRecognitionMetric.__annotations__.keys():
-                raise ValueError(f"Invalid metric: {metric}")
-        elif self.task == TaskType.CLASSIFICATION:
-            if metric not in ClassificationMetric.__annotations__.keys():
-                raise ValueError(f"Invalid metric: {metric}")
-        elif self.task == TaskType.INSTANCE_SEGMENTATION:
-            if metric not in InstanceSegmentationMetric.__annotations__.keys():
-                raise ValueError(f"Invalid metric: {metric}")
-        else:
-            raise ValueError(f"Unsupported task type: {self.task}")
 
-        # Dataset Check
-        if isinstance(dataset, (str, Path)):
-            if Path(dataset).exists():
-                dataset = Path(dataset)
-                dataset = Dataset.load(
-                    name=dataset.parts[-1], root_dir=dataset.parents[0].absolute()
-                )
-            elif dataset in Dataset.get_dataset_list(dataset_root_dir):
-                dataset = Dataset.load(name=dataset, root_dir=dataset_root_dir)
-            else:
-                raise FileNotFoundError(f"Dataset {dataset} is not exist.")
-
-        optuna_hpo = OptunaHPO(
-            study_name=self.name,
-            root_dir=self.root_dir,
-            sampler=sampler,
-            pruner=pruner,
-            direction=direction,
-            n_trials=n_trials,
-            search_space=search_space,
-            metric=metric,
-            is_hub=True,
-        )
-
-        hpo_results = optuna_hpo.run_hpo(
-            study_name=self.name,
-            objective=self._hpo_hub_objective,
-            dataset=dataset,
-            verbose_warning=False,
-            **kwargs,
-        )
-
+        hpo_results = None
         return hpo_results

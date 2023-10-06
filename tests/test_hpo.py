@@ -79,77 +79,23 @@ def assert_hpo_method(
                 },
             },
             "maximize",
-            "TPESampler",
-            {"medianpruner": {"n_startup_trials": 5, "n_warmup_steps": 5}},
-            "mAP",
+            2,
+            32,
         ),
-    ],
-)
-def test_object_detection_hpo(
-    object_detection_dataset: Dataset,
-    tmpdir: Path,
-    n_trials: int,
-    search_space: dict,
-    direction: str,
-    sampler: Union[str, dict],
-    pruner: Union[str, dict],
-    metric: str,
-):
-    dataset = object_detection_dataset
-    name = f"test_object_detection_hpo"
-    hub = Hub.new(
-        name=name,
-        backend="ultralytics",
-        task=TaskType.OBJECT_DETECTION,
-        model_type="yolov8",
-        model_size="n",
-        categories=dataset.get_category_names(),
-        root_dir=tmpdir,
-        device="cpu",
-        workers=0,
-        hold=True,
-    )
-
-    hub.hpo(
-        dataset=dataset,
-        sampler=sampler,
-        pruner=pruner,
-        direction=direction,
-        n_trials=n_trials,
-        metric=metric,
-        search_space=search_space,
-        image_size=64,
-    )
-
-    hpo_train_config = TrainConfig.load(Path(hub.root_dir / hub.name / "configs" / "train.yaml"))
-    train_hub = Hub.load(name=name, root_dir=tmpdir)
-    train_hub: Hub = Hub.from_model_config(
-        name=name + "_from_model_config",
-        model_config_file=tmpdir / name / Hub.MODEL_CONFIG_FILE,
-        root_dir=tmpdir,
-    )
-    train_result = train_hub.train(
-        dataset=dataset,
-        epochs=hpo_train_config.epochs,
-        batch_size=hpo_train_config.batch_size,
-        image_size=hpo_train_config.image_size,
-        learning_rate=hpo_train_config.learning_rate,
-        letter_box=hpo_train_config.letter_box,
-        device="cpu",
-        workers=0,
-        advance_params=hpo_train_config.advance_params,
-    )
-
-    hpo_config = HPOConfig.load(Path(hub.root_dir / hub.name / "configs" / "hpo.yaml"))
-    hpo_result = HPOResult.load(Path(hub.root_dir / hub.name / "hpo.json"))
-    assert_train_result_after_hpo(train_hub, train_result)
-    assert_hpo_result(hub.root_dir, hub.name, hpo_result, n_trials)
-    assert_hpo_method(hpo_config, sampler, pruner, direction)
-
-
-@pytest.mark.parametrize(
-    "n_trials, search_space, direction, sampler, pruner, metric",
-    [
+        (
+            2,
+            "GridSampler",
+            {
+                "lr0": [0.005, 0.05],
+                "lrf": [0.001, 0.005],
+                "mosaic": [0.6, 1],
+                "cos_lr": (True, False),
+                "hsv_h": [0.01, 0.02],
+            },
+            "minimize",
+            2,
+            32,
+        ),
         (
             2,
             {
@@ -169,22 +115,31 @@ def test_object_detection_hpo(
         ),
     ],
 )
-def test_classification_hpo(
-    classification_dataset: Dataset,
+
+# TODO : Add HPO config -> train config
+
+# def test_hpo_config(
+
+# )
+
+
+def test_object_detection_hpo(
+    n_trials,
+    hpo_method,
+    search_space,
+    direction,
+    epochs,
+    batch_size,
+    object_detection_dataset: Dataset,
     tmpdir: Path,
-    n_trials: int,
-    search_space: dict,
-    direction: str,
-    sampler: Union[str, dict],
-    pruner: Union[str, dict],
-    metric: str,
 ):
-    dataset = classification_dataset
-    name = f"test_classification_hpo"
+
+    dataset = object_detection_dataset
+    name = f"test_{hpo_method}_{direction}"
     hub = Hub.new(
         name=name,
         backend="ultralytics",
-        task=TaskType.CLASSIFICATION,
+        task=TaskType.OBJECT_DETECTION,
         model_type="yolov8",
         model_size="n",
         categories=dataset.get_category_names(),
@@ -193,147 +148,139 @@ def test_classification_hpo(
         workers=0,
         hold=True,
     )
-    hub.hpo(
-        dataset=dataset,
-        sampler=sampler,
-        pruner=pruner,
-        direction=direction,
-        n_trials=n_trials,
-        metric=metric,
-        search_space=search_space,
-        image_size=64,
+    hub = Hub.load(name=name, root_dir=tmpdir)
+    hub: Hub = Hub.from_model_config(
+        name=name + "_from_model_config",
+        model_config_file=tmpdir / name / Hub.MODEL_CONFIG_FILE,
+        root_dir=tmpdir,
+    )
+    result = hub.hpo(
+        dataset,
+        n_trials,
+        direction,
+        hpo_method,
+        search_space,
+        epochs=epochs,
+        batch_size=batch_size,
     )
 
-    hpo_train_config = TrainConfig.load(Path(hub.root_dir / hub.name / "configs" / "train.yaml"))
-    train_hub = Hub.load(name=name, root_dir=tmpdir)
-    train_hub: Hub = Hub.from_model_config(
+    db_name = f"{hub.name}.db"
+    last_trial = n_trials - 1
+    last_trial_directory_name = f"trial_{last_trial}"
+    assert isinstance(result, dict)
+    assert "best_params" in result
+    assert "best_score" in result
+    assert Path(hub.root_dir / hub.name / "evaluate.json").exists()
+    assert Path(hub.root_dir / hub.name / "hpo.json").exists()
+    assert Path(hub.root_dir / hub.name / "metrics.json").exists()
+    assert Path(hub.root_dir / hub.name / "hpo" / last_trial_directory_name).exists()
+    assert Path(hub.root_dir / hub.name / db_name).exists()
+
+
+def test_classification_hpo(
+    n_trials,
+    hpo_method,
+    search_space,
+    direction,
+    epochs,
+    batch_size,
+    classification_dataset: Dataset,
+    tmpdir: Path,
+):
+
+    dataset = classification_dataset
+    name = f"test_{hpo_method}_{direction}"
+    hub = Hub.new(
+        name=name,
+        backend="ultralytics",
+        task=TaskType.CLASSIFICATION,
+        model_type="yolov8",
+        model_size="n",
+        categories=dataset.get_category_names(),
+        root_dir=tmpdir,
+    )
+    hub = Hub.load(name=name, root_dir=tmpdir)
+    hub: Hub = Hub.from_model_config(
         name=name + "_from_model_config",
         model_config_file=tmpdir / name / Hub.MODEL_CONFIG_FILE,
         root_dir=tmpdir,
     )
 
-    train_result = train_hub.train(
-        dataset=dataset,
-        epochs=hpo_train_config.epochs,
-        batch_size=hpo_train_config.batch_size,
-        image_size=hpo_train_config.image_size,
-        learning_rate=hpo_train_config.learning_rate,
-        letter_box=hpo_train_config.letter_box,
-        device="cpu",
-        workers=0,
-        advance_params=hpo_train_config.advance_params,
+    result = hub.hpo(
+        dataset,
+        n_trials,
+        direction,
+        hpo_method,
+        search_space,
+        epochs=epochs,
+        batch_size=batch_size,
     )
 
-    hpo_config = HPOConfig.load(Path(hub.root_dir / hub.name / "configs" / "hpo.yaml"))
-    hpo_result = HPOResult.load(Path(hub.root_dir / hub.name / "hpo.json"))
-    assert_train_result_after_hpo(train_hub, train_result)
-    assert_hpo_result(hub.root_dir, hub.name, hpo_result, n_trials)
-    assert_hpo_method(hpo_config, sampler, pruner, direction)
+    db_name = f"{hub.name}.db"
+    last_trial = n_trials - 1
+    last_trial_directory_name = f"trial_{last_trial}"
+    assert isinstance(result, dict)
+    assert "best_params" in result
+    assert "best_score" in result
+    assert Path(hub.root_dir / hub.name / "evaluate.json").exists()
+    assert Path(hub.root_dir / hub.name / "hpo.json").exists()
+    assert Path(hub.root_dir / hub.name / "metrics.json").exists()
+    assert Path(hub.root_dir / hub.name / "hpo" / last_trial_directory_name).exists()
+    assert Path(hub.root_dir / hub.name / db_name).exists()
 
 
-def simple_func(x, y, z, a, q, w, e, r, t, u, i, o):
-    return x**2 + (y + z + a + q + w + e) / 2 + (r + t + y + u + i + o) * 2
-
-
-@pytest.mark.parametrize(
-    "n_trials,  search_space, direction, sampler, pruner",
-    [
-        (
-            2,
-            {
-                "x": {
-                    "method": "suggest_categorical",
-                    "search_space": [1, 3, 4, 6],
-                    "kwargs": {},
-                },
-                "y": {
-                    "method": "suggest_categorical",
-                    "search_space": [11, 13, 5, 16],
-                    "kwargs": {},
-                },
-                "z": {
-                    "method": "suggest_categorical",
-                    "search_space": [1, 8, 21],
-                    "kwargs": {},
-                },
-                "a": {
-                    "method": "suggest_categorical",
-                    "search_space": [2, 8, 4, 91],
-                    "kwargs": {},
-                },
-                "q": {
-                    "method": "suggest_int",
-                    "search_space": [1, 100],
-                    "kwargs": {},
-                },
-                "w": {
-                    "method": "suggest_float",
-                    "search_space": [0.005, 0.05],
-                    "kwargs": {},
-                },
-                "e": {
-                    "method": "suggest_float",
-                    "search_space": [0.005, 0.05],
-                    "kwargs": {},
-                },
-                "e": {
-                    "method": "suggest_float",
-                    "search_space": [0.005, 0.05],
-                    "kwargs": {},
-                },
-                "r": {
-                    "method": "suggest_float",
-                    "search_space": [0.005, 0.05],
-                    "kwargs": {},
-                },
-                "t": {
-                    "method": "suggest_float",
-                    "search_space": [0.005, 0.05],
-                    "kwargs": {},
-                },
-                "u": {
-                    "method": "suggest_float",
-                    "search_space": [0.005, 0.05],
-                    "kwargs": {},
-                },
-                "i": {
-                    "method": "suggest_float",
-                    "search_space": [0.005, 0.05],
-                    "kwargs": {},
-                },
-                "o": {
-                    "method": "suggest_float",
-                    "search_space": [0.005, 0.05],
-                    "kwargs": {},
-                },
-            },
-            "maximize",
-            {"TPESampler": {"n_startup_trials": 20, "multivariate": False}},
-            {"MedianPruner": {}},
-        ),
-    ],
-)
-def test_simple_function_hpo(
+def test_no_hold_classification_hpo(
+    n_trials,
+    hpo_method,
+    search_space,
+    direction,
+    epochs,
+    batch_size,
+    classification_dataset: Dataset,
     tmpdir: Path,
-    n_trials: int,
-    search_space: dict,
-    direction: str,
-    sampler: Union[str, dict],
-    pruner: Union[str, dict],
 ):
-    name = "simple_func_hpo"
-    hpo = OptunaHPO(
-        study_name=name,
-        root_dir=tmpdir,
-        sampler=sampler,
-        pruner=pruner,
-        direction=direction,
-        n_trials=n_trials,
-        search_space=search_space,
-    )
-    hpo.run_hpo(objective=simple_func)
 
-    hpo_config = HPOConfig.load(Path(tmpdir / name / "configs" / "hpo.yaml"))
-    hpo_result = HPOResult.load(Path(tmpdir / name / "hpo.json"))
-    assert_hpo_result(tmpdir, name, hpo_result, n_trials, is_hub=False)
-    assert_hpo_method(hpo_config, sampler, pruner, direction)
+    dataset = classification_dataset
+    name = f"test_{hpo_method}_{direction}"
+    hub = Hub.new(
+        name=name,
+        backend="ultralytics",
+        task=TaskType.CLASSIFICATION,
+        model_type="yolov8",
+        model_size="n",
+        categories=dataset.get_category_names(),
+        root_dir=tmpdir,
+    )
+    hub = Hub.load(name=name, root_dir=tmpdir)
+    hub: Hub = Hub.from_model_config(
+        name=name + "_from_model_config",
+        model_config_file=tmpdir / name / Hub.MODEL_CONFIG_FILE,
+        root_dir=tmpdir,
+    )
+
+    result = hub.hpo(
+        dataset,
+        n_trials,
+        direction,
+        hpo_method,
+        search_space,
+        epochs=epochs,
+        batch_size=batch_size,
+    )
+
+    assert hasattr(result, "callback")
+    while not result.callback.is_finished() and not result.callback.is_failed():
+        time.sleep(1)
+    assert result.callback.is_finished()
+    assert not result.callback.is_failed()
+    db_name = f"{hub.name}.db"
+    last_trial = n_trials - 1
+    last_trial_directory_name = f"trial_{last_trial}"
+    assert isinstance(result, dict)
+    assert "best_params" in result
+    assert "best_score" in result
+    assert Path(hub.root_dir / hub.name / "evaluate.json").exists()
+    assert Path(hub.root_dir / hub.name / "hpo.json").exists()
+    assert Path(hub.root_dir / hub.name / "metrics.json").exists()
+    assert Path(hub.root_dir / hub.name / "hpo" / last_trial_directory_name).exists()
+    assert Path(hub.root_dir / hub.name / db_name).exists()
