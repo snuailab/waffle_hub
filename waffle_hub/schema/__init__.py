@@ -1,4 +1,4 @@
-from .configs import ExportOnnxConfig, InferenceConfig, ModelConfig, TrainConfig
+from .configs import ExportOnnxConfig, InferenceConfig, ModelConfig, TrainConfig, HPOConfig
 from .data import DatasetInfo, ImageInfo
 from .fields import Annotation, Category, Image
 
@@ -7,6 +7,7 @@ __all__ = [
     "TrainConfig",
     "InferenceConfig",
     "ExportOnnxConfig",
+    "HPOConfig",
     "DatasetInfo",
     "ImageInfo",
     "Image",

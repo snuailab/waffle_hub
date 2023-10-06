@@ -28,6 +28,7 @@ from waffle_utils.utils import type_validator
 from waffle_utils.video.io import create_video_writer
 
 from waffle_hub import BACKEND_MAP, EXPORT_MAP, TaskType
+from waffle_hub.core.hpo.adapter.optuna import OptunaHPO
 from waffle_hub.dataset import Dataset
 from waffle_hub.hub.model.wrapper import get_parser
 from waffle_hub.schema.configs import (
@@ -38,6 +39,12 @@ from waffle_hub.schema.configs import (
     TrainConfig,
 )
 from waffle_hub.schema.data import ImageInfo
+from waffle_hub.schema.evaluate import (
+    ClassificationMetric,
+    InstanceSegmentationMetric,
+    ObjectDetectionMetric,
+    TextRecognitionMetric,
+)
 from waffle_hub.schema.fields import Category
 from waffle_hub.schema.result import (
     EvaluateResult,
@@ -1768,3 +1775,118 @@ class Hub:
         result.waffle_file = self.waffle_file
 
         return result
+
+    def _hpo_hub_objective(self, **kwargs) -> float:
+        torch.cuda.empty_cache()
+
+        trial = kwargs.get("trial", None)
+        dataset = kwargs.get("dataset", None)
+        metric = kwargs.get("metric", None)
+        selected_params = kwargs.get("advance_params", None)
+
+        hub = Hub.new(
+            name=f"trial_{trial.number}",
+            root_dir=self.hub_dir / "hpo",
+            task=self.task,
+            model_type=self.model_type,
+            model_size=self.model_size,
+        )
+
+        train_result = hub.train(
+            dataset=dataset,
+            epochs=kwargs.get("epochs", None),
+            image_size=kwargs.get("image_size", None),
+            batch_size=kwargs.get("batch_size", None),
+            pretrained_model=kwargs.get("pretrained_model", None),
+            letter_box=kwargs.get("letter_box", False),
+            device=kwargs.get("device", "cpu"),
+            workers=kwargs.get("workers", 0),
+            advance_params=selected_params,
+            hold=kwargs.get("hold", True),
+        )
+
+        for metric_value in train_result.eval_metrics:
+            if metric_value["tag"] == metric:
+                result = metric_value["value"]
+                break
+        return float(result)
+
+    def hpo(
+        self,
+        dataset: Union[Dataset, str] = None,
+        dataset_root_dir: Union[str, Path] = None,
+        sampler: Union[dict, str] = None,
+        pruner: Union[dict, str] = None,
+        direction: str = None,
+        n_trials: int = None,
+        metric: str = None,
+        search_space: dict = None,
+        **kwargs,
+    ) -> dict:
+        """
+        Perform hyperparameter optimization (HPO) for the current task.
+
+        Args:
+            dataset (Union[Dataset, str], optional): The dataset to use for HPO. Can be a `Dataset` object or the name of a dataset. Defaults to None.
+            dataset_root_dir (Union[str, Path], optional): The root directory of the dataset. Defaults to None.
+            sampler (Union[dict, str], optional): The sampler to use for HPO. Can be a dictionary of sampler parameters or the name of a built-in sampler. Defaults to None.
+            pruner (Union[dict, str], optional): The pruner to use for HPO. Can be a dictionary of pruner parameters or the name of a built-in pruner. Defaults to None.
+            direction (str, optional): The direction of optimization. Can be 'maximize' or 'minimize'. Defaults to None.
+            n_trials (int, optional): The number of trials to run for HPO. Defaults to None.
+            metric (str, optional): The metric to optimize for. Defaults to None.
+            search_space (dict, optional): The search space for HPO. Defaults to None.
+            **kwargs: Additional keyword arguments to pass to the HPO function.
+
+        Returns:
+            dict: A dictionary containing the results of HPO.
+        """
+        # Task Type Check
+        if self.task == TaskType.OBJECT_DETECTION:
+            if metric not in ObjectDetectionMetric.__annotations__.keys():
+                raise ValueError(f"Invalid metric: {metric}")
+        elif self.task == TaskType.TEXT_RECOGNITION:
+            if not TextRecognitionMetric.__annotations__.keys():
+                raise ValueError(f"Invalid metric: {metric}")
+        elif self.task == TaskType.CLASSIFICATION:
+            if metric not in ClassificationMetric.__annotations__.keys():
+                raise ValueError(f"Invalid metric: {metric}")
+        elif self.task == TaskType.INSTANCE_SEGMENTATION:
+            if metric not in InstanceSegmentationMetric.__annotations__.keys():
+                raise ValueError(f"Invalid metric: {metric}")
+        else:
+            raise ValueError(f"Unsupported task type: {self.task}")
+
+        # Dataset Check
+        if isinstance(dataset, (str, Path)):
+            if Path(dataset).exists():
+                dataset = Path(dataset)
+                dataset = Dataset.load(
+                    name=dataset.parts[-1], root_dir=dataset.parents[0].absolute()
+                )
+            elif dataset in Dataset.get_dataset_list(dataset_root_dir):
+                dataset = Dataset.load(name=dataset, root_dir=dataset_root_dir)
+            else:
+                raise FileNotFoundError(f"Dataset {dataset} is not exist.")
+
+        optuna_hpo = OptunaHPO(
+            study_name=self.name,
+            root_dir=self.root_dir,
+            sampler=sampler,
+            pruner=pruner,
+            direction=direction,
+            n_trials=n_trials,
+            search_space=search_space,
+            metric=metric,
+            is_hub=True,
+        )
+
+        hpo_results = optuna_hpo.run_hpo(
+            study_name=self.name,
+            objective=self._hpo_hub_objective,
+            dataset=dataset,
+            verbose_warning=False,
+            **kwargs,
+        )
+
+        return hpo_results
+

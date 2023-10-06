@@ -20,7 +20,12 @@ class EvaluateResult(BaseSchema):
 class InferenceResult(BaseSchema):
     predictions: list[dict[list]] = None
     draw_dir: str = None
-
+@dataclass
+class HPOResult(BaseSchema):
+    best_trial: int = None
+    best_params: dict = None
+    best_score: float = None
+    total_time: str = None
 
 @dataclass
 class ExportOnnxResult(BaseSchema):

@@ -1,9 +1,8 @@
-import os
 import subprocess
 from pathlib import Path
 
 import pytest
-from waffle_utils.file.io import unzip
+from waffle_utils.file.io import save_json, unzip
 from waffle_utils.file.network import get_file_from_url
 
 
@@ -250,6 +249,46 @@ def test_hub_train_advance_params(test_dir: Path):
     assert ret.returncode == 0
     assert (test_dir / "hubs" / "test" / "artifacts").exists()
 
+def test_hub_hpo(test_dir: Path):
+    cmd = f'python -m waffle_hub.hub.cli new \
+        --backend ultralytics \
+        --root-dir {test_dir / "hubs"} \
+        --name test_hpo \
+        --task classification \
+        --model-type yolov8 \
+        --model-size n \
+        --categories [1,2] \
+    '
+    ret = run_cli(cmd)
+    assert ret.returncode == 0
+    assert (test_dir / "hubs" / "test" / "artifacts").exists()
+
+    search_space = {
+        "epochs": {"method": "suggest_categorical", "search_space": [1, 2, 3], "kwargs": {}}
+    }
+    save_json(search_space, test_dir / "search_space.json")
+
+    cmd = f"python -m waffle_hub.hub.cli hpo \
+        --root-dir {test_dir / 'hubs'} \
+        --name test_hpo \
+        --dataset {test_dir / 'datasets' / 'from_coco'} \
+        --sampler RandomSampler \
+        --pruner MedianPruner \
+        --direction maximize \
+        --n-trials 2 \
+        --metric accuracy \
+        --search_space {test_dir / 'search_space.json'} \
+    "
+
+    ret = run_cli(cmd)
+    assert ret.returncode == 0
+    assert (test_dir / "hubs" / "test_hpo" / "configs" / "hpo.yaml").exists()
+    assert (test_dir / "hubs" / "test_hpo" / "hpo_artifacts").exists()
+    assert (test_dir / "hubs" / "test_hpo" / "hpo.json").exists()
+    assert (test_dir / "hubs" / "test_hpo" / "metrics.json").exists()
+    assert (test_dir / "hubs" / "test_hpo" / "evaluate.json").exists()
+    assert (test_dir / "hubs" / "test_hpo" / "train.py").exists()
+    assert (test_dir / "hubs" / "test_hpo" / "test_hpo.db").exists()
 
 def test_hub_inference(test_dir: Path):
     cmd = f'python -m waffle_hub.hub.cli inference \

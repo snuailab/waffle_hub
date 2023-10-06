@@ -73,3 +73,12 @@ class ExportOnnxConfig(BaseSchema):
     opset_version: int = None
     half: bool = False
     device: str = None
+
+@dataclass
+class HPOConfig(BaseSchema):
+    sampler: str = None
+    pruner: str = None
+    metric: str = None
+    direction: str = None
+    n_trials: int = None
+    search_space: dict = None
