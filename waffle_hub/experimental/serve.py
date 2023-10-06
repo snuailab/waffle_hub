@@ -34,7 +34,7 @@ async def predict(file: fastapi.UploadFile = fastapi.File(...)):
     H, W = image.shape[:2]
 
     image = cv2.resize(image, dsize=image_size, interpolation=cv2.INTER_LINEAR)
-    image = torch.from_numpy(image).permute(2, 0, 1).float().div(255.0).unsqueeze(0)
+    image = image = torch.from_numpy(image).permute(2, 0, 1).float().div(255.0).unsqueeze(0)
 
     logging.info(f"start inference")
 
