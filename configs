@@ -1,0 +1,14 @@
+dataset_path: /home/daeun/workspace/waffle_hub/datasets/mnist_classification/exports/ULTRALYTICS
+epochs: 2
+batch_size: 24
+image_size:
+- 24
+- 24
+learning_rate: 0.01
+letter_box: false
+pretrained_model: yolov8n-cls.pt
+device: cpu
+workers: 0
+seed: 0
+advance_params: {}
+verbose: true
