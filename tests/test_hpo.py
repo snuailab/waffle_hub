@@ -189,7 +189,6 @@ def test_classification_hpo(
         model_size="n",
         categories=dataset.get_category_names(),
         root_dir=tmpdir,
-        device="cpu",
         workers=0,
         hold=True,
     )
@@ -200,6 +199,7 @@ def test_classification_hpo(
         direction=direction,
         n_trials=n_trials,
         metric=metric,
+        device="cpu",
         search_space=search_space,
         image_size=64,
     )

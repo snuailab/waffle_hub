@@ -205,9 +205,6 @@ def test_ultralytics_classification(classification_dataset: Dataset, tmpdir: Pat
             model_size="n",
             categories=dataset.get_category_names(),
             root_dir=tmpdir,
-            device="0,1",
-            workers=0,
-            hold=True,
         )
 
         hub.hpo(
