@@ -116,8 +116,15 @@ def _export_onnx(hub, half: bool = False, hold: bool = True):
     return result
 
 
-def _export_waffle(hub):
-    result: ExportWaffleResult = hub.export_waffle()
+def _export_waffle(hub, hold: bool = True):
+    result: ExportWaffleResult = hub.export_waffle(hold=hold)
+
+    if not hold:
+        assert hasattr(result, "callback")
+        while not result.callback.is_finished() and not result.callback.is_failed():
+            time.sleep(1)
+        assert result.callback.is_finished()
+        assert not result.callback.is_failed()
 
     assert Path(result.waffle_file).exists()
 
@@ -178,7 +185,7 @@ def _total(
     _export_onnx(
         hub, half=False, hold=hold
     )  # _export_onnx(hub, half=True, hold=hold)  # cpu cannot be half
-    result = _export_waffle(hub)
+    result = _export_waffle(hub, hold=hold)
     _from_waffle_file(result.waffle_file, dataset.raw_image_dir, tmpdir, hold=hold)
     _feature_extraction(hub, image_size)
     _benchmark(hub, image_size)
