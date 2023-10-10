@@ -330,13 +330,13 @@ def test_dataset_merge(coco_path: Path, yolo_object_detection_path: Path, tmpdir
         yolo_root_dir=yolo_object_detection_path,
         yaml_path=yolo_object_detection_path / "data.yaml",
     )
-    cmd = f'python -m waffle_hub.dataset.cli merge \
+    cmd = f"python -m waffle_hub.dataset.cli merge \
         --name merge \
         --root-dir {tmpdir} \
         --src-names [{dataset1_name},{dataset2_name}] \
-        --src-root-dirs \'["{tmpdir}","{tmpdir}"]\' \
+        --src-root-dirs {tmpdir} \
         --task object_detection \
-    '
+    "
     ret = run_cli(cmd)
     assert ret.returncode == 0
     assert (tmpdir / "merge").exists()
