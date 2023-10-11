@@ -116,8 +116,15 @@ def _export_onnx(hub, half: bool = False, hold: bool = True):
     return result
 
 
-def _export_waffle(hub):
-    result: ExportWaffleResult = hub.export_waffle()
+def _export_waffle(hub, hold: bool = True):
+    result: ExportWaffleResult = hub.export_waffle(hold=hold)
+
+    if not hold:
+        assert hasattr(result, "callback")
+        while not result.callback.is_finished() and not result.callback.is_failed():
+            time.sleep(1)
+        assert result.callback.is_finished()
+        assert not result.callback.is_failed()
 
     assert Path(result.waffle_file).exists()
 
@@ -178,7 +185,7 @@ def _total(
     _export_onnx(
         hub, half=False, hold=hold
     )  # _export_onnx(hub, half=True, hold=hold)  # cpu cannot be half
-    result = _export_waffle(hub)
+    result = _export_waffle(hub, hold=hold)
     _from_waffle_file(result.waffle_file, dataset.raw_image_dir, tmpdir, hold=hold)
     _feature_extraction(hub, image_size)
     _benchmark(hub, image_size)
@@ -365,103 +372,108 @@ def test_non_hold(classification_dataset: Dataset, tmpdir: Path):
 
 
 # TODO: Handling autocate_dlt
-# def test_autocare_dlt_object_detection(object_detection_dataset: Dataset, tmpdir: Path):
-#     image_size = 32
-#     dataset = object_detection_dataset
+@pytest.mark.skip("Need to modfiy autocate_dlt")
+def test_autocare_dlt_object_detection(object_detection_dataset: Dataset, tmpdir: Path):
+    image_size = 32
+    dataset = object_detection_dataset
 
-#     # test hub
-#     name = "test_det"
-#     hub = Hub.new(
-#         name=name,
-#         backend="autocare_dlt",
-#         task=TaskType.OBJECT_DETECTION,
-#         model_type="YOLOv5",
-#         model_size="s",
-#         categories=object_detection_dataset.get_category_names(),
-#         root_dir=tmpdir,
-#     )
-#     hub = Hub.load(name=name, root_dir=tmpdir)
-#     hub: Hub = Hub.from_model_config(
-#         name=name + "_from_model_config",
-#         model_config_file=tmpdir / name / Hub.MODEL_CONFIG_FILE,
-#         root_dir=tmpdir,
-#     )
+    # test hub
+    name = "test_det"
+    hub = Hub.new(
+        name=name,
+        backend="autocare_dlt",
+        task=TaskType.OBJECT_DETECTION,
+        model_type="YOLOv5",
+        model_size="s",
+        categories=object_detection_dataset.get_category_names(),
+        root_dir=tmpdir,
+    )
+    hub = Hub.load(name=name, root_dir=tmpdir)
+    hub: Hub = Hub.from_model_config(
+        name=name + "_from_model_config",
+        model_config_file=tmpdir / name / Hub.MODEL_CONFIG_FILE,
+        root_dir=tmpdir,
+    )
 
-#     _total(hub, dataset, image_size, tmpdir)
-
-
-# def test_autocare_dlt_classification(classification_dataset: Dataset, tmpdir: Path):
-#     image_size = 32
-#     dataset = classification_dataset
-
-#     # test hub
-#     name = "test_cls"
-#     hub = Hub.new(
-#         name=name,
-#         backend="autocare_dlt",
-#         task=TaskType.CLASSIFICATION,
-#         model_type="Classifier",
-#         model_size="s",
-#         categories=dataset.get_categories(),
-#         root_dir=tmpdir,
-#     )
-#     hub = Hub.load(name=name, root_dir=tmpdir)
-#     hub: Hub = Hub.from_model_config(
-#         name=name + "_from_model_config",
-#         model_config_file=tmpdir / name / Hub.MODEL_CONFIG_FILE,
-#         root_dir=tmpdir,
-#     )
-
-#     _total(hub, dataset, image_size, tmpdir)
+    _total(hub, dataset, image_size, tmpdir)
 
 
-# def test_autocare_dlt_text_recognition(text_recognition_dataset: Dataset, tmpdir: Path):
-#     image_size = 32
-#     dataset = text_recognition_dataset
+@pytest.mark.skip("Need to modfiy autocate_dlt")
+def test_autocare_dlt_classification(classification_dataset: Dataset, tmpdir: Path):
+    image_size = 32
+    dataset = classification_dataset
 
-#     # test hub
-#     name = "test_ocr"
-#     hub = Hub.new(
-#         name=name,
-#         backend="autocare_dlt",
-#         task=TaskType.TEXT_RECOGNITION,
-#         model_type="TextRecognition",
-#         model_size="s",
-#         categories=dataset.get_categories(),
-#         root_dir=tmpdir,
-#     )
-#     hub = Hub.load(name=name, root_dir=tmpdir)
-#     hub: Hub = Hub.from_model_config(
-#         name=name + "_from_model_config",
-#         model_config_file=tmpdir / name / Hub.MODEL_CONFIG_FILE,
-#         root_dir=tmpdir,
-#     )
+    # test hub
+    name = "test_cls"
+    hub = Hub.new(
+        name=name,
+        backend="autocare_dlt",
+        task=TaskType.CLASSIFICATION,
+        model_type="Classifier",
+        model_size="s",
+        categories=dataset.get_categories(),
+        root_dir=tmpdir,
+    )
+    hub = Hub.load(name=name, root_dir=tmpdir)
+    hub: Hub = Hub.from_model_config(
+        name=name + "_from_model_config",
+        model_config_file=tmpdir / name / Hub.MODEL_CONFIG_FILE,
+        root_dir=tmpdir,
+    )
 
-#     _total(hub, dataset, image_size, tmpdir)
+    _total(hub, dataset, image_size, tmpdir)
 
-# def test_autocare_dlt_classification_without_category(classification_dataset: Dataset, tmpdir: Path):
-#     image_size = 32
-#     dataset = classification_dataset
 
-#     # test hub
-#     name = "test_cls"
-#     hub = Hub.new(
-#         name=name,
-#         backend="autocare_dlt",
-#         task=TaskType.CLASSIFICATION,
-#         model_type="Classifier",
-#         model_size="s",
-#         # categories=dataset.get_categories(),
-#         root_dir=tmpdir,
-#     )
-#     hub = Hub.load(name=name, root_dir=tmpdir)
-#     hub: Hub = Hub.from_model_config(
-#         name=name + "_from_model_config",
-#         model_config_file=tmpdir / name / Hub.MODEL_CONFIG_FILE,
-#         root_dir=tmpdir,
-#     )
+@pytest.mark.skip("Need to modfiy autocate_dlt")
+def test_autocare_dlt_text_recognition(text_recognition_dataset: Dataset, tmpdir: Path):
+    image_size = 32
+    dataset = text_recognition_dataset
 
-#     _total(hub, dataset, image_size, tmpdir)
+    # test hub
+    name = "test_ocr"
+    hub = Hub.new(
+        name=name,
+        backend="autocare_dlt",
+        task=TaskType.TEXT_RECOGNITION,
+        model_type="TextRecognition",
+        model_size="s",
+        categories=dataset.get_categories(),
+        root_dir=tmpdir,
+    )
+    hub = Hub.load(name=name, root_dir=tmpdir)
+    hub: Hub = Hub.from_model_config(
+        name=name + "_from_model_config",
+        model_config_file=tmpdir / name / Hub.MODEL_CONFIG_FILE,
+        root_dir=tmpdir,
+    )
+
+    _total(hub, dataset, image_size, tmpdir)
+
+
+@pytest.mark.skip("Need to modfiy autocate_dlt")
+def test_autocare_dlt_classification_without_category(classification_dataset: Dataset, tmpdir: Path):
+    image_size = 32
+    dataset = classification_dataset
+
+    # test hub
+    name = "test_cls"
+    hub = Hub.new(
+        name=name,
+        backend="autocare_dlt",
+        task=TaskType.CLASSIFICATION,
+        model_type="Classifier",
+        model_size="s",
+        # categories=dataset.get_categories(),
+        root_dir=tmpdir,
+    )
+    hub = Hub.load(name=name, root_dir=tmpdir)
+    hub: Hub = Hub.from_model_config(
+        name=name + "_from_model_config",
+        model_config_file=tmpdir / name / Hub.MODEL_CONFIG_FILE,
+        root_dir=tmpdir,
+    )
+
+    _total(hub, dataset, image_size, tmpdir)
 
 
 def test_ultralytics_classification_without_category(classification_dataset: Dataset, tmpdir: Path):
