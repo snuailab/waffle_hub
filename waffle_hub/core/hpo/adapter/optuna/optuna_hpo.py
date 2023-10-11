@@ -64,6 +64,7 @@ class OptunaHPO:
         self.metric = metric
         self.is_hub = is_hub
         self._study = None
+        
         self.save_hpo_config()
 
     def __repr__(self):
@@ -93,6 +94,11 @@ class OptunaHPO:
     def hpo_artifacts_dir(self) -> Path:
         """HPO Artifacts Directory"""
         return self.hpo_dir / OptunaHPO.HPO_ARTIFACTS_DIR
+    
+    @cached_property
+    def hpo_default_config(self) -> Path:
+        """HPO Artifacts Directory"""
+        return OptunaHPO.HPO_DEFAULT
 
     @cached_property
     def storage_name(self) -> str:
@@ -142,8 +148,10 @@ class OptunaHPO:
     @type_validator(int)
     def n_trials(self, v):
         if v is None:
+            self.__n_trials = 100
             warnings.warn("HPO n_trials is not set. Set to 100.")
-        self.__n_trials = v
+        else:
+            self.__n_trials = v
 
     @property
     def search_space(self) -> dict:
@@ -188,10 +196,64 @@ class OptunaHPO:
     @is_hub.setter
     @type_validator(bool)
     def is_hub(self, v):
-        if v == None:  # if is_hub is not set, check if metric is set (metric is required for hub)
+        if v is None:  # if is_hub is not set, check if metric is set (metric is required for hub)
             self.__is_hub = self.__metric is not None
         else:
             self.__is_hub = v
+    
+    @property
+    def sampler_name(self) -> str:
+        """HPO sampler name"""
+        return self.__sampler_name
+    
+    @sampler_name.setter
+    @type_validator(str)
+    def sampler_name(self, v):
+        if v is None:
+            self.__sampler_name = "TPESampler"
+            warnings.warn("HPO sampler name is not set. Set to TPESampler.")
+        else:
+            self.__sampler_name = v
+    
+    @property
+    def sampler_param(self) -> dict:
+        """HPO sampler param"""
+        return self.__sampler_param
+    
+    @sampler_param.setter
+    def sampler_param(self, v):
+        if v is None:
+            self.__sampler_param = {"n_startup_trials": 10}
+            warnings.warn("HPO sampler param is not set. Set to {}.")
+        else:
+            self.__sampler_param = v
+    
+    @property
+    def pruner_name(self) -> str:
+        """HPO pruner name"""
+        return self.__pruner_name
+    
+    @pruner_name.setter
+    @type_validator(str)
+    def pruner_name(self, v):
+        if v is None:
+            self.__pruner_name = "NoPruner"
+            warnings.warn("HPO pruner name is not set. Set to NopPruner.")
+        else:
+            self.__pruner_name = v
+
+    @property
+    def pruner_param(self) -> dict:
+        """HPO pruner param"""
+        return self.__pruner_param
+    
+    @pruner_param.setter
+    def pruner_param(self, v):
+        if v is None:
+            self.__pruner_param = {}
+            warnings.warn("HPO pruner param is not set. Set to {}.")
+        else:
+            self.__pruner_param = v
 
     @classmethod
     def parse_root_dir(cls, v):
@@ -226,10 +288,7 @@ class OptunaHPO:
             method_name = value
             method_params = {}
         else:
-            raise ValueError(
-                f"Invalid value for method {value}\
-                             value must be a dict or a str."
-            )
+            return None, None
         return method_name, method_params
 
     def get_hpo_config(self) -> HPOConfig:
@@ -262,10 +321,12 @@ class OptunaHPO:
             raise ValueError(
                 f"Sampler class {sampler_class_name} not found in module {sampler_module}"
             )
+        
         sampler_class = getattr(sampler_module, sampler_class_name)
         # Check if all required arguments are present
         required_args = set(sampler_class.__init__.__code__.co_varnames[1:])
         given_args = set(hpo_method_params.keys())
+        
         for arg in given_args:
             if arg not in required_args:
                 raise ValueError(

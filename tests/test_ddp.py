@@ -217,30 +217,16 @@ def test_object_detection_hpo(
         search_space=search_space,
         image_size=64,
     )
-
-    hpo_train_config = TrainConfig.load(Path(hub.root_dir / hub.name / "configs" / "train.yaml"))
-    train_hub = Hub.load(name=name, root_dir=tmpdir)
-    train_hub: Hub = Hub.from_model_config(
-        name=name + "_from_model_config",
-        model_config_file=tmpdir / name / Hub.MODEL_CONFIG_FILE,
-        root_dir=tmpdir,
-    )
-    train_result = train_hub.train(
-        dataset=dataset,
-        epochs=hpo_train_config.epochs,
-        batch_size=hpo_train_config.batch_size,
-        image_size=hpo_train_config.image_size,
-        learning_rate=hpo_train_config.learning_rate,
-        letter_box=hpo_train_config.letter_box,
-        device="0,1",
-        workers=0,
-        advance_params=hpo_train_config.advance_params,
+    
+    train_result = hub.train(
+        dataset=dataset
     )
 
     hpo_config = HPOConfig.load(Path(hub.root_dir / hub.name / "configs" / "hpo.yaml"))
     hpo_result = HPOResult.load(Path(hub.root_dir / hub.name / "hpo.json"))
-    assert_train_result_after_hpo(train_hub, train_result)
-    assert_hpo_result(hub, hpo_result, n_trials)
+
+    assert_train_result_after_hpo(hub, train_result)
+    assert_hpo_result(hub.root_dir, hub.name, hpo_result, n_trials)
     assert_hpo_method(hpo_config, sampler, pruner, direction)
 
 # def test_transformers_classification(classification_dataset: Dataset, tmpdir: Path):

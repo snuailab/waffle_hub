@@ -1025,7 +1025,6 @@ class Hub:
                 dataset = Dataset.load(name=dataset, root_dir=dataset_root_dir)
             else:
                 raise FileNotFoundError(f"Dataset {dataset} is not exist.")
-
         ## check task match
         if dataset.task.upper() != self.task.upper():
             raise ValueError(
@@ -1048,7 +1047,7 @@ class Hub:
             logger.info(f"[Dataset] Exporting dataset to {self.backend} format...")
             export_dir = dataset.export(self.backend)
             logger.info("[Dataset] Exporting done.")
-
+        
         # parse train config
         cfg = TrainConfig(
             dataset_path=export_dir,
@@ -1065,6 +1064,15 @@ class Hub:
             verbose=verbose,
         )
 
+        # check if hpo result is exist
+        if (self.hub_dir / "hpo").exists():
+            if self.train_config_file.exists():
+                cfg = TrainConfig.load(self.train_config_file)
+            else:
+                raise ValueError(
+                    "HPO train config is not exists. Please run hub.hpo() or delete hpo directory."
+                )
+            
         ## overwrite train config with default config
         for k, v in cfg.to_dict().items():
             if v is None:
@@ -1791,7 +1799,6 @@ class Hub:
             model_type=self.model_type,
             model_size=self.model_size,
         )
-
         train_result = hub.train(
             dataset=dataset,
             epochs=kwargs.get("epochs", None),
@@ -1820,21 +1827,21 @@ class Hub:
         direction: str = None,
         n_trials: int = None,
         metric: str = None,
-        search_space: dict = None,
+        search_space: Union[dict, str] = None,
         **kwargs,
     ) -> dict:
         """
         Perform hyperparameter optimization (HPO) for the current task.
 
         Args:
-            dataset (Union[Dataset, str], optional): The dataset to use for HPO. Can be a `Dataset` object or the name of a dataset. Defaults to None.
+            dataset (Union[Dataset, str]): The dataset to use for HPO. Can be a `Dataset` object or the name of a dataset. Defaults to None.
             dataset_root_dir (Union[str, Path], optional): The root directory of the dataset. Defaults to None.
             sampler (Union[dict, str], optional): The sampler to use for HPO. Can be a dictionary of sampler parameters or the name of a built-in sampler. Defaults to None.
             pruner (Union[dict, str], optional): The pruner to use for HPO. Can be a dictionary of pruner parameters or the name of a built-in pruner. Defaults to None.
-            direction (str, optional): The direction of optimization. Can be 'maximize' or 'minimize'. Defaults to None.
+            direction (str): The direction of optimization. Can be 'maximize' or 'minimize'. Defaults to None.
             n_trials (int, optional): The number of trials to run for HPO. Defaults to None.
-            metric (str, optional): The metric to optimize for. Defaults to None.
-            search_space (dict, optional): The search space for HPO. Defaults to None.
+            metric (str): The metric to optimize for. Defaults to None.
+            search_space (dict): The search space for HPO. Defaults to None.
             **kwargs: Additional keyword arguments to pass to the HPO function.
 
         Returns:

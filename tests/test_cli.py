@@ -290,6 +290,16 @@ def test_hub_hpo(test_dir: Path):
     assert (test_dir / "hubs" / "test_hpo" / "train.py").exists()
     assert (test_dir / "hubs" / "test_hpo" / "test_hpo.db").exists()
 
+    cmd = f"python -m waffle_hub.hub.cli train \
+        --root-dir {test_dir / 'hubs'} \
+        --name test_hpo \
+        --dataset {test_dir / 'datasets' / 'from_coco'} \
+    "
+    ret = run_cli(cmd)
+    assert ret.returncode == 0
+    assert (test_dir / "hubs" / "test_hpo" / "artifacts").exists()
+    
+
 def test_hub_inference(test_dir: Path):
     cmd = f'python -m waffle_hub.hub.cli inference \
         --root-dir {test_dir / "hubs"} \
