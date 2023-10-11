@@ -1610,7 +1610,7 @@ class Hub:
             device (str, optional): device. "cpu" or "gpu_id". Defaults to "0".
             hold (bool, optional): hold or not.
                 If True then it holds until task finished.
-                If False then return Inference Callback and run in background. Defaults to True.
+                If False then return Callback and run in background. Defaults to True.
 
         Example:
             >>> export_onnx_result = hub.export_onnx(
@@ -1752,10 +1752,12 @@ class Hub:
             "gpu_name": torch.cuda.get_device_name(0) if device != "cpu" else None,
         }
 
-    def export_waffle(self, root_dir: str = None) -> ExportWaffleResult:
+    def export_waffle(self, hold: bool = True) -> ExportWaffleResult:
         """Export Waffle Model
         Args:
-            root_dir (str, optional): hub root directory. Defaults to None.
+            hold (bool, optional): hold or not.
+                If True then it holds until task finished.
+                If False then return Callback and run in background. Defaults to True.
         Example:
             >>> export_waffle_result = hub.export_waffle()
             >>> export_waffle_result.waffle_file
@@ -1763,8 +1765,31 @@ class Hub:
         Returns:
             ExportWaffleResult: export waffle result
         """
-        io.zip([self.hub_dir / Hub.CONFIG_DIR, self.hub_dir / Hub.WEIGHTS_DIR], self.waffle_file)
+        self.check_train_sanity()
+
+        def inner(callback: ExportCallback, result: ExportWaffleResult):
+            try:
+                io.zip(
+                    [self.hub_dir / Hub.CONFIG_DIR, self.hub_dir / Hub.WEIGHTS_DIR], self.waffle_file
+                )
+                result.waffle_file = self.waffle_file
+                callback.force_finish()
+            except Exception as e:
+                if self.waffle_file.exists():
+                    io.remove_file(self.waffle_file)
+                callback.force_finish()
+                callback.set_failed()
+                raise e
+
+        callback = ExportCallback(1)
         result = ExportWaffleResult()
-        result.waffle_file = self.waffle_file
+        result.callback = callback
+
+        if hold:
+            inner(callback, result)
+        else:
+            thread = threading.Thread(target=inner, args=(callback, result), daemon=True)
+            callback.register_thread(thread)
+            callback.start()
 
         return result

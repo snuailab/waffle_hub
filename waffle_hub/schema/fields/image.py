@@ -108,7 +108,7 @@ class Image(BaseField):
         Returns:
             Image: image class
         """
-        return cls(image_id, file_name, width, height, date_captured)
+        return cls(image_id, file_name, width, height, original_file_name, date_captured)
 
     def to_dict(self) -> dict:
         """Get Dictionary of Category

@@ -25,6 +25,7 @@ def test_annotation():
         bbox=bbox,
         area=10000,
     )
+    assert a.task == TaskType.OBJECT_DETECTION
     assert not a.is_prediction()
 
     a = Annotation.object_detection(
@@ -39,7 +40,8 @@ def test_annotation():
     assert a.is_prediction()
 
     d = a.to_dict()
-    a = Annotation.from_dict(d)
+    b = Annotation.from_dict(d)
+    assert a == b
 
     # classification
     a = Annotation.classification(
@@ -47,6 +49,7 @@ def test_annotation():
         image_id=1,
         category_id=1,
     )
+    assert a.task == TaskType.CLASSIFICATION
 
     # segmentation
     a = Annotation.semantic_segmentation(
@@ -58,6 +61,7 @@ def test_annotation():
     )
     assert a.bbox == [110, 110, 20, 20]
     assert a.area == 10000
+    assert a.task == TaskType.SEMANTIC_SEGMENTATION
 
     a = Annotation.instance_segmentation(
         annotation_id=1,
@@ -67,6 +71,7 @@ def test_annotation():
     )
     assert a.bbox == [110, 110, 20, 20]
     assert a.area == 200
+    assert a.task == TaskType.INSTANCE_SEGMENTATION
 
     # keypoint detection
     a = Annotation.keypoint_detection(
@@ -76,6 +81,7 @@ def test_annotation():
         keypoints=keypoints,
         num_keypoints=3,
     )
+    assert a.task == TaskType.KEYPOINT_DETECTION
 
     # text recognition
     a = Annotation.text_recognition(
@@ -83,6 +89,7 @@ def test_annotation():
         image_id=1,
         caption="1",
     )
+    assert a.task == TaskType.TEXT_RECOGNITION
 
 
 def test_image():
@@ -95,7 +102,8 @@ def test_image():
     )
 
     d = image.to_dict()
-    image = Image.from_dict(d)
+    temp_image = Image.from_dict(d)
+    assert str(image) == str(temp_image)
 
 
 def test_category():
@@ -106,9 +114,11 @@ def test_category():
         name="test",
         supercategory="object",
     )
+    assert category.task == TaskType.OBJECT_DETECTION
 
     d = category.to_dict()
-    category = Category.from_dict(d)
+    temp_category = Category.from_dict(d)
+    assert str(category) == str(temp_category)
 
     # classification
     category = Category.classification(
@@ -116,6 +126,7 @@ def test_category():
         name="test",
         supercategory="object",
     )
+    assert category.task == TaskType.CLASSIFICATION
 
     # segmentation
     category = Category.semantic_segmentation(
@@ -123,6 +134,7 @@ def test_category():
         name="test",
         supercategory="object",
     )
+    assert category.task == TaskType.SEMANTIC_SEGMENTATION
 
     # keypoint detection
     category = Category.keypoint_detection(
@@ -132,6 +144,7 @@ def test_category():
         keypoints=["a", "b", "c"],
         skeleton=[[1, 2], [2, 3]],
     )
+    assert category.task == TaskType.KEYPOINT_DETECTION
 
     # text recognition
     category = Category.text_recognition(
@@ -139,6 +152,7 @@ def test_category():
         name="test",
         supercategory="object",
     )
+    assert category.task == TaskType.TEXT_RECOGNITION
 
 
 def test_dataset(tmpdir):
@@ -170,12 +184,13 @@ def _index(dataset_name, root_dir):
 
 
 def _clone(dataset_name, root_dir):
-    Dataset.clone(
+    dataset = Dataset.clone(
         src_name=dataset_name,
         name="clone_" + dataset_name,
         src_root_dir=root_dir,
         root_dir=root_dir,
     )
+    assert Path(dataset.dataset_dir).exists()
 
 
 def _split(dataset_name, root_dir):
