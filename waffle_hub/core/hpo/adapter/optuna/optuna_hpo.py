@@ -64,7 +64,7 @@ class OptunaHPO:
         self.metric = metric
         self.is_hub = is_hub
         self._study = None
-        
+
         self.save_hpo_config()
 
     def __repr__(self):
@@ -94,7 +94,7 @@ class OptunaHPO:
     def hpo_artifacts_dir(self) -> Path:
         """HPO Artifacts Directory"""
         return self.hpo_dir / OptunaHPO.HPO_ARTIFACTS_DIR
-    
+
     @cached_property
     def hpo_default_config(self) -> Path:
         """HPO Artifacts Directory"""
@@ -184,6 +184,7 @@ class OptunaHPO:
     @metric.setter
     @type_validator(str)
     def metric(self, v):
+        print(" \n\n ========== this metric is... ============== \n\n", v)
         if v is None:
             warnings.warn("HPO metric is not set. Set to None.")
         self.__metric = v
@@ -200,12 +201,12 @@ class OptunaHPO:
             self.__is_hub = self.__metric is not None
         else:
             self.__is_hub = v
-    
+
     @property
     def sampler_name(self) -> str:
         """HPO sampler name"""
         return self.__sampler_name
-    
+
     @sampler_name.setter
     @type_validator(str)
     def sampler_name(self, v):
@@ -214,12 +215,12 @@ class OptunaHPO:
             warnings.warn("HPO sampler name is not set. Set to TPESampler.")
         else:
             self.__sampler_name = v
-    
+
     @property
     def sampler_param(self) -> dict:
         """HPO sampler param"""
         return self.__sampler_param
-    
+
     @sampler_param.setter
     def sampler_param(self, v):
         if v is None:
@@ -227,12 +228,12 @@ class OptunaHPO:
             warnings.warn("HPO sampler param is not set. Set to {}.")
         else:
             self.__sampler_param = v
-    
+
     @property
     def pruner_name(self) -> str:
         """HPO pruner name"""
         return self.__pruner_name
-    
+
     @pruner_name.setter
     @type_validator(str)
     def pruner_name(self, v):
@@ -246,7 +247,7 @@ class OptunaHPO:
     def pruner_param(self) -> dict:
         """HPO pruner param"""
         return self.__pruner_param
-    
+
     @pruner_param.setter
     def pruner_param(self, v):
         if v is None:
@@ -321,12 +322,12 @@ class OptunaHPO:
             raise ValueError(
                 f"Sampler class {sampler_class_name} not found in module {sampler_module}"
             )
-        
+
         sampler_class = getattr(sampler_module, sampler_class_name)
         # Check if all required arguments are present
         required_args = set(sampler_class.__init__.__code__.co_varnames[1:])
         given_args = set(hpo_method_params.keys())
-        
+
         for arg in given_args:
             if arg not in required_args:
                 raise ValueError(

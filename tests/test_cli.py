@@ -46,6 +46,36 @@ def _train(hub_name: str, dataset: Dataset, tmpdir: Path):
     assert (tmpdir / hub_name / "artifacts").exists()
 
 
+def _hub_hpo(hub_name: str, dataset: Dataset, tmpdir: Path):
+    search_space = {
+        "epochs": {"method": "suggest_categorical", "search_space": [1, 2, 3], "kwargs": {}}
+    }
+
+    save_json(search_space, tmpdir / "search_space.json")
+    cmd = f"python -m waffle_hub.hub.cli hpo \
+        --root-dir {tmpdir} \
+        --name {hub_name} \
+        --dataset {dataset.name} \
+        --dataset_root_dir {dataset.root_dir} \
+        --sampler RandomSampler \
+        --pruner MedianPruner \
+        --direction maximize \
+        --n_trials 2 \
+        --metric mAP_50 \
+        --search_space {tmpdir / 'search_space.json'} \
+    "
+
+    ret = run_cli(cmd)
+    assert ret.returncode == 0
+    assert (tmpdir / hub_name / "configs" / "hpo.yaml").exists()
+    assert (tmpdir / hub_name / "hpo_artifacts").exists()
+    assert (tmpdir / hub_name / "hpo.json").exists()
+    assert (tmpdir / hub_name / "metrics.json").exists()
+    assert (tmpdir / hub_name / "evaluate.json").exists()
+    assert (tmpdir / hub_name / "train.py").exists()
+    assert (tmpdir / hub_name / f"{hub_name}.db").exists()
+
+
 def _delete_artifact(hub_name: str, tmpdir: Path):
     cmd = f"python -m waffle_hub.hub.cli delete_artifact \
         --name  {hub_name} \
@@ -164,6 +194,7 @@ def test_hub(tmpdir: Path, object_detection_dataset: Dataset):
     hub_name = "test_hub"
     dataset = object_detection_dataset
     _new(hub_name, tmpdir, TaskType.OBJECT_DETECTION)
+    _hub_hpo(hub_name, dataset, tmpdir)
     _train(hub_name, dataset, tmpdir)
     _inference(hub_name, dataset, tmpdir)
     _evaluate(hub_name, dataset, tmpdir)
