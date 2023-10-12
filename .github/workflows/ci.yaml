@@ -41,4 +41,4 @@ jobs:
           pip list
       - name: Pytest tests
         shell: bash  # for Windows compatibility
-        run: python -m pytest tests/test_utils.py tests/test_dataset.py tests/test_cli.py tests/test_hub.py tests/test_hpo.py -n 3 -v
+        run: python -m pytest tests/test_utils.py tests/test_dataset.py tests/test_cli.py tests/test_hub.py -n 4 -v
