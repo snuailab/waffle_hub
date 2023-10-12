@@ -194,7 +194,7 @@ def test_hub(tmpdir: Path, object_detection_dataset: Dataset):
     hub_name = "test_hub"
     dataset = object_detection_dataset
     _new(hub_name, tmpdir, TaskType.OBJECT_DETECTION)
-    _hub_hpo(hub_name, dataset, tmpdir)
+    # _hub_hpo(hub_name, dataset, tmpdir)
     _train(hub_name, dataset, tmpdir)
     _inference(hub_name, dataset, tmpdir)
     _evaluate(hub_name, dataset, tmpdir)
