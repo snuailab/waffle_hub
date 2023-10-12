@@ -1,3 +1,4 @@
+import gc
 import importlib
 import inspect
 import logging
@@ -489,4 +490,5 @@ class OptunaHPO:
         self._save_hpo_result(hpo_results)
         if visualize_hpo:
             self.visualize_hpo_results()
+        gc.collect()
         return hpo_results
