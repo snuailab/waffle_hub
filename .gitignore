@@ -138,6 +138,7 @@ runs/
 .vscode/
 mlruns/
 *.log.*
+*.ttc
 
 *.pt
 *.pth
