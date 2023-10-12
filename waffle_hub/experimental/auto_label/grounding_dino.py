@@ -68,7 +68,6 @@ def load_model(model_config_path, model_checkpoint_path, device):
     model = build_model(args)
     checkpoint = torch.load(model_checkpoint_path, map_location="cpu")
     load_res = model.load_state_dict(clean_state_dict(checkpoint["model"]), strict=False)
-    print(load_res)
     _ = model.eval()
     return model
 

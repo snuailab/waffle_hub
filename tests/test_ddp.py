@@ -11,7 +11,6 @@ from waffle_hub.schema.configs import HPOConfig, TrainConfig
 from waffle_hub.schema.result import HPOResult, TrainResult
 
 
-
 def _train(hub, dataset: Dataset, image_size: int, hold: bool = True):
     result: TrainResult = hub.train(
         dataset=dataset,
@@ -216,11 +215,12 @@ def test_object_detection_hpo(
         metric=metric,
         search_space=search_space,
         image_size=64,
+        device="0,1",
+        workers=0,
+        hold=True,
     )
-    
-    train_result = hub.train(
-        dataset=dataset
-    )
+
+    train_result = hub.train(dataset=dataset)
 
     hpo_config = HPOConfig.load(Path(hub.root_dir / hub.name / "configs" / "hpo.yaml"))
     hpo_result = HPOResult.load(Path(hub.root_dir / hub.name / "hpo.json"))
@@ -228,6 +228,7 @@ def test_object_detection_hpo(
     assert_train_result_after_hpo(hub, train_result)
     assert_hpo_result(hub.root_dir, hub.name, hpo_result, n_trials)
     assert_hpo_method(hpo_config, sampler, pruner, direction)
+
 
 # def test_transformers_classification(classification_dataset: Dataset, tmpdir: Path):
 #     image_size = 224

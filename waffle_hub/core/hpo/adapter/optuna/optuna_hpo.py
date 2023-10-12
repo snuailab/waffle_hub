@@ -184,7 +184,6 @@ class OptunaHPO:
     @metric.setter
     @type_validator(str)
     def metric(self, v):
-        print(" \n\n ========== this metric is... ============== \n\n", v)
         if v is None:
             warnings.warn("HPO metric is not set. Set to None.")
         self.__metric = v
