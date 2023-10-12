@@ -226,7 +226,7 @@ def test_object_detection_hpo(
     hpo_result = HPOResult.load(Path(hub.root_dir / hub.name / "hpo.json"))
 
     assert_train_result_after_hpo(hub, train_result)
-    assert_hpo_result(hub.root_dir, hpo_result, n_trials)
+    assert_hpo_result(hub.root_dir, hub.name, hpo_result, n_trials)
     assert_hpo_method(hpo_config, sampler, pruner, direction)
 
 
