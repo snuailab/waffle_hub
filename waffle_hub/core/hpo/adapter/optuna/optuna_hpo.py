@@ -42,12 +42,12 @@ class OptunaHPO:
     def __init__(
         self,
         study_name: str,
+        search_space: Union[dict, str],
         root_dir: Union[str, Path] = None,
         sampler: Union[dict, str] = None,
         pruner: Union[dict, str] = None,
         direction: str = None,
         n_trials: int = None,
-        search_space: Union[dict, str] = None,
         metric: str = None,
         is_hub: bool = None,
     ):
@@ -140,7 +140,7 @@ class OptunaHPO:
     @type_validator(str)
     def direction(self, v):
         if v is None:
-            warnings.warn("HPO direction is not set. Set to maximize or minimize.")
+            warnings.warn(f"HPO direction is not set. Set to {OptunaHPO.DEFAULT_CONFIG.direction}.")
         self.__direction = v
 
     @property
@@ -153,7 +153,7 @@ class OptunaHPO:
     def n_trials(self, v):
         if v is None:
             self.__n_trials = OptunaHPO.DEFAULT_CONFIG.n_trials
-            warnings.warn("HPO n_trials is not set. Set to 100.")
+            warnings.warn(f"HPO n_trials is not set. Set to {OptunaHPO.DEFAULT_CONFIG.n_trials}.")
         else:
             self.__n_trials = v
 
@@ -188,8 +188,8 @@ class OptunaHPO:
     @metric.setter
     @type_validator(str)
     def metric(self, v):
-        if v is None:
-            warnings.warn("HPO metric is not set. Set to None.")
+        if v is None and self.is_hub:
+            raise ValueError("HPO metric is required for hub.")
         self.__metric = v
 
     @property
@@ -215,7 +215,7 @@ class OptunaHPO:
     def sampler_name(self, v):
         if v is None:
             self.__sampler_name = OptunaHPO.DEFAULT_CONFIG.sampler
-            warnings.warn("HPO sampler name is not set. Set to TPESampler.")
+            warnings.warn(f"HPO sampler name is not set. Set to {OptunaHPO.DEFAULT_CONFIG.sampler}.")
         else:
             self.__sampler_name = v
 
@@ -227,7 +227,7 @@ class OptunaHPO:
     @sampler_param.setter
     def sampler_param(self, v):
         if v is None:
-            self.__sampler_param = None
+            self.__sampler_param = {}  # argument mus be a map
             warnings.warn("HPO sampler param is not set. Set to {}.")
         else:
             self.__sampler_param = v
@@ -242,7 +242,7 @@ class OptunaHPO:
     def pruner_name(self, v):
         if v is None:
             self.__pruner_name = OptunaHPO.DEFAULT_CONFIG.pruner
-            warnings.warn("HPO pruner name is not set. Set to NopPruner.")
+            warnings.warn(f"HPO pruner name is not set. Set to {OptunaHPO.DEFAULT_CONFIG.pruner}.")
         else:
             self.__pruner_name = v
 
@@ -254,7 +254,7 @@ class OptunaHPO:
     @pruner_param.setter
     def pruner_param(self, v):
         if v is None:
-            self.__pruner_param = {}
+            self.__pruner_param = {}  # argument mus be a map
             warnings.warn("HPO pruner param is not set. Set to {}.")
         else:
             self.__pruner_param = v
@@ -484,6 +484,7 @@ class OptunaHPO:
         Returns:
             HPOResult: An object containing the results of HPO.
         """
+        print(self.sampler_name, self.pruner_name)
         sampler = self.get_sampler(self.sampler_name, **self.sampler_param)
         pruner = self.get_pruner(self.pruner_name, **self.pruner_param)
         self.create_study(sampler, pruner)
