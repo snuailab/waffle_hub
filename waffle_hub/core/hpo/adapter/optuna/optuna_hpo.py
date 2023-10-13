@@ -14,7 +14,7 @@ import plotly.io as pio
 from waffle_utils.file import io
 from waffle_utils.utils import type_validator
 
-from waffle_hub.schema.configs import HPOConfig
+from waffle_hub.schema.configs import DEFAULT_PARAMS, HPOConfig
 from waffle_hub.schema.result import HPOResult
 
 from .config import PRUNER_MAP, SAMPLER_MAP
@@ -35,6 +35,8 @@ class OptunaHPO:
 
     # hpo results
     HPO_RESULT_FILE = Path("hpo.json")
+
+    DEFAULT_PARAMS = DEFAULT_PARAMS
 
     def __init__(
         self,
@@ -149,7 +151,7 @@ class OptunaHPO:
     @type_validator(int)
     def n_trials(self, v):
         if v is None:
-            self.__n_trials = 100
+            self.__n_trials = OptunaHPO.DEFAULT_PARAMS.n_trials
             warnings.warn("HPO n_trials is not set. Set to 100.")
         else:
             self.__n_trials = v
@@ -211,7 +213,7 @@ class OptunaHPO:
     @type_validator(str)
     def sampler_name(self, v):
         if v is None:
-            self.__sampler_name = "TPESampler"
+            self.__sampler_name = OptunaHPO.DEFAULT_PARAMS.sampler
             warnings.warn("HPO sampler name is not set. Set to TPESampler.")
         else:
             self.__sampler_name = v
@@ -224,7 +226,7 @@ class OptunaHPO:
     @sampler_param.setter
     def sampler_param(self, v):
         if v is None:
-            self.__sampler_param = {"n_startup_trials": 10}
+            self.__sampler_param = None
             warnings.warn("HPO sampler param is not set. Set to {}.")
         else:
             self.__sampler_param = v
@@ -238,7 +240,7 @@ class OptunaHPO:
     @type_validator(str)
     def pruner_name(self, v):
         if v is None:
-            self.__pruner_name = "NoPruner"
+            self.__pruner_name = OptunaHPO.DEFAULT_PARAMS.pruner
             warnings.warn("HPO pruner name is not set. Set to NopPruner.")
         else:
             self.__pruner_name = v
@@ -262,6 +264,10 @@ class OptunaHPO:
             return Path(v)
         else:
             return cls.DEFAULT_HPO_ROOT_DIR
+
+    @classmethod
+    def get_default_hpo_config(cls):
+        return cls.DEFAULT_PARAMS
 
     def save_hpo_config(self):
         HPOConfig(

@@ -1,6 +1,7 @@
 import enum
 
 from waffle_hub import BaseEnum, DataType, OrderedDict
+from waffle_hub.schema.configs import HPOConfig
 
 
 class SamplerType(BaseEnum):
@@ -81,3 +82,12 @@ SEARCH_SPACE_MAP = OrderedDict(
 for key in list(SEARCH_SPACE_MAP.keys()):
     SEARCH_SPACE_MAP[str(key).lower()] = SEARCH_SPACE_MAP[key]
     SEARCH_SPACE_MAP[str(key).upper()] = SEARCH_SPACE_MAP[key]
+
+DEFAULT_CONFIG = HPOConfig(
+    sampler="randomsampler",
+    pruner="nopruner",
+    metric=None,
+    direction="maximize",
+    n_trials=30,
+    search_space=None,
+)
