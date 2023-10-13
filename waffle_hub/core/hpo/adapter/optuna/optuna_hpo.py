@@ -49,7 +49,7 @@ class OptunaHPO:
         direction: str = None,
         n_trials: int = None,
         metric: str = None,
-        is_hub: bool = None,
+        is_hub: bool = False,
     ):
 
         # hpo study configuration
@@ -65,8 +65,8 @@ class OptunaHPO:
         self.direction = direction
         self.n_trials = n_trials
         self.search_space = search_space
-        self.metric = metric
         self.is_hub = is_hub
+        self.metric = metric
         self._study = None
 
         self.save_hpo_config()
@@ -181,6 +181,15 @@ class OptunaHPO:
             raise ValueError(f"search space should be dict or file path {v}")
 
     @property
+    def is_hub(self) -> bool:
+        """Is Hub"""
+        return self.__is_hub
+
+    @is_hub.setter
+    def is_hub(self, v):
+        self.__is_hub = v
+
+    @property
     def metric(self) -> str:
         """HPO metric"""
         return self.__metric
@@ -189,21 +198,8 @@ class OptunaHPO:
     @type_validator(str)
     def metric(self, v):
         if v is None and self.is_hub:
-            raise ValueError("HPO metric is required for hub.")
+            ValueError("HPO metric is not set.")
         self.__metric = v
-
-    @property
-    def is_hub(self) -> bool:
-        """Is Hub"""
-        return self.__is_hub
-
-    @is_hub.setter
-    @type_validator(bool)
-    def is_hub(self, v):
-        if v is None:  # if is_hub is not set, check if metric is set (metric is required for hub)
-            self.__is_hub = self.__metric is not None
-        else:
-            self.__is_hub = v
 
     @property
     def sampler_name(self) -> str:
@@ -484,7 +480,6 @@ class OptunaHPO:
         Returns:
             HPOResult: An object containing the results of HPO.
         """
-        print(self.sampler_name, self.pruner_name)
         sampler = self.get_sampler(self.sampler_name, **self.sampler_param)
         pruner = self.get_pruner(self.pruner_name, **self.pruner_param)
         self.create_study(sampler, pruner)

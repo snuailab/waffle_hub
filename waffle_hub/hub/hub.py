@@ -1845,28 +1845,28 @@ class Hub:
 
     def hpo(
         self,
-        dataset: Union[Dataset, str] = None,
+        dataset: Union[Dataset, str],
+        metric: str,
+        search_space: Union[dict, str],
         dataset_root_dir: Union[str, Path] = None,
         sampler: Union[dict, str] = None,
         pruner: Union[dict, str] = None,
         direction: str = None,
         n_trials: int = None,
-        metric: str = None,
-        search_space: Union[dict, str] = None,
         **kwargs,
     ) -> dict:
         """
         Perform hyperparameter optimization (HPO) for the current task.
 
         Args:
-            dataset (Union[Dataset, str]): The dataset to use for HPO. Can be a `Dataset` object or the name of a dataset. Defaults to None.
-            dataset_root_dir (Union[str, Path], optional): The root directory of the dataset. Defaults to None.
-            sampler (Union[dict, str], optional): The sampler to use for HPO. Can be a dictionary of sampler parameters or the name of a built-in sampler. Defaults to None.
-            pruner (Union[dict, str], optional): The pruner to use for HPO. Can be a dictionary of pruner parameters or the name of a built-in pruner. Defaults to None.
-            direction (str): The direction of optimization. Can be 'maximize' or 'minimize'. Defaults to None.
-            n_trials (int, optional): The number of trials to run for HPO. Defaults to None.
-            metric (str): The metric to optimize for. Defaults to None.
-            search_space (dict): The search space for HPO. Defaults to None.
+            dataset (Union[Dataset, str]): The dataset to use for HPO. Can be a `Dataset` object or the name of a dataset.
+            dataset_root_dir (Union[str, Path], optional): The root directory of the dataset.
+            sampler (Union[dict, str], optional): The sampler to use for HPO. Can be a dictionary of sampler parameters or the name of a built-in sampler.
+            pruner (Union[dict, str], optional): The pruner to use for HPO. Can be a dictionary of pruner parameters or the name of a built-in pruner.
+            direction (str): The direction of optimization. Can be 'maximize' or 'minimize'.
+            n_trials (int, optional): The number of trials to run for HPO.
+            metric (str): The metric to optimize.
+            search_space (dict): The search space for HPO.
             **kwargs: Additional keyword arguments to pass to the HPO function.
 
         Returns:
