@@ -303,8 +303,15 @@ class OptunaHPO:
         """
         return HPOConfig.load(self.hpo_config_file)
 
+    def _remove_trial_dirs(self) -> None:
+        for trial_num in range(0, self.n_trials):
+            trial_dir = self.hpo_dir / "hpo" / f"trial_{trial_num}"
+            for dir_name in ["configs", "weights", "artifacts"]:
+                io.remove_directory(trial_dir / dir_name)
+
     def _save_hpo_result(self, hpo_results: HPOResult) -> None:
         if self.is_hub:
+
             best_hpo_root_dir = self.hpo_dir / "hpo" / f"trial_{hpo_results['best_trial']}"
             io.copy_file(best_hpo_root_dir / "configs" / "train.yaml", self.hpo_config_dir)
 
@@ -312,6 +319,7 @@ class OptunaHPO:
                 io.copy_file(best_hpo_root_dir / file_name, self.hpo_dir)
 
         hpo_results.save_json(self.hpo_dir / "hpo.json")
+        self._remove_trial_dirs()
 
     def get_hpo_method(self, method: dict, **hpo_method_params):
         sampler_module = importlib.import_module(method["import_path"])

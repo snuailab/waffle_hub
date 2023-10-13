@@ -1816,7 +1816,7 @@ class Hub:
         dataset = kwargs.get("dataset", None)
         metric = kwargs.get("metric", None)
         selected_params = kwargs.get("advance_params", None)
-
+        device = kwargs.get("device", "cpu")
         hub = Hub.new(
             name=f"trial_{trial.number}",
             root_dir=self.hub_dir / "hpo",
@@ -1824,18 +1824,24 @@ class Hub:
             model_type=self.model_type,
             model_size=self.model_size,
         )
-        train_result = hub.train(
-            dataset=dataset,
-            epochs=kwargs.get("epochs", None),
-            image_size=kwargs.get("image_size", None),
-            batch_size=kwargs.get("batch_size", None),
-            pretrained_model=kwargs.get("pretrained_model", None),
-            letter_box=kwargs.get("letter_box", False),
-            device=kwargs.get("device", "cpu"),
-            workers=kwargs.get("workers", 0),
-            advance_params=selected_params,
-            hold=kwargs.get("hold", True),
-        )
+
+        @device_context("cpu" if device == "cpu" else device)
+        def inner():
+            train_result = hub.train(
+                dataset=dataset,
+                epochs=kwargs.get("epochs", None),
+                image_size=kwargs.get("image_size", None),
+                batch_size=kwargs.get("batch_size", None),
+                pretrained_model=kwargs.get("pretrained_model", None),
+                letter_box=kwargs.get("letter_box", False),
+                device=device,
+                workers=kwargs.get("workers", 0),
+                advance_params=selected_params,
+                hold=kwargs.get("hold", True),
+            )
+            return train_result
+
+        train_result = inner()
 
         for metric_value in train_result.eval_metrics:
             if metric_value["tag"] == metric:
