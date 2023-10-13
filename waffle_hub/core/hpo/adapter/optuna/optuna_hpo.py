@@ -14,7 +14,8 @@ import plotly.io as pio
 from waffle_utils.file import io
 from waffle_utils.utils import type_validator
 
-from waffle_hub.schema.configs import DEFAULT_PARAMS, HPOConfig
+from waffle_hub.core.hpo.adapter.optuna.config import DEFAULT_CONFIG
+from waffle_hub.schema.configs import HPOConfig
 from waffle_hub.schema.result import HPOResult
 
 from .config import PRUNER_MAP, SAMPLER_MAP
@@ -36,7 +37,7 @@ class OptunaHPO:
     # hpo results
     HPO_RESULT_FILE = Path("hpo.json")
 
-    DEFAULT_PARAMS = DEFAULT_PARAMS
+    DEFAULT_CONFIG = DEFAULT_CONFIG
 
     def __init__(
         self,
@@ -151,7 +152,7 @@ class OptunaHPO:
     @type_validator(int)
     def n_trials(self, v):
         if v is None:
-            self.__n_trials = OptunaHPO.DEFAULT_PARAMS.n_trials
+            self.__n_trials = OptunaHPO.DEFAULT_CONFIG.n_trials
             warnings.warn("HPO n_trials is not set. Set to 100.")
         else:
             self.__n_trials = v
@@ -213,7 +214,7 @@ class OptunaHPO:
     @type_validator(str)
     def sampler_name(self, v):
         if v is None:
-            self.__sampler_name = OptunaHPO.DEFAULT_PARAMS.sampler
+            self.__sampler_name = OptunaHPO.DEFAULT_CONFIG.sampler
             warnings.warn("HPO sampler name is not set. Set to TPESampler.")
         else:
             self.__sampler_name = v
@@ -240,7 +241,7 @@ class OptunaHPO:
     @type_validator(str)
     def pruner_name(self, v):
         if v is None:
-            self.__pruner_name = OptunaHPO.DEFAULT_PARAMS.pruner
+            self.__pruner_name = OptunaHPO.DEFAULT_CONFIG.pruner
             warnings.warn("HPO pruner name is not set. Set to NopPruner.")
         else:
             self.__pruner_name = v
@@ -267,7 +268,7 @@ class OptunaHPO:
 
     @classmethod
     def get_default_hpo_config(cls):
-        return cls.DEFAULT_PARAMS
+        return cls.DEFAULT_CONFIG
 
     def save_hpo_config(self):
         HPOConfig(
