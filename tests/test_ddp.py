@@ -209,7 +209,7 @@ def test_object_detection_hpo(
         n_trials=n_trials,
         metric=metric,
         search_space=search_space,
-        image_size=64,
+        image_size=32,
         batch_size=4,
         device="0,1",
         workers=0,
