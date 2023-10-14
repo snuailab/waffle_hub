@@ -497,6 +497,7 @@ class OptunaHPO:
             best_score=self._study.best_value,
             total_time=str(self._study.trials_dataframe()["duration"].sum()),
         )
+
         self._save_hpo_result(hpo_results)
         if visualize_hpo:
             self.visualize_hpo_results()
