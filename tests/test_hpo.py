@@ -119,7 +119,14 @@ def test_object_detection_hpo(
         hold=True,
     )
 
-    train_result = hub.train(dataset=dataset)
+    train_result = hub.train(
+        dataset=dataset,
+        device="cpu",
+        image_size=64,
+        batch_size=4,
+        workers=0,
+        hold=True,
+    )
 
     hpo_config = HPOConfig.load(Path(hub.root_dir / hub.name / "configs" / "hpo.yaml"))
     hpo_result = HPOResult.load(Path(hub.root_dir / hub.name / "hpo.json"))
@@ -184,7 +191,14 @@ def test_classification_hpo(
         hold=True,
     )
 
-    train_result = hub.train(dataset=dataset)
+    train_result = hub.train(
+        dataset=dataset,
+        device="cpu",
+        image_size=64,
+        batch_size=4,
+        workers=0,
+        hold=True,
+    )
 
     hpo_config = HPOConfig.load(Path(hub.root_dir / hub.name / "configs" / "hpo.yaml"))
     hpo_result = HPOResult.load(Path(hub.root_dir / hub.name / "hpo.json"))

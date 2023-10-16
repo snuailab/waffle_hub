@@ -1814,7 +1814,6 @@ class Hub:
         return result
 
     def _hpo_hub_objective(self, **kwargs) -> float:
-
         trial = kwargs.get("trial", None)
         dataset = kwargs.get("dataset", None)
         metric = kwargs.get("metric", None)
