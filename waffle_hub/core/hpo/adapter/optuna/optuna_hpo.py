@@ -34,9 +34,6 @@ class OptunaHPO:
     CONFIG_DIR = Path("configs")
     HPO_CONFIG_FILE = CONFIG_DIR / "hpo.yaml"
 
-    # hpo results
-    HPO_RESULT_FILE = Path("hpo.json")
-
     DEFAULT_CONFIG = DEFAULT_CONFIG
 
     def __init__(
@@ -83,11 +80,6 @@ class OptunaHPO:
     def hpo_config_file(self) -> Path:
         """HPO Config yaml File"""
         return self.hpo_dir / OptunaHPO.HPO_CONFIG_FILE
-
-    @cached_property
-    def hpo_result_file(self) -> Path:
-        """HPO Result json File"""
-        return self.hpo_dir / OptunaHPO.HPO_RESULT_FILE
 
     @cached_property
     def hpo_config_dir(self) -> Path:
@@ -424,28 +416,48 @@ class OptunaHPO:
             self.draw_hpo_plot(visualize)
 
     def _get_search_space(self, trial: optuna.trial.Trial, search_space: dict, is_hub: bool) -> dict:
-        hub_params = {}
+        advance_params = {}
         params = {}
-
         for k, v in search_space.items():
-            choice_name = k
-            method_name = v["method"]
-            choices = v["search_space"]
-            kwargs = v["kwargs"]
-
-            choice_value = ChoiceMethod(
-                choice_name=choice_name, method_name=method_name, choices=choices, **kwargs
-            )(trial)
-
-            if k in ["batch_size", "image_size", "learning_rate", "letter_box", "epochs"]:
-                hub_params[k] = choice_value
+            if k == "advance_params":
+                for k2, v2 in v.items():
+                    choice_value = ChoiceMethod(
+                        choice_name=k2,
+                        method_name=v2["method"],
+                        choices=v2["search_space"],
+                        **v2["kwargs"],
+                    )(trial)
+                    advance_params[k2] = choice_value
             else:
+                choice_value = ChoiceMethod(
+                    choice_name=k, method_name=v["method"], choices=v["search_space"], **v["kwargs"]
+                )(trial)
                 params[k] = choice_value
 
         if is_hub:
-            hub_params.update({"advance_params": params})
-            return hub_params
+            params.update(advance_params)
 
+        return params
+
+    # def _get_best_params(self, best_params: dict):
+    #     advance_params = {}
+    #     params = {}
+    #     for k, v in self.search_space.items():
+    #         if k == "advance_params":
+    #             for k2 in v.keys():
+    #                 advance_params[k2] = best_params[k2]
+    #         else:
+    #             params[k] = best_params[k]
+    #     params.update({"advance_params" : advance_params})
+    #     return params
+
+    def _get_best_params(self, best_params: dict):
+        params = {}
+        for k, v in self.search_space.items():
+            if k == "advance_params":
+                params[k] = {k2: best_params[k2] for k2 in v.keys()}
+            else:
+                params[k] = best_params[k]
         return params
 
     def optimize(self, objective: Callable, **kwargs) -> None:
@@ -491,9 +503,12 @@ class OptunaHPO:
         pruner = self.get_pruner(self.pruner_name, **self.pruner_param)
         self.create_study(sampler, pruner)
         self.optimize(objective=objective, **kwargs)
+
         hpo_results = HPOResult(
             best_trial=self._study.best_trial.number,
-            best_params=self._study.best_params,
+            best_params=self._get_best_params(self._study.best_params)
+            if self.is_hub
+            else self._study.best_params,
             best_score=self._study.best_value,
             total_time=str(self._study.trials_dataframe()["duration"].sum()),
         )

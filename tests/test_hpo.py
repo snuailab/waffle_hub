@@ -69,8 +69,10 @@ def assert_hpo_method(
         (
             2,
             {
-                "lr0": {"method": "suggest_float", "search_space": [0.1, 0.5], "kwargs": {}},
-                "lrf": {"method": "suggest_float", "search_space": [0.01, 0.1], "kwargs": {}},
+                "advance_params": {
+                    "lr0": {"method": "suggest_float", "search_space": [0.1, 0.5], "kwargs": {}},
+                    "lrf": {"method": "suggest_float", "search_space": [0.01, 0.1], "kwargs": {}},
+                },
                 "epochs": {"method": "suggest_categorical", "search_space": [1, 2, 3], "kwargs": {}},
             },
             "maximize",
@@ -133,9 +135,11 @@ def test_object_detection_hpo(
         (
             2,
             {
-                "lr0": {"method": "suggest_float", "search_space": [0.005, 0.05], "kwargs": {}},
-                "lrf": {"method": "suggest_float", "search_space": [0.1, 0.5], "kwargs": {}},
-                "epochs": {"method": "suggest_int", "search_space": [1, 3], "kwargs": {}},
+                "advance_params": {
+                    "lr0": {"method": "suggest_float", "search_space": [0.1, 0.5], "kwargs": {}},
+                    "lrf": {"method": "suggest_float", "search_space": [0.01, 0.1], "kwargs": {}},
+                },
+                "epochs": {"method": "suggest_categorical", "search_space": [1, 2, 3], "kwargs": {}},
             },
             "minimize",
             {"TPESampler": {"n_startup_trials": 20, "multivariate": False}},

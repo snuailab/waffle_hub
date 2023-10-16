@@ -145,6 +145,8 @@ class Hub:
         self.backend: str = backend
         self.version: str = version
 
+        self.is_hpo: bool = False
+
         self.save_model_config()
 
     def __repr__(self):
@@ -691,6 +693,15 @@ class Hub:
             raise FileNotFoundError("Train first! hub.train(...).")
         return True
 
+    def check_hpo_artifact(self) -> bool:
+        """Check if all essential files for hpo are exist.
+
+        Returns:
+            bool: True if all files are exist else False
+        """
+        # check if hpo result is exist
+        return (self.hub_dir / "hpo").exists()
+
     def get_train_config(self) -> TrainConfig:
         """Get train config from train config file.
 
@@ -1064,21 +1075,14 @@ class Hub:
             verbose=verbose,
         )
 
-        # check if hpo result is exist
-        if (self.hub_dir / "hpo").exists():
-            if self.train_config_file.exists():
-                cfg = TrainConfig.load(self.train_config_file)
-            else:
-                raise ValueError(
-                    "HPO train config is not exists. Please run hub.hpo() or delete hpo directory."
-                )
-
         ## overwrite train config with default config
         for k, v in cfg.to_dict().items():
             if v is None:
                 field_value = getattr(
                     self.DEFAULT_PARAMS[self.task][self.model_type][self.model_size], k
                 )
+                if self.check_hpo_artifact():
+                    field_value = getattr(self.get_train_config(), k)
                 setattr(cfg, k, field_value)
         cfg.image_size = (
             cfg.image_size if isinstance(cfg.image_size, list) else [cfg.image_size, cfg.image_size]
@@ -1810,7 +1814,6 @@ class Hub:
         return result
 
     def _hpo_hub_objective(self, **kwargs) -> float:
-        torch.cuda.empty_cache()
 
         trial = kwargs.get("trial", None)
         dataset = kwargs.get("dataset", None)
@@ -1830,9 +1833,9 @@ class Hub:
             image_size=kwargs.get("image_size", None),
             batch_size=kwargs.get("batch_size", None),
             pretrained_model=kwargs.get("pretrained_model", None),
-            letter_box=kwargs.get("letter_box", False),
-            device=kwargs.get("device", "cpu"),
-            workers=kwargs.get("workers", 0),
+            letter_box=kwargs.get("letter_box", None),
+            device=kwargs.get("device", 0),
+            workers=kwargs.get("workers", 2),
             advance_params=selected_params,
             hold=kwargs.get("hold", True),
         )
@@ -1853,6 +1856,9 @@ class Hub:
         pruner: Union[dict, str] = None,
         direction: str = None,
         n_trials: int = None,
+        device: str = 0,
+        workers: int = 2,
+        hold: bool = True,
         **kwargs,
     ) -> dict:
         """
@@ -1864,6 +1870,10 @@ class Hub:
             sampler (Union[dict, str], optional): The sampler to use for HPO. Can be a dictionary of sampler parameters or the name of a built-in sampler.
             pruner (Union[dict, str], optional): The pruner to use for HPO. Can be a dictionary of pruner parameters or the name of a built-in pruner.
             direction (str): The direction of optimization. Can be 'maximize' or 'minimize'.
+            device (str, optional):
+                "cpu" or "gpu_id" or comma seperated "gpu_ids". Defaults to "0".
+            workers (int, optional): number of workers. Defaults to 2.
+            hold (bool, optional): hold process. Defaults to True.
             n_trials (int, optional): The number of trials to run for HPO.
             metric (str): The metric to optimize.
             search_space (dict): The search space for HPO.
@@ -1911,11 +1921,13 @@ class Hub:
             metric=metric,
             is_hub=True,
         )
-
         hpo_results = optuna_hpo.run_hpo(
             study_name=self.name,
             objective=self._hpo_hub_objective,
             dataset=dataset,
+            device=device,
+            workers=workers,
+            hold=hold,
             verbose_warning=False,
             **kwargs,
         )
