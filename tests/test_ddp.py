@@ -7,8 +7,8 @@ import pytest
 from waffle_hub import TaskType
 from waffle_hub.dataset import Dataset
 from waffle_hub.hub import Hub
-from waffle_hub.schema.configs import HPOConfig, TrainConfig
-from waffle_hub.schema.result import HPOResult, TrainResult
+from waffle_hub.schema.configs import HPOConfig
+from waffle_hub.schema.result import TrainResult
 
 
 def _train(hub, dataset: Dataset, image_size: int, hold: bool = True):
@@ -113,7 +113,7 @@ def test_ultralytics_classification(classification_dataset: Dataset, tmpdir: Pat
     _train(hub, dataset, image_size)
 
 
-def assert_train_result_after_hpo(train_hub: Hub, train_result: HPOResult):
+def assert_train_result_after_hpo(train_hub: Hub, train_result: TrainResult):
     """
     after get best params by HPO and train with best params, check train result
     """
@@ -127,7 +127,7 @@ def assert_train_result_after_hpo(train_hub: Hub, train_result: HPOResult):
             assert train_hub.get_train_config().letter_box == False
 
 
-def assert_hpo_result(hub: Hub, hpo_result: HPOResult, n_trials: int):
+def assert_hpo_result(hub: Hub, hpo_cfg: HPOConfig, n_trials: int):
     """
     check hpo result
     """
@@ -135,11 +135,10 @@ def assert_hpo_result(hub: Hub, hpo_result: HPOResult, n_trials: int):
     last_trial = n_trials - 1
     last_trial_directory_name = f"trial_{last_trial}"
 
-    assert isinstance(hpo_result, HPOResult)
-    assert hpo_result.best_params is not None
-    assert hpo_result.best_score is not None
+    assert isinstance(hpo_cfg, HPOConfig)
+    assert hpo_cfg.best_params is not None
+    assert hpo_cfg.best_score is not None
     assert Path(hub.root_dir / hub.name / "evaluate.json").exists()
-    assert Path(hub.root_dir / hub.name / "hpo.json").exists()
     assert Path(hub.root_dir / hub.name / "metrics.json").exists()
     assert Path(hub.root_dir / hub.name / "hpo" / last_trial_directory_name).exists()
     assert Path(hub.root_dir / hub.name / db_name).exists()
@@ -227,11 +226,10 @@ def test_object_detection_hpo(
         hold=True,
     )
 
+    assert Path(hub.root_dir / hub.name / "configs" / "hpo.yaml").exists()
     hpo_config = HPOConfig.load(Path(hub.root_dir / hub.name / "configs" / "hpo.yaml"))
-    hpo_result = HPOResult.load(Path(hub.root_dir / hub.name / "hpo.json"))
-
     assert_train_result_after_hpo(hub, train_result)
-    assert_hpo_result(hub, hpo_result, n_trials)
+    assert_hpo_result(hub, hpo_config, n_trials)
     assert_hpo_method(hpo_config, sampler, pruner, direction)
 
 

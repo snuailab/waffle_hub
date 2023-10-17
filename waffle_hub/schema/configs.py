@@ -74,6 +74,7 @@ class ExportOnnxConfig(BaseSchema):
     half: bool = False
     device: str = None
 
+
 @dataclass
 class HPOConfig(BaseSchema):
     sampler: str = None
@@ -82,3 +83,7 @@ class HPOConfig(BaseSchema):
     direction: str = None
     n_trials: int = None
     search_space: dict = None
+    best_trial: int = None
+    best_params: dict = None
+    best_score: float = None
+    total_time: str = None

@@ -7,11 +7,11 @@ from waffle_hub import TaskType
 from waffle_hub.core.hpo.adapter.optuna import OptunaHPO
 from waffle_hub.dataset import Dataset
 from waffle_hub.hub import Hub
-from waffle_hub.schema.configs import HPOConfig, TrainConfig
-from waffle_hub.schema.result import HPOResult
+from waffle_hub.schema.configs import HPOConfig
+from waffle_hub.schema.result import TrainResult
 
 
-def assert_train_result_after_hpo(train_hub: Hub, train_result: HPOResult):
+def assert_train_result_after_hpo(train_hub: Hub, train_result: TrainResult):
     """
     after get best params by HPO and train with best params, check train result
     """
@@ -26,7 +26,7 @@ def assert_train_result_after_hpo(train_hub: Hub, train_result: HPOResult):
 
 
 def assert_hpo_result(
-    root_dir: Path, name: str, hpo_result: HPOResult, n_trials: int, is_hub: bool = True
+    root_dir: Path, name: str, hpo_cfg: HPOConfig, n_trials: int, is_hub: bool = True
 ):
     """
     check hpo result
@@ -34,10 +34,9 @@ def assert_hpo_result(
     db_name = f"{name}.db"
     last_trial = n_trials - 1
     last_trial_directory_name = f"trial_{last_trial}"
-    assert isinstance(hpo_result, HPOResult)
-    assert hpo_result.best_params is not None
-    assert hpo_result.best_score is not None
-    assert Path(root_dir / name / "hpo.json").exists()
+    assert isinstance(hpo_cfg, HPOConfig)
+    assert hpo_cfg.best_params is not None
+    assert hpo_cfg.best_score is not None
 
     if is_hub:
         assert Path(root_dir / name / "metrics.json").exists()
@@ -128,11 +127,11 @@ def test_object_detection_hpo(
         hold=True,
     )
 
+    assert Path(hub.root_dir / hub.name / "configs" / "hpo.yaml").exists()
     hpo_config = HPOConfig.load(Path(hub.root_dir / hub.name / "configs" / "hpo.yaml"))
-    hpo_result = HPOResult.load(Path(hub.root_dir / hub.name / "hpo.json"))
 
     assert_train_result_after_hpo(hub, train_result)
-    assert_hpo_result(hub.root_dir, hub.name, hpo_result, n_trials)
+    assert_hpo_result(hub.root_dir, hub.name, hpo_config, n_trials)
     assert_hpo_method(hpo_config, sampler, pruner, direction)
 
 
@@ -200,11 +199,11 @@ def test_classification_hpo(
         hold=True,
     )
 
+    assert Path(hub.root_dir / hub.name / "configs" / "hpo.yaml").exists()
     hpo_config = HPOConfig.load(Path(hub.root_dir / hub.name / "configs" / "hpo.yaml"))
-    hpo_result = HPOResult.load(Path(hub.root_dir / hub.name / "hpo.json"))
 
     assert_train_result_after_hpo(hub, train_result)
-    assert_hpo_result(hub.root_dir, hub.name, hpo_result, n_trials)
+    assert_hpo_result(hub.root_dir, hub.name, hpo_config, n_trials)
     assert_hpo_method(hpo_config, sampler, pruner, direction)
 
 
@@ -310,7 +309,7 @@ def test_simple_function_hpo(
     )
     hpo.run_hpo(objective=simple_func)
 
+    assert Path(tmpdir / name / "configs" / "hpo.yaml").exists()
     hpo_config = HPOConfig.load(Path(tmpdir / name / "configs" / "hpo.yaml"))
-    hpo_result = HPOResult.load(Path(tmpdir / name / "hpo.json"))
-    assert_hpo_result(tmpdir, name, hpo_result, n_trials, is_hub=False)
+    assert_hpo_result(tmpdir, name, hpo_config, n_trials, is_hub=False)
     assert_hpo_method(hpo_config, sampler, pruner, direction)

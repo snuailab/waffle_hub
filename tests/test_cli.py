@@ -73,7 +73,6 @@ def _hub_hpo(hub_name: str, dataset: Dataset, tmpdir: Path):
     assert ret.returncode == 0
     assert (tmpdir / hub_name / "configs" / "hpo.yaml").exists()
     assert (tmpdir / hub_name / "hpo_artifacts").exists()
-    assert (tmpdir / hub_name / "hpo.json").exists()
     assert (tmpdir / hub_name / "metrics.json").exists()
     assert (tmpdir / hub_name / "evaluate.json").exists()
     assert (tmpdir / hub_name / "train.py").exists()

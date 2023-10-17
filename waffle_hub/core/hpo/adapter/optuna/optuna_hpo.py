@@ -258,7 +258,7 @@ class OptunaHPO:
     def get_default_hpo_config(cls):
         return cls.DEFAULT_CONFIG
 
-    def save_hpo_config(self):
+    def save_hpo_config(self, cfg: HPOResult = HPOResult()):
         HPOConfig(
             sampler=self.sampler_name,
             pruner=self.pruner_name,
@@ -266,6 +266,10 @@ class OptunaHPO:
             direction=self.direction,
             n_trials=self.n_trials,
             search_space=self.search_space if self.search_space else {},
+            best_trial=cfg.best_trial,
+            best_params=cfg.best_params,
+            best_score=cfg.best_score,
+            total_time=cfg.total_time,
         ).save_yaml(self.hpo_config_file)
 
     def get_hpo_config(self) -> HPOConfig:
@@ -301,16 +305,15 @@ class OptunaHPO:
             for dir_name in ["configs", "weights", "artifacts"]:
                 io.remove_directory(trial_dir / dir_name)
 
-    def _save_hpo_result(self, hpo_results: HPOResult) -> None:
+    def _save_hpo_result(self, cfg: HPOResult) -> None:
         if self.is_hub:
-            best_hpo_root_dir = self.hpo_dir / "hpo" / f"trial_{hpo_results['best_trial']}"
+            best_hpo_root_dir = self.hpo_dir / "hpo" / f"trial_{cfg.best_trial}"
             io.copy_file(best_hpo_root_dir / "configs" / "train.yaml", self.hpo_config_dir)
 
             for file_name in ["evaluate.json", "metrics.json", "train.py"]:
                 io.copy_file(best_hpo_root_dir / file_name, self.hpo_dir)
             self._remove_trial_dirs()
-
-        hpo_results.save_json(self.hpo_dir / "hpo.json")
+        self.save_hpo_config(cfg)
 
     def get_hpo_method(self, method: dict, **hpo_method_params):
         sampler_module = importlib.import_module(method["import_path"])
@@ -513,7 +516,9 @@ class OptunaHPO:
             total_time=str(self._study.trials_dataframe()["duration"].sum()),
         )
 
-        self._save_hpo_result(hpo_results)
+        # overwrite hpo config
+        self._save_hpo_result(cfg=hpo_results)
+
         if visualize_hpo:
             self.visualize_hpo_results()
         return hpo_results
