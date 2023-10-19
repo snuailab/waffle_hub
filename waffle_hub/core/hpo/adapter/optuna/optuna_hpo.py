@@ -475,6 +475,16 @@ class OptunaHPO:
 
         self._study.optimize(objective_wrapper, n_trials=self.n_trials)
 
+    def remove_hpo_dir(self):
+        if Path(self.hpo_dir, "hpo").exists():
+            io.remove_directory(Path(self.hpo_dir, "hpo"))
+        if self.hpo_artifacts_dir.exists():
+            io.remove_directory(self.hpo_artifacts_dir)
+        if self.hpo_config_file.exists():
+            io.remove_file(self.hpo_config_file)
+        if Path(self.hpo_dir, f"{self.study_name}.db").exists():
+            io.remove_file(Path(self.hpo_dir, f"{self.study_name}.db"))
+
     def load_hpo(
         self,
         root_dir: str,
@@ -504,6 +514,7 @@ class OptunaHPO:
         """
         sampler = self.get_sampler(self.sampler_name, **self.sampler_param)
         pruner = self.get_pruner(self.pruner_name, **self.pruner_param)
+
         self.create_study(sampler, pruner)
         self.optimize(objective=objective, **kwargs)
 
@@ -521,4 +532,5 @@ class OptunaHPO:
 
         if visualize_hpo:
             self.visualize_hpo_results()
+
         return hpo_results

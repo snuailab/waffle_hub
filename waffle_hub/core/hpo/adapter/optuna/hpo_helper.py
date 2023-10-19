@@ -65,5 +65,4 @@ def draw_error_image(message: str, image_path: str):
 
     # Convert the image back to OpenCV format and save it to file
     img = np.array(img_pil)
-    img = cv2.cvtColor(img, cv2.COLOR_RGB2BGR)
     cv2.imwrite(image_path, img)

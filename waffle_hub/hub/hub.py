@@ -1078,11 +1078,12 @@ class Hub:
         ## overwrite train config with default config
         for k, v in cfg.to_dict().items():
             if v is None:
-                field_value = getattr(
-                    self.DEFAULT_PARAMS[self.task][self.model_type][self.model_size], k
-                )
                 if self.check_hpo_artifact():
                     field_value = getattr(self.get_train_config(), k)
+                else:
+                    field_value = getattr(
+                        self.DEFAULT_PARAMS[self.task][self.model_type][self.model_size], k
+                    )
                 setattr(cfg, k, field_value)
         cfg.image_size = (
             cfg.image_size if isinstance(cfg.image_size, list) else [cfg.image_size, cfg.image_size]
@@ -1908,27 +1909,33 @@ class Hub:
                 dataset = Dataset.load(name=dataset, root_dir=dataset_root_dir)
             else:
                 raise FileNotFoundError(f"Dataset {dataset} is not exist.")
-
-        optuna_hpo = OptunaHPO(
-            study_name=self.name,
-            root_dir=self.root_dir,
-            sampler=sampler,
-            pruner=pruner,
-            direction=direction,
-            n_trials=n_trials,
-            search_space=search_space,
-            metric=metric,
-            is_hub=True,
-        )
-        hpo_results = optuna_hpo.run_hpo(
-            study_name=self.name,
-            objective=self._hpo_hub_objective,
-            dataset=dataset,
-            device=device,
-            workers=workers,
-            hold=hold,
-            verbose_warning=False,
-            **kwargs,
-        )
+        try:
+            optuna_hpo = OptunaHPO(
+                study_name=self.name,
+                root_dir=self.root_dir,
+                sampler=sampler,
+                pruner=pruner,
+                direction=direction,
+                n_trials=n_trials,
+                search_space=search_space,
+                metric=metric,
+                is_hub=True,
+            )
+            hpo_results = optuna_hpo.run_hpo(
+                study_name=self.name,
+                objective=self._hpo_hub_objective,
+                dataset=dataset,
+                device=device,
+                workers=workers,
+                hold=hold,
+                verbose_warning=False,
+                **kwargs,
+            )
+        except KeyboardInterrupt as e:
+            optuna_hpo.remove_hpo_dir()
+            raise e
+        except Exception as e:
+            optuna_hpo.remove_hpo_dir()
+            raise e
 
         return hpo_results
