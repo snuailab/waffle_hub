@@ -291,27 +291,23 @@ class OptunaHPO:
             return None, None
         return method_name, method_params
 
-    def get_hpo_config(self) -> HPOConfig:
-        """Get hpo config from hpo config file.
-
-        Returns:
-            HPOConfig: hpo config
-        """
-        return HPOConfig.load(self.hpo_config_file)
-
     def _remove_trial_dirs(self) -> None:
         for trial_num in range(0, self.n_trials):
             trial_dir = self.hpo_dir / "hpo" / f"trial_{trial_num}"
             for dir_name in ["configs", "weights", "artifacts"]:
-                io.remove_directory(trial_dir / dir_name)
+                if Path(trial_dir / dir_name).exists():
+                    io.remove_directory(trial_dir / dir_name)
 
     def _save_hpo_result(self, cfg: HPOResult) -> None:
+
         if self.is_hub:
             best_hpo_root_dir = self.hpo_dir / "hpo" / f"trial_{cfg.best_trial}"
-            io.copy_file(best_hpo_root_dir / "configs" / "train.yaml", self.hpo_config_dir)
+            if Path(best_hpo_root_dir / "configs" / "train.yaml").exists():
+                io.copy_file(best_hpo_root_dir / "configs" / "train.yaml", self.hpo_config_dir)
 
             for file_name in ["evaluate.json", "metrics.json", "train.py"]:
-                io.copy_file(best_hpo_root_dir / file_name, self.hpo_dir)
+                if Path(best_hpo_root_dir / file_name, self.hpo_dir).exists():
+                    io.copy_file(best_hpo_root_dir / file_name, self.hpo_dir)
             self._remove_trial_dirs()
         self.save_hpo_config(cfg)
 
@@ -439,20 +435,7 @@ class OptunaHPO:
 
         if is_hub:
             params.update(advance_params)
-
         return params
-
-    # def _get_best_params(self, best_params: dict):
-    #     advance_params = {}
-    #     params = {}
-    #     for k, v in self.search_space.items():
-    #         if k == "advance_params":
-    #             for k2 in v.keys():
-    #                 advance_params[k2] = best_params[k2]
-    #         else:
-    #             params[k] = best_params[k]
-    #     params.update({"advance_params" : advance_params})
-    #     return params
 
     def _get_best_params(self, best_params: dict):
         params = {}
@@ -469,7 +452,6 @@ class OptunaHPO:
 
             if self.is_hub:
                 search_space_values.update({"metric": self.metric, "trial": trial})
-
             kwargs.update(search_space_values)
             return objective(**kwargs)
 
@@ -514,7 +496,6 @@ class OptunaHPO:
         """
         sampler = self.get_sampler(self.sampler_name, **self.sampler_param)
         pruner = self.get_pruner(self.pruner_name, **self.pruner_param)
-
         self.create_study(sampler, pruner)
         self.optimize(objective=objective, **kwargs)
 
@@ -533,4 +514,4 @@ class OptunaHPO:
         if visualize_hpo:
             self.visualize_hpo_results()
 
-        return hpo_results
+        return self.get_hpo_config()

@@ -34,6 +34,7 @@ from waffle_hub.hub.model.wrapper import get_parser
 from waffle_hub.schema.configs import (
     EvaluateConfig,
     ExportOnnxConfig,
+    HPOConfig,
     InferenceConfig,
     ModelConfig,
     TrainConfig,
@@ -50,12 +51,14 @@ from waffle_hub.schema.result import (
     EvaluateResult,
     ExportOnnxResult,
     ExportWaffleResult,
+    HPOResult,
     InferenceResult,
     TrainResult,
 )
 from waffle_hub.utils.callback import (
     EvaluateCallback,
     ExportCallback,
+    HPOCallback,
     InferenceCallback,
     TrainCallback,
 )
@@ -667,6 +670,11 @@ class Hub:
     def waffle_file(self) -> Path:
         """Export Waffle file"""
         return self.hub_dir / f"{self.name}.waffle"
+
+    @cached_property
+    def hpo_dir(self) -> Path:
+        """HPO Directory"""
+        return self.hub_dir / "hpo"
 
     # common functions
     def delete_hub(self):
@@ -1814,18 +1822,19 @@ class Hub:
 
         return result
 
-    def _hpo_hub_objective(self, **kwargs) -> float:
+    def hpo_hub_objective(self, **kwargs) -> float:
         trial = kwargs.get("trial", None)
         dataset = kwargs.get("dataset", None)
         metric = kwargs.get("metric", None)
         selected_params = kwargs.get("advance_params", None)
-
         hub = Hub.new(
             name=f"trial_{trial.number}",
-            root_dir=self.hub_dir / "hpo",
+            backend=self.backend,
             task=self.task,
             model_type=self.model_type,
             model_size=self.model_size,
+            categories=self.categories,
+            root_dir=self.hub_dir / "hpo",
         )
         train_result = hub.train(
             dataset=dataset,
@@ -1836,8 +1845,8 @@ class Hub:
             letter_box=kwargs.get("letter_box", None),
             device=kwargs.get("device", 0),
             workers=kwargs.get("workers", 2),
-            advance_params=selected_params,
             hold=kwargs.get("hold", True),
+            advance_params=selected_params,
         )
 
         for metric_value in train_result.eval_metrics:
@@ -1851,7 +1860,6 @@ class Hub:
         dataset: Union[Dataset, str],
         metric: str,
         search_space: Union[dict, str],
-        dataset_root_dir: Union[str, Path] = None,
         sampler: Union[dict, str] = None,
         pruner: Union[dict, str] = None,
         direction: str = None,
@@ -1860,28 +1868,38 @@ class Hub:
         workers: int = 2,
         hold: bool = True,
         **kwargs,
-    ) -> dict:
-        """
-        Perform hyperparameter optimization (HPO) for the current task.
+    ) -> HPOConfig:
+        @device_context("cpu" if device == "cpu" else device)
+        def inner(callback: HPOCallback, config: HPOConfig):
+            try:
+                optuna_hpo = OptunaHPO(
+                    study_name=self.name,
+                    root_dir=self.root_dir,
+                    sampler=config.sampler,
+                    pruner=config.pruner,
+                    direction=config.direction,
+                    n_trials=config.n_trials,
+                    search_space=config.search_space,
+                    metric=config.metric,
+                    is_hub=True,
+                )
+                optuna_hpo.run_hpo(
+                    study_name=self.name,
+                    objective=self.hpo_hub_objective,
+                    dataset=dataset,
+                    device=device,
+                    workers=workers,
+                    **kwargs,
+                )
+                callback.force_finish()
 
-        Args:
-            dataset (Union[Dataset, str]): The dataset to use for HPO. Can be a `Dataset` object or the name of a dataset.
-            dataset_root_dir (Union[str, Path], optional): The root directory of the dataset.
-            sampler (Union[dict, str], optional): The sampler to use for HPO. Can be a dictionary of sampler parameters or the name of a built-in sampler.
-            pruner (Union[dict, str], optional): The pruner to use for HPO. Can be a dictionary of pruner parameters or the name of a built-in pruner.
-            direction (str): The direction of optimization. Can be 'maximize' or 'minimize'.
-            device (str, optional):
-                "cpu" or "gpu_id" or comma seperated "gpu_ids". Defaults to "0".
-            workers (int, optional): number of workers. Defaults to 2.
-            hold (bool, optional): hold process. Defaults to True.
-            n_trials (int, optional): The number of trials to run for HPO.
-            metric (str): The metric to optimize.
-            search_space (dict): The search space for HPO.
-            **kwargs: Additional keyword arguments to pass to the HPO function.
+            except Exception as e:
+                if self.hpo_dir.exists():
+                    optuna_hpo.remove_hpo_dir()
+                callback.force_finish()
+                callback.set_failed()
+                raise e
 
-        Returns:
-            dict: A dictionary containing the results of HPO.
-        """
         # Task Type Check
         if self.task == TaskType.OBJECT_DETECTION:
             if metric not in ObjectDetectionMetric.__annotations__.keys():
@@ -1898,44 +1916,22 @@ class Hub:
         else:
             raise ValueError(f"Unsupported task type: {self.task}")
 
-        # Dataset Check
-        if isinstance(dataset, (str, Path)):
-            if Path(dataset).exists():
-                dataset = Path(dataset)
-                dataset = Dataset.load(
-                    name=dataset.parts[-1], root_dir=dataset.parents[0].absolute()
-                )
-            elif dataset in Dataset.get_dataset_list(dataset_root_dir):
-                dataset = Dataset.load(name=dataset, root_dir=dataset_root_dir)
-            else:
-                raise FileNotFoundError(f"Dataset {dataset} is not exist.")
-        try:
-            optuna_hpo = OptunaHPO(
-                study_name=self.name,
-                root_dir=self.root_dir,
-                sampler=sampler,
-                pruner=pruner,
-                direction=direction,
-                n_trials=n_trials,
-                search_space=search_space,
-                metric=metric,
-                is_hub=True,
-            )
-            hpo_results = optuna_hpo.run_hpo(
-                study_name=self.name,
-                objective=self._hpo_hub_objective,
-                dataset=dataset,
-                device=device,
-                workers=workers,
-                hold=hold,
-                verbose_warning=False,
-                **kwargs,
-            )
-        except KeyboardInterrupt as e:
-            optuna_hpo.remove_hpo_dir()
-            raise e
-        except Exception as e:
-            optuna_hpo.remove_hpo_dir()
-            raise e
+        callback = HPOCallback(1)
+        result = HPOConfig(
+            search_space=search_space,
+            sampler=sampler,
+            pruner=pruner,
+            direction=direction,
+            n_trials=n_trials,
+            metric=metric,
+        )
+        result.callback = callback
 
-        return hpo_results
+        if hold:
+            inner(callback, result)
+        else:
+            thread = threading.Thread(target=inner, args=(callback, result), daemon=True)
+            callback.register_thread(thread)
+            callback.start()
+
+        return result

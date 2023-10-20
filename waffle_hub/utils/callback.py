@@ -147,3 +147,8 @@ class InferenceCallback(ThreadProgressCallback):
 class ExportCallback(ThreadProgressCallback):
     def __init__(self, total_steps: int):
         super().__init__(total_steps)
+
+
+class HPOCallback(ThreadProgressCallback):
+    def __init__(self, total_steps: int):
+        super().__init__(total_steps)

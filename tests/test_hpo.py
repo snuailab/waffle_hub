@@ -1,3 +1,4 @@
+import time
 from pathlib import Path
 from typing import Union
 
@@ -203,6 +204,78 @@ def test_classification_hpo(
     hpo_config = HPOConfig.load(Path(hub.root_dir / hub.name / "configs" / "hpo.yaml"))
 
     assert_train_result_after_hpo(hub, train_result)
+    assert_hpo_result(hub.root_dir, hub.name, hpo_config, n_trials)
+    assert_hpo_method(hpo_config, sampler, pruner, direction)
+
+
+def simple_func(x, y, z, a, q, w, e, r, t, u, i, o):
+    return x**2 + (y + z + a + q + w + e) / 2 + (r + t + y + u + i + o) * 2
+
+
+@pytest.mark.parametrize(
+    "n_trials, search_space, direction, sampler, pruner, metric",
+    [
+        (
+            2,
+            {
+                "advance_params": {
+                    "lr0": {"method": "suggest_float", "search_space": [0.1, 0.5], "kwargs": {}},
+                    "lrf": {"method": "suggest_float", "search_space": [0.01, 0.1], "kwargs": {}},
+                },
+                "epochs": {"method": "suggest_categorical", "search_space": [1, 2, 3], "kwargs": {}},
+            },
+            "minimize",
+            {"TPESampler": {"n_startup_trials": 20, "multivariate": False}},
+            "MedianPruner",
+            "accuracy",
+        ),
+    ],
+)
+def non_hold_test_classification_hpo(
+    classification_dataset: Dataset,
+    tmpdir: Path,
+    n_trials: int,
+    search_space: dict,
+    direction: str,
+    sampler: Union[str, dict],
+    pruner: Union[str, dict],
+    metric: str,
+):
+    dataset = classification_dataset
+    name = f"test_classification_hpo"
+    hub = Hub.new(
+        name=name,
+        backend="ultralytics",
+        task=TaskType.CLASSIFICATION,
+        model_type="yolov8",
+        model_size="n",
+        categories=dataset.get_category_names(),
+        root_dir=tmpdir,
+    )
+    result = hub.hpo(
+        dataset=dataset,
+        sampler=sampler,
+        pruner=pruner,
+        direction=direction,
+        n_trials=n_trials,
+        metric=metric,
+        device="cpu",
+        batch_size=4,
+        search_space=search_space,
+        image_size=64,
+        workers=0,
+        hold=False,
+    )
+
+    assert hasattr(result, "callback")
+    while not result.callback.is_finished():
+        time.sleep(1)
+    assert result.callback.is_finished()
+    assert not result.callback.is_failed()
+
+    assert Path(hub.root_dir / hub.name / "configs" / "hpo.yaml").exists()
+    hpo_config = HPOConfig.load(Path(hub.root_dir / hub.name / "configs" / "hpo.yaml"))
+
     assert_hpo_result(hub.root_dir, hub.name, hpo_config, n_trials)
     assert_hpo_method(hpo_config, sampler, pruner, direction)
 
