@@ -1860,6 +1860,7 @@ class Hub:
         dataset: Union[Dataset, str],
         metric: str,
         search_space: Union[dict, str],
+        dataset_root_dir: str = None,
         sampler: Union[dict, str] = None,
         pruner: Union[dict, str] = None,
         direction: str = None,
@@ -1916,6 +1917,23 @@ class Hub:
         else:
             raise ValueError(f"Unsupported task type: {self.task}")
 
+        # parse dataset
+        if isinstance(dataset, (str, Path)):
+            if Path(dataset).exists():
+                dataset = Path(dataset)
+                dataset = Dataset.load(
+                    name=dataset.parts[-1], root_dir=dataset.parents[0].absolute()
+                )
+            elif dataset in Dataset.get_dataset_list(dataset_root_dir):
+                dataset = Dataset.load(name=dataset, root_dir=dataset_root_dir)
+            else:
+                raise FileNotFoundError(f"Dataset {dataset} is not exist.")
+        ## check task match
+        if dataset.task.upper() != self.task.upper():
+            raise ValueError(
+                f"Dataset task is not matched with hub task. Dataset task: {dataset.task}, Hub task: {self.task}"
+            )
+
         callback = HPOCallback(1)
         result = HPOConfig(
             search_space=search_space,
@@ -1925,6 +1943,7 @@ class Hub:
             n_trials=n_trials,
             metric=metric,
         )
+
         result.callback = callback
 
         if hold:
