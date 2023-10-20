@@ -10,6 +10,7 @@ Returns:
 
 from typing import Union
 
+import cv2
 import numpy as np
 import torch
 import torch.nn.functional as F
@@ -220,6 +221,48 @@ class TextRecognitionResultParser(ResultParser):
         return parseds
 
 
+class SemanticSegmentationResultParset(ResultParser):
+    def __init__(self, *args, **kwargs):
+        pass
+
+    def __call__(
+        self, results: list[torch.Tensor], image_infos: list[ImageInfo], *args, **kwargs
+    ) -> list[Annotation]:
+        parseds = []
+
+        for masks, image_info in zip(
+            results,
+            image_infos,
+        ):
+            parsed = []
+
+            left_pad, top_pad = image_info.pad
+
+            num_class = masks.shape[0]
+            mask = masks.argmax(dim=0)
+            class_masks = [(mask == class_id) * 255 for class_id in range(num_class - 1)]
+            for class_id, class_mask in enumerate(class_masks):
+                class_mask = class_mask.numpy().astype(np.uint8)
+                if left_pad > 0:
+                    class_mask = class_mask[:, left_pad:-left_pad]
+                if top_pad > 0:
+                    class_mask = class_mask[top_pad:-top_pad, :]
+
+                class_mask = cv2.resize(class_mask, dsize=(image_info.ori_shape))
+                segment = convert_mask_to_polygon(class_mask)
+
+                if segment:
+                    parsed.append(
+                        Annotation.semantic_segmentation(
+                            category_id=int(class_id) + 1,
+                            segmentation=segment,
+                        )
+                    )
+
+            parseds.append(parsed)
+        return parseds
+
+
 def get_parser(task: str):
     if task == TaskType.CLASSIFICATION:
         return ClassificationResultParser
@@ -229,6 +272,10 @@ def get_parser(task: str):
         return InstanceSegmentationResultParser
     elif task == TaskType.TEXT_RECOGNITION:
         return TextRecognitionResultParser
+    elif task == TaskType.SEMANTIC_SEGMENTATION:
+        return SemanticSegmentationResultParset
+    else:
+        raise ValueError(f"Unsupported task type: {task}")
 
 
 class ModelWrapper(torch.nn.Module):

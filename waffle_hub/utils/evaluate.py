@@ -18,6 +18,7 @@ from waffle_hub.schema.evaluate import (
     ClassificationMetric,
     InstanceSegmentationMetric,
     ObjectDetectionMetric,
+    SemanticSegmentationMetric,
     TextRecognitionMetric,
 )
 from waffle_hub.schema.fields import Annotation
@@ -67,6 +68,12 @@ def convert_to_torchmetric_format(total: list[Annotation], task: TaskType, predi
 
         elif task == TaskType.TEXT_RECOGNITION:
             datas.append(annotations[0].caption)
+
+        elif task == TaskType.SEMANTIC_SEGMENTATION:
+            data = {
+                "ploygons": [],
+            }
+            datas.append(data)
 
         else:
             raise NotImplementedError
@@ -149,7 +156,7 @@ def evaluate_object_detection(
     return result
 
 
-def evaluate_segmentation(
+def evaluate_instance_segmentation(
     preds: list[Annotation], labels: list[Annotation], num_classes: int
 ) -> InstanceSegmentationMetric:
     preds = convert_to_torchmetric_format(preds, TaskType.INSTANCE_SEGMENTATION, prediction=True)
@@ -178,6 +185,21 @@ def evalute_text_recognition(
     return result
 
 
+def evalute_semantic_segmentation(
+    preds: list[Annotation], labels: list[Annotation], num_classes: int
+) -> SemanticSegmentationMetric:
+    preds = convert_to_torchmetric_format(preds, TaskType.SEMANTIC_SEGMENTATION, prediction=True)
+    labels = convert_to_torchmetric_format(labels, TaskType.SEMANTIC_SEGMENTATION)
+
+    map_dict = mean_ap.MeanAveragePrecision(
+        box_format="xywh",
+        iou_type="segm",
+        class_metrics=True,
+    )(preds, labels)
+    result = SemanticSegmentationMetric(float(map_dict))
+    return result
+
+
 def evaluate_function(
     preds: list[Annotation],
     labels: list[Annotation],
@@ -186,15 +208,21 @@ def evaluate_function(
     *args,
     **kwargs
 ) -> Union[
-    ClassificationMetric, ObjectDetectionMetric, InstanceSegmentationMetric, TextRecognitionMetric
+    ClassificationMetric,
+    ObjectDetectionMetric,
+    InstanceSegmentationMetric,
+    TextRecognitionMetric,
+    SemanticSegmentationMetric,
 ]:
     if task == TaskType.CLASSIFICATION:
         return evaluate_classification(preds, labels, num_classes, *args, **kwargs)
     elif task == TaskType.OBJECT_DETECTION:
         return evaluate_object_detection(preds, labels, num_classes, *args, **kwargs)
     elif task == TaskType.INSTANCE_SEGMENTATION:
-        return evaluate_segmentation(preds, labels, num_classes, *args, **kwargs)
+        return evaluate_instance_segmentation(preds, labels, num_classes, *args, **kwargs)
     elif task == TaskType.TEXT_RECOGNITION:
         return evalute_text_recognition(preds, labels, num_classes, *args, **kwargs)
+    elif task == TaskType.SEMANTIC_SEGMENTATION:
+        return evalute_semantic_segmentation(preds, labels, num_classes, *args, **kwargs)
     else:
         raise NotImplementedError

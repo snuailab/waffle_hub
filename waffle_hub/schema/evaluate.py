@@ -44,3 +44,8 @@ class InstanceSegmentationMetric(BaseSchema):
 @dataclass
 class TextRecognitionMetric(BaseSchema):
     accuracy: float
+
+
+@dataclass
+class SemanticSegmentationMetric(BaseSchema):
+    mean_pixel_accuracy: float

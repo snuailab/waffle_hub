@@ -94,6 +94,8 @@ def export_autocare_dlt(self, export_dir: Union[str, Path]) -> str:
         _export_autocare_dlt(self, export_dir, train_ids, val_ids, test_ids, [])
     elif self.task == TaskType.INSTANCE_SEGMENTATION:
         _export_autocare_dlt(self, export_dir, train_ids, val_ids, test_ids, [])
+    elif self.task == TaskType.SEMANTIC_SEGMENTATION:
+        _export_autocare_dlt(self, export_dir, train_ids, val_ids, test_ids, [])
     elif self.task == TaskType.TEXT_RECOGNITION:
         _export_autocare_dlt(self, export_dir, train_ids, val_ids, test_ids, [])
     else:
