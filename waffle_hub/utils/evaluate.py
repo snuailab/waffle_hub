@@ -22,11 +22,14 @@ from waffle_hub.schema.evaluate import (
     TextRecognitionMetric,
 )
 from waffle_hub.schema.fields import Annotation
+from waffle_hub.utils.conversion import convert_polygon_to_mask
 
 logger = logging.getLogger(__name__)
 
 
-def convert_to_torchmetric_format(total: list[Annotation], task: TaskType, prediction: bool = False):
+def convert_to_torchmetric_format(
+    total: list[Annotation], task: TaskType, prediction: bool = False, *args, **kwargs
+):
 
     datas = []
     for annotations in total:
@@ -71,8 +74,22 @@ def convert_to_torchmetric_format(total: list[Annotation], task: TaskType, predi
 
         elif task == TaskType.SEMANTIC_SEGMENTATION:
             data = {
-                "ploygons": [],
+                "boxes": [],
+                "masks": [],
+                "labels": [],
             }
+
+            for annotation in annotations:
+                data["boxes"].append(annotation.bbox)
+                data["masks"].append(
+                    (
+                        convert_polygon_to_mask(
+                            annotation.segmentation, image_size=kwargs["image_size"]
+                        )
+                    ).tolist()
+                )
+                data["labels"].append(annotation.category_id - 1)
+
             datas.append(data)
 
         else:
@@ -186,17 +203,32 @@ def evalute_text_recognition(
 
 
 def evalute_semantic_segmentation(
-    preds: list[Annotation], labels: list[Annotation], num_classes: int
+    preds: list[Annotation], labels: list[Annotation], num_classes: int, image_size: list[int]
 ) -> SemanticSegmentationMetric:
-    preds = convert_to_torchmetric_format(preds, TaskType.SEMANTIC_SEGMENTATION, prediction=True)
-    labels = convert_to_torchmetric_format(labels, TaskType.SEMANTIC_SEGMENTATION)
+    preds = convert_to_torchmetric_format(
+        preds, TaskType.SEMANTIC_SEGMENTATION, prediction=True, image_size=image_size
+    )
+    labels = convert_to_torchmetric_format(
+        labels, TaskType.SEMANTIC_SEGMENTATION, image_size=image_size
+    )
 
-    map_dict = mean_ap.MeanAveragePrecision(
-        box_format="xywh",
-        iou_type="segm",
-        class_metrics=True,
-    )(preds, labels)
-    result = SemanticSegmentationMetric(float(map_dict))
+    # mpa
+    mean_pixel_accuracy = 0
+    for pred, label in zip(preds, labels):
+        mean_pixel_accuracy += torch.sum(pred["masks"] == label["masks"]) / torch.numel(
+            pred["masks"]
+        )
+    mean_pixel_accuracy /= len(preds)
+
+    # iou
+    iou = 0
+    for pred, label in zip(preds, labels):
+        intersection = torch.sum((pred["masks"] == 255) & (label["masks"] == 255))
+        union = torch.sum(pred["masks"] == 255) + torch.sum(label["masks"] == 255) - intersection
+        iou += intersection / union
+    iou /= len(preds)
+
+    result = SemanticSegmentationMetric(float(mean_pixel_accuracy), float(iou))
     return result
 
 

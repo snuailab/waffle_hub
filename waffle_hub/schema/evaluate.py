@@ -49,3 +49,4 @@ class TextRecognitionMetric(BaseSchema):
 @dataclass
 class SemanticSegmentationMetric(BaseSchema):
     mean_pixel_accuracy: float
+    IoU: float

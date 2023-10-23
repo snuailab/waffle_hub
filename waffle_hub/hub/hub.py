@@ -1153,7 +1153,9 @@ class Hub:
 
             callback.update(i)
 
-        metrics = evaluate_function(preds, labels, self.task, len(self.categories))
+        metrics = evaluate_function(
+            preds, labels, self.task, len(self.categories), image_size=cfg.image_size
+        )
 
         result_metrics = []
         for tag, value in metrics.to_dict().items():
