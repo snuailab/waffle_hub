@@ -108,7 +108,7 @@ def convert_to_torchmetric_format(
 
 
 def evaluate_classification(
-    preds: list[Annotation], labels: list[Annotation], num_classes: int
+    preds: list[Annotation], labels: list[Annotation], num_classes: int, *args, **kwargs
 ) -> ClassificationMetric:
     preds = convert_to_torchmetric_format(preds, TaskType.CLASSIFICATION, prediction=True)
     labels = convert_to_torchmetric_format(labels, TaskType.CLASSIFICATION)
@@ -143,7 +143,7 @@ def evaluate_classification(
 
 
 def evaluate_object_detection(
-    preds: list[Annotation], labels: list[Annotation], num_classes: int
+    preds: list[Annotation], labels: list[Annotation], num_classes: int, *args, **kwargs
 ) -> ObjectDetectionMetric:
     preds = convert_to_torchmetric_format(preds, TaskType.OBJECT_DETECTION, prediction=True)
     labels = convert_to_torchmetric_format(labels, TaskType.OBJECT_DETECTION)
@@ -174,7 +174,7 @@ def evaluate_object_detection(
 
 
 def evaluate_instance_segmentation(
-    preds: list[Annotation], labels: list[Annotation], num_classes: int
+    preds: list[Annotation], labels: list[Annotation], num_classes: int, *args, **kwargs
 ) -> InstanceSegmentationMetric:
     preds = convert_to_torchmetric_format(preds, TaskType.INSTANCE_SEGMENTATION, prediction=True)
     labels = convert_to_torchmetric_format(labels, TaskType.INSTANCE_SEGMENTATION)
@@ -190,7 +190,7 @@ def evaluate_instance_segmentation(
 
 
 def evalute_text_recognition(
-    preds: list[Annotation], labels: list[Annotation], num_classes: int
+    preds: list[Annotation], labels: list[Annotation], num_classes: int, *args, **kwargs
 ) -> ObjectDetectionMetric:
     preds = convert_to_torchmetric_format(preds, TaskType.TEXT_RECOGNITION, prediction=True)
     labels = convert_to_torchmetric_format(labels, TaskType.TEXT_RECOGNITION)
@@ -203,7 +203,12 @@ def evalute_text_recognition(
 
 
 def evalute_semantic_segmentation(
-    preds: list[Annotation], labels: list[Annotation], num_classes: int, image_size: list[int]
+    preds: list[Annotation],
+    labels: list[Annotation],
+    num_classes: int,
+    image_size: list[int],
+    *args,
+    **kwargs
 ) -> SemanticSegmentationMetric:
     preds = convert_to_torchmetric_format(
         preds, TaskType.SEMANTIC_SEGMENTATION, prediction=True, image_size=image_size

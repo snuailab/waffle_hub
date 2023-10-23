@@ -75,6 +75,8 @@ class AutocareDLTHub(Hub):
             root_dir=root_dir,
         )
 
+        self.model_json_output_path = self.hub_dir / self.CONFIG_DIR / "model.json"
+
     @classmethod
     def new(
         cls,
@@ -295,6 +297,9 @@ class AutocareDLTHub(Hub):
             self.last_ckpt_file,
             create_directory=True,
         )
+        io.copy_file(
+            self.artifact_dir / "model.json", self.model_json_output_path, create_directory=True
+        )
         io.save_json(self.get_metrics(), self.metric_file)
 
     # Inference Hook
@@ -311,7 +316,7 @@ class AutocareDLTHub(Hub):
 
         # get model
         categories = [x["name"] for x in self.categories]
-        cfg = io.load_json(self.artifact_dir / "model.json")
+        cfg = io.load_json(self.model_json_output_path)
         cfg["ckpt"] = str(self.best_ckpt_file)
         if self.task == TaskType.TEXT_RECOGNITION:
             cfg["model"]["Prediction"]["num_classes"] = len(categories) + 1

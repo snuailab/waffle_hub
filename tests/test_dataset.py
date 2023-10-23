@@ -260,7 +260,12 @@ def _export(dataset_name, task: TaskType, root_dir):
             root_dir=root_dir,
         )
         assert len(dataset.get_images()) == len(import_ds.get_images())
-    if task in [TaskType.OBJECT_DETECTION, TaskType.TEXT_RECOGNITION, TaskType.CLASSIFICATION]:
+    if task in [
+        TaskType.OBJECT_DETECTION,
+        TaskType.TEXT_RECOGNITION,
+        TaskType.CLASSIFICATION,
+        TaskType.SEMANTIC_SEGMENTATION,
+    ]:
         export_dir = Path(dataset.export("autocare_dlt"))
         import_ds = Dataset.from_autocare_dlt(
             name=f"{task}_import_autocare_dlt",
@@ -453,7 +458,13 @@ def _total_autocare_dlt(dataset_name, task: TaskType, coco_path, root_dir):
 
 
 @pytest.mark.parametrize(
-    "task", [TaskType.CLASSIFICATION, TaskType.OBJECT_DETECTION, TaskType.TEXT_RECOGNITION]
+    "task",
+    [
+        TaskType.CLASSIFICATION,
+        TaskType.OBJECT_DETECTION,
+        TaskType.TEXT_RECOGNITION,
+        TaskType.SEMANTIC_SEGMENTATION,
+    ],
 )
 def test_autocare_dlt(coco_path, tmpdir, task):
     _total_autocare_dlt(f"autocare_dlt_{task}", task, coco_path, tmpdir)
