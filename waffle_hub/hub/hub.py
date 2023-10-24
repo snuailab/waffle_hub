@@ -1845,7 +1845,7 @@ class Hub:
             letter_box=kwargs.get("letter_box", None),
             device=kwargs.get("device", 0),
             workers=kwargs.get("workers", 2),
-            hold=kwargs.get("hold", True),
+            hold=True,  # hold until finished hpo
             advance_params=selected_params,
         )
 
