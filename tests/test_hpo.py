@@ -268,7 +268,7 @@ def non_hold_test_classification_hpo(
     )
 
     assert hasattr(result, "callback")
-    while not result.callback.is_finished() and not result.callback.is_failed():
+    while not result.callback.is_finished():
         time.sleep(1)
     assert result.callback.is_finished()
     assert not result.callback.is_failed()
