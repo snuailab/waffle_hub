@@ -148,8 +148,6 @@ class Hub:
         self.backend: str = backend
         self.version: str = version
 
-        self.is_hpo: bool = False
-
         self.save_model_config()
 
     def __repr__(self):
