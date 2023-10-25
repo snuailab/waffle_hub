@@ -12,8 +12,8 @@ from waffle_hub.schema.fields import Annotation
 from waffle_hub.utils.data import resize_image
 from waffle_hub.utils.evaluate import (
     evaluate_classification,
+    evaluate_instance_segmentation,
     evaluate_object_detection,
-    evaluate_segmentation,
 )
 
 

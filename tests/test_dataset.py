@@ -308,6 +308,7 @@ def test_dummy(tmpdir):
         TaskType.OBJECT_DETECTION,
         TaskType.INSTANCE_SEGMENTATION,
         TaskType.TEXT_RECOGNITION,
+        TaskType.SEMANTIC_SEGMENTATION,
     ]:
         _total_dummy(f"dummy_{task}", task, 100, 5, 10, tmpdir)
 
