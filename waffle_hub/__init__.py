@@ -96,14 +96,20 @@ BACKEND_MAP = OrderedDict(
         DataType.ULTRALYTICS: {
             "import_path": "waffle_hub.hub.adapter.ultralytics",
             "class_name": "UltralyticsHub",
+            "adapter_import_path": "waffle_hub.hub.train.adapter.ultralytics.ultralytics",
+            "adapter_class_name": "UltralyticsAdapter",
         },
         DataType.AUTOCARE_DLT: {
             "import_path": "waffle_hub.hub.adapter.autocare_dlt",
             "class_name": "AutocareDLTHub",
+            "adapter_import_path": "waffle_hub.hub.train.adapter.autocare_dlt.autocare_dlt",
+            "adapter_class_name": "AutocareDltAdapter",
         },
         DataType.TRANSFORMERS: {
             "import_path": "waffle_hub.hub.adapter.transformers",
             "class_name": "TransformersHub",
+            "adapter_import_path": "waffle_hub.hub.train.adapter.transformers.transformers",
+            "adapter_class_name": "TransformersAdapter",
         },
     }
 )
