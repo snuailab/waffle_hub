@@ -220,6 +220,8 @@ def evalute_semantic_segmentation(
     # mpa
     mean_pixel_accuracy = 0
     for pred, label in zip(preds, labels):
+        if pred["masks"].numel() == 0:  # If the object isn't detected
+            continue
         mean_pixel_accuracy += torch.sum(pred["masks"] == label["masks"]) / torch.numel(
             pred["masks"]
         )
