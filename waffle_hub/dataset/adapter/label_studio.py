@@ -4,7 +4,7 @@ from tqdm import tqdm
 from waffle_utils.file import io
 from waffle_utils.image.io import load_image
 
-from waffle_hub import TaskType
+from waffle_dough.type.task_type import TaskType
 from waffle_hub.schema.fields import Annotation, Category, Image
 
 

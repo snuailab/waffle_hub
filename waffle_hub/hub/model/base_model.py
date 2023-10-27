@@ -14,22 +14,23 @@ from waffle_hub.schema.fields.category import Category
 
 class Model(ABC):
     """
-    Base class for training models
+    Base class for training manager
     """
-
-    # directory settting
-    CONFIG_DIR = Path("config")
 
     # Model spec, abstract property
     BACKEND_NAME = None
     VERSION = None
     MODEL_TYPES = None
 
+    # directory settting
+    CONFIG_DIR = Path("config")
+
+    # train config file name
     MODEL_CONFIG_FILE = "model.yaml"
 
     def __init__(
         self,
-        hub_dir: Path,
+        root_dir: Path,
         name: str,
         task: Union[str, TaskType],
         model_type: str,
@@ -46,7 +47,7 @@ class Model(ABC):
         if self.MODEL_TYPES is None:
             raise AttributeError("MODEL_TYPES must be specified.")
 
-        self.hub_dir = hub_dir
+        self.root_dir = root_dir
         self.name = name
         self.task = task
         self.model_type = model_type
@@ -65,9 +66,12 @@ class Model(ABC):
 
     @task.setter
     def task(self, v):
-        v = str(v).upper()
-        if v not in self.MODEL_TYPES:
-            raise ValueError(f"Task {v} is not supported. Choose one of {self.MODEL_TYPES}")
+        if v not in list(self.MODEL_TYPES.keys()):
+            raise ValueError(
+                f"Task {v} is not supported. Choose one of {list(self.MODEL_TYPES.keys())}"
+            )
+        if isinstance(v, TaskType):
+            v = v.value
         self.__task = v
 
     @property
@@ -152,7 +156,7 @@ class Model(ABC):
     @property
     def config_dir(self) -> Path:
         """Config Directory"""
-        return self.hub_dir / self.CONFIG_DIR
+        return self.root_dir / self.CONFIG_DIR
 
     @property
     def model_config_file(self) -> Path:

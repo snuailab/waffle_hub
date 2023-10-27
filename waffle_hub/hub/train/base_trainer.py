@@ -7,9 +7,7 @@ from typing import Union
 
 import torch
 from waffle_utils.file import io
-from waffle_utils.utils import type_validator
 
-from waffle_hub import EXPORT_MAP, TaskType
 from waffle_hub.dataset import Dataset
 from waffle_hub.schema.configs import TrainConfig
 from waffle_hub.schema.result import TrainResult
@@ -20,10 +18,10 @@ from waffle_hub.utils.metric_logger import MetricLogger
 
 class Trainer(ABC):
     """
-    Base class for training models
+    Base class for for training manager
 
     args:
-        hub_dir (Path) : root directory
+        root_dir (Path) : root directory
     """
 
     # Train spec, abstract property
@@ -46,7 +44,7 @@ class Trainer(ABC):
 
     def __init__(
         self,
-        hub_dir: Path,
+        root_dir: Path,
     ):
         # abstract property
         if self.MULTI_GPU_TRAIN is None:
@@ -55,22 +53,22 @@ class Trainer(ABC):
         if self.DEFAULT_PARAMS is None:
             raise AttributeError("DEFAULT_PARAMS must be specified.")
 
-        self.hub_dir = Path(hub_dir)
+        self.root_dir = Path(root_dir)
 
     @property
     def artifact_dir(self) -> Path:
         """Artifact Directory. This is raw output of each backend."""
-        return self.hub_dir / self.ARTIFACT_DIR
+        return self.root_dir / self.ARTIFACT_DIR
 
     @property
     def weights_dir(self) -> Path:
         """Weights Directory."""
-        return self.hub_dir / self.WEIGHTS_DIR
+        return self.root_dir / self.WEIGHTS_DIR
 
     @property
     def train_log_dir(self) -> Path:
         """Train Log Directory."""
-        return self.hub_dir / self.TRAIN_LOG_DIR
+        return self.root_dir / self.TRAIN_LOG_DIR
 
     @property
     def train_config_file(self) -> Path:
@@ -86,7 +84,7 @@ class Trainer(ABC):
 
     @property
     def metric_file(self) -> Path:
-        return self.hub_dir / self.METRIC_FILE
+        return self.root_dir / self.METRIC_FILE
 
     def train(
         self,
@@ -343,64 +341,6 @@ class Trainer(ABC):
         ):
             raise FileNotFoundError("Train first! hub.train(...).")
         return True
-
-    def parse_dataset(self, dataset: Dataset | str, dataset_root_dir: str = None) -> Path:
-        # parse dataset
-        if isinstance(dataset, (str, Path)):
-            if Path(dataset).exists():
-                dataset = Path(dataset)
-                dataset = Dataset.load(
-                    name=dataset.parts[-1], root_dir=dataset.parents[0].absolute()
-                )
-            elif dataset in Dataset.get_dataset_list(dataset_root_dir):
-                dataset = Dataset.load(name=dataset, root_dir=dataset_root_dir)
-            else:
-                raise FileNotFoundError(f"Dataset {dataset} is not exist.")
-
-        # check category match
-        if not self.categories:
-            self.categories = dataset.get_categories()
-            self.save_model_config(self.model_config_file)
-        elif set(dataset.get_category_names()) != set(self.get_category_names()):
-            raise ValueError(
-                "Dataset categories are not matched with hub categories. \n"
-                + f"Dataset categories: {dataset.get_category_names()}, Hub categories: {self.get_category_names()}"
-            )
-
-        # check task match
-        if dataset.task.upper() != self.task.upper():
-            raise ValueError(
-                f"Dataset task is not matched with hub task. Dataset task: {dataset.task}, Hub task: {self.task}"
-            )
-
-        # convert dataset to backend format if not exist
-        export_dir = dataset.export_dir / EXPORT_MAP[self.backend]
-        if not export_dir.exists():
-            ## LOGGER!!
-            # logger.info(f"[Dataset] Exporting dataset to {self.backend} format...")
-            export_dir = dataset.export(self.backend)
-            # logger.info("[Dataset] Exporting done.")
-
-        return export_dir
-
-    def get_default_advance_train_params(
-        self, task: str = None, model_type: str = None, model_size: str = None
-    ) -> dict:
-        """
-        Get default train advance params
-
-        Args:
-            task (str): Task name
-            model_type (str): Model type
-            model_size (str): Model size
-
-        Raises:
-            ModuleNotFoundError: If backend is not supported
-
-        Returns:
-            dict: Default train advance params
-        """
-        raise NotImplementedError(f"{self.backend} does not support advance_params argument.")
 
     def delete_artifact(self):
         """Delete Artifact Directory. It can be trained again."""

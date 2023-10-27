@@ -5,7 +5,7 @@ import torch
 import torch.nn.functional as F
 from torchvision.ops import batched_nms
 
-from waffle_hub import TaskType
+from waffle_dough.type.task_type import TaskType
 from waffle_hub.schema.data import ImageInfo
 from waffle_hub.schema.fields import Annotation
 from waffle_hub.utils.conversion import convert_mask_to_polygon

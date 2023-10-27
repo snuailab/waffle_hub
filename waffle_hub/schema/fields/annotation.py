@@ -3,7 +3,7 @@ from typing import Union
 from shapely import Polygon
 from waffle_utils.utils import type_validator
 
-from waffle_hub import TaskType
+from waffle_dough.type.task_type import TaskType
 from waffle_hub.utils.conversion import convert_rle_to_polygon
 
 from .base_field import BaseField

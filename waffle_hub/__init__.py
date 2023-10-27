@@ -1,7 +1,10 @@
-__version__ = "0.2.14"
+__version__ = "0.2.16"
 
 import enum
-from collections import OrderedDict
+
+from waffle_dough.type.data_type import DataType
+from waffle_hub.type.backend_type import BackendType
+from waffle_hub.utils.utils import CaseInsensitiveDict
 
 
 class CustomEnumMeta(enum.EnumMeta):
@@ -52,35 +55,12 @@ class BaseEnum(enum.Enum, metaclass=CustomEnumMeta):
         return self.name.upper()
 
 
-class DataType(BaseEnum):
-    # TODO: map to same value
-
-    YOLO = enum.auto()
-    ULTRALYTICS = enum.auto()
-
-    COCO = enum.auto()
-
-    AUTOCARE_DLT = enum.auto()
-
-    TRANSFORMERS = enum.auto()
-
-
-class TaskType(BaseEnum):
-    CLASSIFICATION = enum.auto()
-    OBJECT_DETECTION = enum.auto()
-    SEMANTIC_SEGMENTATION = enum.auto()
-    INSTANCE_SEGMENTATION = enum.auto()
-    KEYPOINT_DETECTION = enum.auto()
-    TEXT_RECOGNITION = enum.auto()
-    REGRESSION = enum.auto()
-
-
 class SplitMethod(BaseEnum):
     RANDOM = enum.auto()
     STRATIFIED = enum.auto()
 
 
-EXPORT_MAP = OrderedDict(
+EXPORT_MAP = CaseInsensitiveDict(
     {
         DataType.YOLO: "ULTRALYTICS",
         DataType.ULTRALYTICS: "ULTRALYTICS",
@@ -90,36 +70,25 @@ EXPORT_MAP = OrderedDict(
     }
 )
 
-
-BACKEND_MAP = OrderedDict(
+BACKEND_MAP = CaseInsensitiveDict(
     {
-        DataType.ULTRALYTICS: {
+        BackendType.ULTRALYTICS: {
             "import_path": "waffle_hub.hub.adapter.ultralytics",
             "class_name": "UltralyticsHub",
             "adapter_import_path": "waffle_hub.hub.train.adapter.ultralytics.ultralytics",
-            "adapter_class_name": "UltralyticsAdapter",
+            "adapter_class_name": "UltralyticsManager",
         },
-        DataType.AUTOCARE_DLT: {
+        BackendType.AUTOCARE_DLT: {
             "import_path": "waffle_hub.hub.adapter.autocare_dlt",
             "class_name": "AutocareDLTHub",
             "adapter_import_path": "waffle_hub.hub.train.adapter.autocare_dlt.autocare_dlt",
-            "adapter_class_name": "AutocareDltAdapter",
+            "adapter_class_name": "AutocareDltManager",
         },
-        DataType.TRANSFORMERS: {
+        BackendType.TRANSFORMERS: {
             "import_path": "waffle_hub.hub.adapter.transformers",
             "class_name": "TransformersHub",
             "adapter_import_path": "waffle_hub.hub.train.adapter.transformers.transformers",
-            "adapter_class_name": "TransformersAdapter",
+            "adapter_class_name": "TransformersManager",
         },
     }
 )
-
-
-for key in list(EXPORT_MAP.keys()):
-    EXPORT_MAP[str(key).lower()] = EXPORT_MAP[key]
-    EXPORT_MAP[str(key).upper()] = EXPORT_MAP[key]
-
-
-for key in list(BACKEND_MAP.keys()):
-    BACKEND_MAP[str(key).lower()] = BACKEND_MAP[key]
-    BACKEND_MAP[str(key).upper()] = BACKEND_MAP[key]

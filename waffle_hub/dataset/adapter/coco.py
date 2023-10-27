@@ -7,7 +7,7 @@ import tqdm
 from pycocotools.coco import COCO
 from waffle_utils.file import io
 
-from waffle_hub import TaskType
+from waffle_dough.type.task_type import TaskType
 from waffle_hub.schema.fields import Annotation, Category, Image
 from waffle_hub.utils.conversion import convert_rle_to_polygon
 

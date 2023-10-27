@@ -8,25 +8,26 @@ import ultralytics
 from torch import nn
 from torchvision import transforms as T
 from ultralytics import YOLO
-from ultralytics.yolo.utils import DEFAULT_CFG as YOLO_DEFAULT_ADVANCE_PARAMS
+from ultralytics.utils import DEFAULT_CFG as YOLO_DEFAULT_ADVANCE_PARAMS
 from waffle_utils.file import io
 
-from waffle_dough.type.data_type import DataType
 from waffle_dough.type.task_type import TaskType
 from waffle_hub.hub.model.wrapper import ModelWrapper
-from waffle_hub.hub.train.adapter.base_adapter import BaseAdapter
+from waffle_hub.hub.train.adapter.base_manager import BaseManager
 from waffle_hub.schema.fields.category import Category
+from waffle_hub.type.backend_type import BackendType
+from waffle_hub.utils.process import run_python_file
 
 from .config import DEFAULT_PARAMS, MODEL_TYPES, TASK_MAP
 
 
-class UltralyticsAdapter(BaseAdapter):
+class UltralyticsManager(BaseManager):
     """
-    Ultralytics Train Adapter
+    Ultralytics Training Manager
     """
 
-    BACKEND_NAME = DataType.ULTRALYTICS
-    VERSION = "8.0.112"
+    BACKEND_NAME = BackendType.ULTRALYTICS.value
+    VERSION = "8.0.201"
     MULTI_GPU_TRAIN = True
     MODEL_TYPES = MODEL_TYPES
     DEFAULT_PARAMS = DEFAULT_PARAMS
@@ -36,7 +37,7 @@ class UltralyticsAdapter(BaseAdapter):
 
     def __init__(
         self,
-        hub_dir: Path,
+        root_dir: Path,
         name: str,
         task: Union[str, TaskType],
         model_type: str,
@@ -44,7 +45,7 @@ class UltralyticsAdapter(BaseAdapter):
         categories: list[Union[str, int, float, dict, Category]],
     ):
         super().__init__(
-            hub_dir=hub_dir,
+            root_dir=root_dir,
             name=name,
             task=task,
             model_type=model_type,
@@ -52,7 +53,6 @@ class UltralyticsAdapter(BaseAdapter):
             categories=categories,
         )
 
-        self.backend = self.BACKEND_NAME
         if self.VERSION is not None and ultralytics.__version__ != self.VERSION:
             warnings.warn(
                 f"You've loaded the Hub created with ultralytics=={self.VERSION}, \n"
@@ -281,17 +281,30 @@ class UltralyticsAdapter(BaseAdapter):
             "workers": self.train_cfg.workers,
             "seed": self.train_cfg.seed,
             "verbose": self.train_cfg.verbose,
-            "project": str(self.hub_dir),
+            "project": str(self.root_dir),
             "name": str(self.ARTIFACT_DIR),
         }
         params.update(self.train_cfg.advance_params)
 
+        code = f"""if __name__ == "__main__":
+        from ultralytics import YOLO
+        import os
+        os.environ["KMP_DUPLICATE_LIB_OK"] = "TRUE"
         try:
-            model = YOLO(self.train_cfg.pretrained_model, task=self.backend_task_name)
-            model.train(**params)
+            model = YOLO("{self.train_cfg.pretrained_model}", task="{self.backend_task_name}")
+            model.train(
+                **{params}
+            )
         except Exception as e:
-            # print(e)
+            print(e)
             raise e
+        """
+
+        script_file = str((self.root_dir / "train.py").absolute())
+        with open(script_file, "w") as f:
+            f.write(code)
+
+        run_python_file(script_file)
 
     def on_train_end(self):
         io.copy_file(

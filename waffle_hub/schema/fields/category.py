@@ -2,7 +2,7 @@ from typing import Union
 
 from waffle_utils.utils import type_validator
 
-from waffle_hub import TaskType
+from waffle_dough.type.task_type import TaskType
 
 from .base_field import BaseField
 

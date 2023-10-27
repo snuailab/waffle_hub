@@ -18,7 +18,9 @@ from waffle_utils.image.io import load_image, save_image
 from waffle_utils.log import datetime_now
 from waffle_utils.utils import type_validator
 
-from waffle_hub import EXPORT_MAP, DataType, SplitMethod, TaskType
+from waffle_dough.type.data_type import DataType
+from waffle_dough.type.task_type import TaskType
+from waffle_hub import EXPORT_MAP, SplitMethod
 from waffle_hub.dataset.adapter import (
     export_autocare_dlt,
     export_coco,
@@ -96,8 +98,8 @@ class Dataset:
 
     @task.setter
     def task(self, v):
-        v = str(v).upper()
-        if v not in TaskType:
+        v = str(v)
+        if v not in list(TaskType):
             raise ValueError(f"Invalid task type: {v}" f"Available task types: {list(TaskType)}")
         self.__task = v
 
@@ -1617,7 +1619,7 @@ class Dataset:
 
         self._check_trainable()
 
-        export_dir: Path = self.export_dir / EXPORT_MAP[data_type.upper()]
+        export_dir: Path = self.export_dir / EXPORT_MAP[data_type]
         if data_type in [DataType.YOLO, DataType.ULTRALYTICS]:
             export_function = export_yolo
         elif data_type in [DataType.COCO]:

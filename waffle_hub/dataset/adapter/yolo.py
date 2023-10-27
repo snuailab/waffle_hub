@@ -7,7 +7,7 @@ from typing import Union
 from waffle_utils.file import io, search
 from waffle_utils.image.io import load_image
 
-from waffle_hub import TaskType
+from waffle_dough.type.task_type import TaskType
 from waffle_hub.schema.fields import Annotation, Category, Image
 from waffle_hub.utils.conversion import merge_multi_segment
 

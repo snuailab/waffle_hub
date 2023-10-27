@@ -32,7 +32,7 @@ from waffle_hub import BACKEND_MAP
 from waffle_hub.dataset import Dataset
 from waffle_hub.hub.model.result_parser import get_parser
 from waffle_hub.hub.model.wrapper import ModelWrapper
-from waffle_hub.hub.train.adapter.base_adapter import BaseAdapter
+from waffle_hub.hub.train.adapter.base_manager import BaseManager
 from waffle_hub.schema.configs import (
     EvaluateConfig,
     ExportOnnxConfig,
@@ -87,9 +87,9 @@ class Hub:
     # export results
     ONNX_FILE = "weights/model.onnx"
 
-    # train files
-    TRAIN_CONFIG_FILE = BaseAdapter.CONFIG_DIR / BaseAdapter.TRAIN_CONFIG_FILE
-    MODEL_CONFIG_FILE = BaseAdapter.CONFIG_DIR / BaseAdapter.MODEL_CONFIG_FILE
+    # train files ##--
+    TRAIN_CONFIG_FILE = BaseManager.CONFIG_DIR / BaseManager.TRAIN_CONFIG_FILE
+    MODEL_CONFIG_FILE = BaseManager.CONFIG_DIR / BaseManager.MODEL_CONFIG_FILE
 
     def __init__(
         self,
@@ -112,8 +112,8 @@ class Hub:
         self.model_size: str = model_size
         self.categories: list[Category] = categories
 
-        self.train_adapter = self.get_train_adapter_class(backend)(
-            hub_dir=self.hub_dir,
+        self.manager = self.get_manager_class(backend)(
+            root_dir=self.hub_dir,
             name=self.name,
             task=self.task,
             model_type=self.model_type,
@@ -121,16 +121,16 @@ class Hub:
             categories=self.categories,
         )
 
-        self.backend: str = self.train_adapter.backend
-        self.version: str = self.train_adapter.VERSION
+        self.backend: str = self.manager.backend
+        self.version: str = self.manager.VERSION
 
     def __repr__(self):
-        return self.train_adapter.get_model_config().__repr__()
+        return self.manager.get_model_config().__repr__()
 
     @classmethod
-    def get_train_adapter_class(cls, backend: str = None) -> "BaseAdapter":
+    def get_manager_class(cls, backend: str = None) -> "BaseManager":
         """
-        Get train adapter class
+        Get training manager class
 
         Args:
             backend (str): Backend name
@@ -139,9 +139,9 @@ class Hub:
             ModuleNotFoundError: If backend is not supported
 
         Returns:
-            BaseAdapter: Backend train adapter Class
+            BaseManager: Backend training manager Class
         """
-        if backend not in BACKEND_MAP:
+        if backend not in list(BACKEND_MAP.keys()):
             raise ModuleNotFoundError(f"Backend {backend} is not supported")
 
         backend_info = BACKEND_MAP[backend]
@@ -196,8 +196,8 @@ class Hub:
             list[str]: Available tasks
         """
         backend = backend if backend else cls.BACKEND_NAME
-        adapter = cls.get_train_adapter_class(backend)
-        return list(adapter.MODEL_TYPES.keys())
+        manager = cls.get_manager_class(backend)
+        return list(manager.MODEL_TYPES.keys())
 
     @classmethod
     def get_available_model_types(cls, backend: str, task: str) -> list[str]:
@@ -215,10 +215,11 @@ class Hub:
             list[str]: Available model types
         """
 
-        adapter = cls.get_train_adapter_class(backend)
-        if task not in adapter.MODEL_TYPES:
+        manager = cls.get_manager_class(backend)
+        if task not in list(manager.MODEL_TYPES.keys()):
             raise ValueError(f"{task} is not supported with {backend}")
-        return list(adapter.MODEL_TYPES[task].keys())
+        task = TaskType[task].value
+        return list(manager.MODEL_TYPES[task].keys())
 
     @classmethod
     def get_available_model_sizes(cls, backend: str, task: str, model_type: str) -> list[str]:
@@ -236,12 +237,13 @@ class Hub:
         Returns:
             list[str]: Available model sizes
         """
-        adapter = cls.get_train_adapter_class(backend)
-        if task not in adapter.MODEL_TYPES:
+        manager = cls.get_manager_class(backend)
+        if task not in list(manager.MODEL_TYPES.keys()):
             raise ValueError(f"{task} is not supported with {backend}")
-        if model_type not in adapter.MODEL_TYPES[task]:
+        task = TaskType[task].value
+        if model_type not in manager.MODEL_TYPES[task]:
             raise ValueError(f"{model_type} is not supported with {backend}")
-        model_sizes = adapter.MODEL_TYPES[task][model_type]
+        model_sizes = manager.MODEL_TYPES[task][model_type]
         return model_sizes if isinstance(model_sizes, list) else list(model_sizes.keys())
 
     @classmethod
@@ -263,18 +265,19 @@ class Hub:
         Returns:
             dict: Default train params
         """
-        adapter = cls.get_train_adapter_class(backend)
-        if task not in adapter.MODEL_TYPES:
+        manager = cls.get_manager_class(backend)
+        if task not in list(manager.MODEL_TYPES.keys()):
             raise ValueError(f"{task} is not supported with {backend}")
-        if model_type not in adapter.MODEL_TYPES[task]:
+        task = TaskType[task].value
+        if model_type not in manager.MODEL_TYPES[task]:
             raise ValueError(f"{model_type} is not supported with {backend}")
-        if model_size not in adapter.MODEL_TYPES[task][model_type]:
+        if model_size not in manager.MODEL_TYPES[task][model_type]:
             raise ValueError(f"{model_size} is not supported with {backend}")
-        return adapter.DEFAULT_PARAMS[task][model_type][model_size]
+        return manager.DEFAULT_PARAMS[task][model_type][model_size]
 
     @classmethod
     def test(cls):
-        print(BaseAdapter.MODEL_CONFIG_FILE)
+        print(BaseManager.MODEL_CONFIG_FILE)
 
     @classmethod
     def new(
@@ -310,7 +313,7 @@ class Hub:
 
         try:
             backend = backend if backend else cls.get_available_backends()[0]
-            task = str(task).upper() if task else cls.get_available_tasks(backend)[0]
+            task = TaskType[task].value if task else cls.get_available_tasks(backend)[0]
             model_type = (
                 model_type if model_type else cls.get_available_model_types(backend, task)[0]
             )
@@ -349,11 +352,10 @@ class Hub:
             Hub: Hub instance
         """
         root_dir = Hub.parse_root_dir(root_dir)
-        model_config_file = root_dir / name / BaseAdapter.CONFIG_DIR / BaseAdapter.MODEL_CONFIG_FILE
+        model_config_file = root_dir / name / BaseManager.CONFIG_DIR / BaseManager.MODEL_CONFIG_FILE
         if not model_config_file.exists():
             raise FileNotFoundError(f"Model[{name}] does not exists. {model_config_file}")
         model_config = ModelConfig.load(model_config_file)
-        print(model_config)
         return cls(
             **{
                 **model_config.to_dict(),
@@ -410,7 +412,7 @@ class Hub:
         hub_name_list = []
         for hub_dir in root_dir.iterdir():
             if hub_dir.is_dir():
-                model_config_file = hub_dir / BaseAdapter.CONFIG_DIR / BaseAdapter.MODEL_CONFIG_FILE
+                model_config_file = hub_dir / BaseManager.CONFIG_DIR / BaseManager.MODEL_CONFIG_FILE
                 if model_config_file.exists():
                     hub_name_list.append(hub_dir.name)
         return hub_name_list
@@ -443,7 +445,7 @@ class Hub:
         try:
             io.unzip(waffle_file, root_dir / name, create_directory=True)
             model_config_file = (
-                root_dir / name / BaseAdapter.CONFIG_DIR / BaseAdapter.MODEL_CONFIG_FILE
+                root_dir / name / BaseManager.CONFIG_DIR / BaseManager.MODEL_CONFIG_FILE
             )
             if not model_config_file.exists():
                 raise FileNotFoundError(f"Model[{name}] does not exists. {model_config_file}")
@@ -501,8 +503,7 @@ class Hub:
     @backend.setter
     @type_validator(str, strict=False)
     def backend(self, v):
-        v = str(v).upper()
-        if v not in BACKEND_MAP:
+        if v not in list(BACKEND_MAP.keys()):
             raise ValueError(
                 f"Backend {v} is not supported. Choose one of {list(BACKEND_MAP.keys())}"
             )
@@ -512,16 +513,6 @@ class Hub:
     def hub_dir(self) -> Path:
         """Hub(Model) Directory"""
         return self.root_dir / self.name
-
-    @cached_property  ##--
-    def model_config_file(self) -> Path:  ## model
-        """Model Config yaml File"""
-        return self.train_adapter.model_config_file
-
-    @cached_property  ##--
-    def artifact_dir(self) -> Path:  ## trainer
-        """Artifact Directory. This is raw output of each backend."""
-        return self.train_adapter.artifact_dir
 
     @cached_property
     def inference_dir(self) -> Path:
@@ -538,35 +529,10 @@ class Hub:
         """Draw Results Directory"""
         return self.inference_dir / Hub.DRAW_DIR
 
-    @cached_property  ##--
-    def train_log_dir(self) -> Path:  ## trainer
-        """Train Logs Directory"""
-        return self.train_adapter.train_log_dir
-
-    @cached_property  ##--
-    def train_config_file(self) -> Path:  ## trainer
-        """Train Config yaml File"""
-        return self.train_adapter.train_config_file
-
-    @cached_property  ##--
-    def best_ckpt_file(self) -> Path:  ## trainer
-        """Best Checkpoint File"""
-        return self.train_adapter.best_ckpt_file
-
-    @cached_property  ##--
-    def last_ckpt_file(self) -> Path:  ## trainer
-        """Last Checkpoint File"""
-        return self.train_adapter.last_ckpt_file
-
     @cached_property
     def onnx_file(self) -> Path:
         """Best Checkpoint ONNX File"""
         return self.hub_dir / Hub.ONNX_FILE
-
-    @cached_property  ##--
-    def metric_file(self) -> Path:  ## trainer
-        """Metric Csv File"""
-        return self.train_adapter.metric_file
 
     @cached_property
     def evaluate_file(self) -> Path:
@@ -578,24 +544,40 @@ class Hub:
         """Export Waffle file"""
         return self.hub_dir / f"{self.name}.waffle"
 
-    # common functions
-    def delete_hub(self):
-        """Delete all artifacts of Hub. Hub name can be used again."""
-        io.remove_directory(self.hub_dir)
-        del self
-        return None
+    # path getters
+    ## model
+    def get_model_config_file_path(self) -> Path:
+        """Model Config yaml File"""
+        return self.manager.model_config_file
 
-    def delete_artifact(self):
-        """Delete Artifact Directory. It can be trained again."""
-        self.train_adapter.delete_artifact()
+    def get_artifact_dir(self) -> Path:
+        """Artifact Directory. This is raw output of each backend."""
+        return self.manager.artifact_dir
 
-    def check_train_sanity(self) -> bool:
-        """Check if all essential files are exist.
+    def get_train_config_file_path(self) -> Path:
+        """Train Config yaml File"""
+        return self.manager.train_config_file
+
+    def get_best_ckpt_file_path(self) -> Path:
+        """Best Checkpoint File"""
+        return self.manager.best_ckpt_file
+
+    def get_last_ckpt_file_path(self) -> Path:
+        """Last Checkpoint File"""
+        return self.manager.last_ckpt_file
+
+    def get_metrics_file_path(self) -> Path:
+        """Metrics File"""
+        return self.manager.metric_file
+
+    # getters
+    def get_model_config(self) -> ModelConfig:
+        """Get model config from model config file.
 
         Returns:
-            bool: True if all files are exist else False
+            ModelConfig: model config
         """
-        return self.train_adapter.check_train_sanity()
+        return self.manager.get_model_config()
 
     def get_train_config(self) -> TrainConfig:
         """Get train config from train config file.
@@ -604,44 +586,18 @@ class Hub:
             TrainConfig: train config
         """
 
-        return self.train_adapter.get_train_config()
-
-    def get_model_config(self) -> ModelConfig:
-        """Get model config from model config file.
-
-        Returns:
-            ModelConfig: model config
-        """
-        return self.train_adapter.get_model_config()
-
-    def save_model_config(self):
-        """Save ModelConfig."""
-        self.train_adapter.save_model_config(self.model_config_file)
-
-    def get_default_advance_train_params(  ## TODO: refactor
-        self, task: str = None, model_type: str = None, model_size: str = None
-    ) -> dict:
-        """
-        Get default train advance params
-
-        Args:
-            task (str): Task name
-            model_type (str): Model type
-            model_size (str): Model size
-
-        Raises:
-            ModuleNotFoundError: If backend is not supported
-
-        Returns:
-            dict: Default train advance params
-        """
-        raise NotImplementedError(f"{self.backend} does not support advance_params argument.")
+        return self.manager.get_train_config()
 
     def get_categories(self) -> list[Category]:
-        return self.train_adapter.categories
+        return self.manager.categories
 
     def get_category_names(self) -> list[str]:
-        return [category.name for category in self.train_adapter.categories]
+        return [category.name for category in self.manager.categories]
+
+    def get_default_advance_train_params(
+        self, task: str = None, model_type: str = None, model_size: str = None
+    ) -> dict:
+        return self.manager.get_default_advance_train_params(task, model_type, model_size)
 
     # get results
     def get_metrics(self) -> list[list[dict]]:
@@ -665,7 +621,7 @@ class Hub:
         Returns:
             list[dict]: metrics per epoch
         """
-        return self.train_adapter.get_metrics()
+        return self.manager.get_metrics()
         # if not self.metric_file.exists(): ##--
         #     raise FileNotFoundError("Metric file is not exist. Train first!")
 
@@ -713,6 +669,29 @@ class Hub:
         if not self.inference_file.exists():
             return []
         return io.load_json(self.inference_file)
+
+    # common functions
+    def delete_hub(self):
+        """Delete all artifacts of Hub. Hub name can be used again."""
+        io.remove_directory(self.hub_dir)
+        del self
+        return None
+
+    def delete_artifact(self):
+        """Delete Artifact Directory. It can be trained again."""
+        self.manager.delete_artifact()
+
+    def check_train_sanity(self) -> bool:
+        """Check if all essential files are exist.
+
+        Returns:
+            bool: True if all files are exist else False
+        """
+        return self.manager.check_train_sanity()
+
+    def save_model_config(self):
+        """Save ModelConfig."""
+        self.manager.save_model_config(self.model_config_file)
 
     # Hub Utils
     def get_image_loader(self) -> tuple[torch.Tensor, ImageInfo]:
@@ -809,7 +788,7 @@ class Hub:
             TrainResult: train result
         """
 
-        return self.train_adapter.train(
+        return self.manager.train(
             dataset=dataset,
             dataset_root_dir=dataset_root_dir,
             epochs=epochs,
@@ -828,7 +807,7 @@ class Hub:
 
     # Evaluation Hook
     def get_model(self) -> ModelWrapper:
-        return self.train_adapter.get_model()
+        return self.manager.get_model()
 
     def before_evaluate(self, cfg: EvaluateConfig, dataset: Dataset):
         if len(dataset.get_split_ids()[2]) == 0:

@@ -13,7 +13,7 @@ from torchmetrics.classification import (
 )
 from torchmetrics.detection import mean_ap
 
-from waffle_hub import TaskType
+from waffle_dough.type.task_type import TaskType
 from waffle_hub.schema.evaluate import (
     ClassificationMetric,
     InstanceSegmentationMetric,
