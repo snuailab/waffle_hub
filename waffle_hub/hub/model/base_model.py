@@ -70,9 +70,7 @@ class Model(ABC):
             raise ValueError(
                 f"Task {v} is not supported. Choose one of {list(self.MODEL_TYPES.keys())}"
             )
-        if isinstance(v, TaskType):
-            v = v.value
-        self.__task = v
+        self.__task = str(v.value) if isinstance(v, TaskType) else str(v)
 
     @property
     def model_type(self) -> str:

@@ -31,7 +31,7 @@ class BaseSchema:
         d = self.to_dict()
         for k, v in d.items():
             try:
-                yaml.dump(v)
+                json.dumps(v)  # yaml does not catch any error, so use json instead
             except:
                 d[k] = str(v)
         io.save_yaml(d, save_path, create_directory=True)

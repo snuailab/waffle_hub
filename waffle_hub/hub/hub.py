@@ -49,6 +49,7 @@ from waffle_hub.schema.result import (
     InferenceResult,
     TrainResult,
 )
+from waffle_hub.type.backend_type import BackendType
 from waffle_hub.utils.callback import (
     EvaluateCallback,
     ExportCallback,
@@ -507,7 +508,7 @@ class Hub:
             raise ValueError(
                 f"Backend {v} is not supported. Choose one of {list(BACKEND_MAP.keys())}"
             )
-        self.__backend = v
+        self.__backend = str(v.value) if isinstance(v, BackendType) else str(v)
 
     @cached_property
     def hub_dir(self) -> Path:

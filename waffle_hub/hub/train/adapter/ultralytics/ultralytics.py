@@ -26,7 +26,7 @@ class UltralyticsManager(BaseManager):
     Ultralytics Training Manager
     """
 
-    BACKEND_NAME = BackendType.ULTRALYTICS.value
+    BACKEND_NAME = str(BackendType.ULTRALYTICS.value)
     VERSION = "8.0.201"
     MULTI_GPU_TRAIN = True
     MODEL_TYPES = MODEL_TYPES

@@ -84,7 +84,7 @@ class Category(BaseField):
     def task(self, v):
         if v is not None and v not in TaskType:
             raise ValueError(f"Invalid task type: {v}" f"Available task types: {list(TaskType)}")
-        self.__task = str(v).upper()
+        self.__task = str(v.value) if isinstance(v, TaskType) else str(v).lower()
 
     # factories
     @classmethod

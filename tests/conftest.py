@@ -3,7 +3,7 @@ from pathlib import Path
 import pytest
 from waffle_utils.file import io, network
 
-from waffle_hub import TaskType
+from waffle_dough.type.task_type import TaskType
 from waffle_hub.dataset import Dataset
 
 
@@ -107,7 +107,7 @@ def test_video_path(tmp_path_factory: pytest.TempPathFactory):
 def instance_segmentation_dataset(coco_path: Path, tmpdir: Path):
     dataset: Dataset = Dataset.from_coco(
         name="seg",
-        task=TaskType.INSTANCE_SEGMENTATION,
+        task=str(TaskType.INSTANCE_SEGMENTATION.value),
         coco_file=coco_path / "coco.json",
         coco_root_dir=coco_path / "images",
         root_dir=tmpdir,
@@ -121,7 +121,7 @@ def instance_segmentation_dataset(coco_path: Path, tmpdir: Path):
 def object_detection_dataset(coco_path: Path, tmpdir: Path):
     dataset: Dataset = Dataset.from_coco(
         name="od",
-        task=TaskType.OBJECT_DETECTION,
+        task=str(TaskType.OBJECT_DETECTION.value),
         coco_file=coco_path / "coco.json",
         coco_root_dir=coco_path / "images",
         root_dir=tmpdir,
@@ -135,7 +135,7 @@ def object_detection_dataset(coco_path: Path, tmpdir: Path):
 def classification_dataset(coco_path: Path, tmpdir: Path):
     dataset: Dataset = Dataset.from_coco(
         name="cls",
-        task=TaskType.CLASSIFICATION,
+        task=str(TaskType.CLASSIFICATION.value),
         coco_file=coco_path / "coco.json",
         coco_root_dir=coco_path / "images",
         root_dir=tmpdir,
@@ -149,7 +149,7 @@ def classification_dataset(coco_path: Path, tmpdir: Path):
 def text_recognition_dataset(coco_path: Path, tmpdir: Path):
     dataset: Dataset = Dataset.from_coco(
         name="ocr",
-        task=TaskType.TEXT_RECOGNITION,
+        task=str(TaskType.TEXT_RECOGNITION.value),
         coco_file=coco_path / "coco.json",
         coco_root_dir=coco_path / "images",
         root_dir=tmpdir,

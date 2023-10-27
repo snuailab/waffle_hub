@@ -98,10 +98,9 @@ class Dataset:
 
     @task.setter
     def task(self, v):
-        v = str(v)
         if v not in list(TaskType):
             raise ValueError(f"Invalid task type: {v}" f"Available task types: {list(TaskType)}")
-        self.__task = v
+        self.__task = str(v.value) if isinstance(v, TaskType) else str(v).lower()
 
     @property
     def categories(self) -> list[Category]:
