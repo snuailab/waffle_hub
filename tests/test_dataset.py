@@ -327,7 +327,7 @@ def _total_superb_ai(dataset_name, task: TaskType, superb_ai_path, root_dir):
     _index(dataset_name, root_dir)
     _clone(dataset_name, root_dir)
     _split(dataset_name, root_dir)
-    # _export(dataset_name, task, root_dir)
+    _export(dataset_name, task, root_dir)
 
 
 @pytest.mark.parametrize(

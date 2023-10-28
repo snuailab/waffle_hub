@@ -64,6 +64,8 @@ class DataType(BaseEnum):
 
     TRANSFORMERS = enum.auto()
 
+    SUPERB_AI = enum.auto()
+
 
 class TaskType(BaseEnum):
     CLASSIFICATION = enum.auto()
