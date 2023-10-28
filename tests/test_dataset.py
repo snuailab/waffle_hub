@@ -660,7 +660,7 @@ def test_extract_by_images_ids(tmpdir):
     )
 
     extracted_ds = ds.extract_by_image_ids(
-        name="extracted_by_image_ids",
+        new_name="extracted_by_image_ids",
         root_dir=tmpdir,
         image_ids=[1, 2],
     )
@@ -679,7 +679,7 @@ def test_extract_by_categories(tmpdir):
     )
 
     extracted_ds = ds.extract_by_categories(
-        name="extracted_by_categories",
+        new_name="extracted_by_categories",
         root_dir=tmpdir,
         category_ids=[1, 2],
     )

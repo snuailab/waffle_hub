@@ -8,6 +8,36 @@ initialize_logger("hub.log", root_level="INFO", console_level="INFO", file_level
 
 
 class HubInstance(BaseCLI):
+    # not required for cli mode
+    restrict_method_names = [
+        "load",
+        "get_default_advance_train_params",
+        "get_image_loader",
+        "get_model",
+        "after_evaluate",
+        "after_export_onnx",
+        "after_inference",
+        "after_train",
+        "before_evaluate",
+        "before_export_onnx",
+        "before_inference",
+        "before_train",
+        "evaluating",
+        "exporting_onnx",
+        "inferencing",
+        "training",
+        "on_evaluate_end",
+        "on_evaluate_start",
+        "on_export_onnx_end",
+        "on_export_onnx_start",
+        "on_inference_end",
+        "on_inference_start",
+        "on_train_end",
+        "on_train_start",
+        "save_model_config",
+        "save_train_config",
+    ]
+
     def __init__(self, name: str, root_dir: str = None):
         self.hub = None
         if name in Hub.get_hub_list(root_dir):

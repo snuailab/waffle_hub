@@ -72,8 +72,8 @@ class Dataset:
         self.root_dir = root_dir
 
         if not self.initialized():
-            self.initialize()
-            self.set_categories(categories)
+            self._initialize()
+            self._set_categories(categories)
             self.save_dataset_info()
         else:  # for backward compatibility
             self.save_dataset_info()
@@ -106,7 +106,7 @@ class Dataset:
     def categories(self) -> list[Category]:
         return self.get_categories()
 
-    def set_categories(self, v):
+    def _set_categories(self, v):
         if v is None or len(v) == 0:
             v = []
         elif isinstance(v[0], dict):
@@ -134,13 +134,13 @@ class Dataset:
         self.add_categories(v)
 
     def extract_by_image_ids(
-        self, name: str, image_ids: list[int], root_dir: str = None
+        self, new_name: str, image_ids: list[int], root_dir: str = None
     ) -> "Dataset":
         """
         Extract a new dataset by image ids
 
         Args:
-            name (str): Name of the new dataset
+            new_name (str): Name of the new dataset
             image_ids (list[int]): Image ids to extract
             root_dir (str, optional): Root directory of the new dataset. Defaults to None.
 
@@ -149,7 +149,7 @@ class Dataset:
 
         """
         ds = Dataset.new(
-            name=name,
+            name=new_name,
             task=self.task,
             root_dir=root_dir,
         )
@@ -159,7 +159,9 @@ class Dataset:
             for image in self.get_images(image_ids):
                 annotations = self.get_annotations(image.image_id)
                 io.copy_file(
-                    self.raw_image_dir / image.file_name, ds.raw_image_dir / image.file_name
+                    self.raw_image_dir / image.file_name,
+                    ds.raw_image_dir / image.file_name,
+                    create_directory=True,
                 )
                 ds.add_images([image])
                 ds.add_annotations(annotations)
@@ -171,20 +173,20 @@ class Dataset:
         return ds
 
     def extract_by_categories(
-        self, name: str, category_ids: list[int], root_dir: str = None
+        self, new_name: str, category_ids: list[int], root_dir: str = None
     ) -> "Dataset":
         """
         Extract a new dataset by categories
 
         Args:
-            name (str): Name of the new dataset
+            new_name (str): Name of the new dataset
             category_ids (list[int]): Category IDs to extract
             root_dir (str, optional): Root directory of the new dataset. Defaults to None.
 
         Returns (Dataset): New dataset
         """
         ds = Dataset.new(
-            name=name,
+            name=new_name,
             task=self.task,
             root_dir=root_dir,
         )
@@ -209,7 +211,9 @@ class Dataset:
 
                 if annotations:
                     io.copy_file(
-                        self.raw_image_dir / image.file_name, ds.raw_image_dir / image.file_name
+                        self.raw_image_dir / image.file_name,
+                        ds.raw_image_dir / image.file_name,
+                        create_directory=True,
                     )
                     ds.add_images([image])
                     ds.add_annotations(annotations)
@@ -1006,7 +1010,8 @@ class Dataset:
             root_dir (str, optional): Dataset root directory. Defaults to None.
 
         Example:
-            >>> ds = Dataset.from_yolo("yolo", "classification", "path/to/yolo.yaml")
+            >>> ds = Dataset.from_yolo("yolo", "classification", "path/to/yolo_root_dir")
+            >>> ds = Dataset.from_yolo("yolo", "object_detection", "path/to/yolo_root_dir", "path/to/yolo.yaml")
 
         Returns:
             Dataset: Imported dataset.
@@ -1185,7 +1190,7 @@ class Dataset:
                     dataset_name_list.append(dataset_dir.name)
         return dataset_name_list
 
-    def initialize(self):
+    def _initialize(self):
         """Initialize Dataset.
         It creates necessary directories under {dataset_root_dir}/{dataset_name}.
         """
@@ -1231,7 +1236,7 @@ class Dataset:
                 return False
         return True
 
-    def check_trainable(self):
+    def _check_trainable(self):
         """
         Check if Dataset is trainable or not.
 
@@ -1474,7 +1479,7 @@ class Dataset:
         for item in images:
             item_id = item.image_id
             item_path = self.image_dir / f"{item_id}.json"
-            io.save_json(item.to_dict(), item_path)
+            io.save_json(item.to_dict(), item_path, create_directory=True)
 
     def add_categories(self, categories: Union[Category, list[Category]]):
         """Add "Category"s to dataset.
@@ -1496,7 +1501,7 @@ class Dataset:
         for item in categories:
             item_id = item.category_id
             item_path = self.category_dir / f"{item_id}.json"
-            io.save_json(item.to_dict(), item_path)
+            io.save_json(item.to_dict(), item_path, create_directory=True)
 
         self.save_dataset_info()
 
@@ -1566,7 +1571,7 @@ class Dataset:
             [[1, 2, 3, 4, 5, 6, 7, 8], [9], [10], []]  # train, val, test, unlabeled image ids
         """
 
-        self.check_trainable()
+        self._check_trainable()
 
         if train_ratio <= 0.0 or train_ratio >= 1.0:
             raise ValueError(
@@ -1681,7 +1686,7 @@ class Dataset:
             str: exported dataset directory
         """
 
-        self.check_trainable()
+        self._check_trainable()
 
         export_dir: Path = self.export_dir / EXPORT_MAP[data_type.upper()]
         if data_type in [DataType.YOLO, DataType.ULTRALYTICS]:
@@ -1734,4 +1739,4 @@ class Dataset:
             np_image = load_image(self.raw_image_dir / image.file_name)
             annotations = self.get_annotations(image.image_id)
             drawn_image = draw_results(np_image, annotations, names)
-            save_image(self.draw_dir / image.file_name, drawn_image)
+            save_image(self.draw_dir / image.file_name, drawn_image, create_directory=True)

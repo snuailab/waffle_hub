@@ -23,14 +23,16 @@ import numpy as np
 import torch
 import tqdm
 from waffle_utils.file import io
+from waffle_utils.image.io import save_image
 from waffle_utils.utils import type_validator
+from waffle_utils.video.io import create_video_writer
 
 from waffle_hub import BACKEND_MAP, EXPORT_MAP, TaskType
 from waffle_hub.dataset import Dataset
 from waffle_hub.hub.model.wrapper import get_parser
 from waffle_hub.schema.configs import (
     EvaluateConfig,
-    ExportConfig,
+    ExportOnnxConfig,
     InferenceConfig,
     ModelConfig,
     TrainConfig,
@@ -39,7 +41,8 @@ from waffle_hub.schema.data import ImageInfo
 from waffle_hub.schema.fields import Category
 from waffle_hub.schema.result import (
     EvaluateResult,
-    ExportResult,
+    ExportOnnxResult,
+    ExportWaffleResult,
     InferenceResult,
     TrainResult,
 )
@@ -57,6 +60,7 @@ from waffle_hub.utils.data import (
 )
 from waffle_hub.utils.draw import draw_results
 from waffle_hub.utils.evaluate import evaluate_function
+from waffle_hub.utils.memory import device_context
 from waffle_hub.utils.metric_logger import MetricLogger
 
 logger = logging.getLogger(__name__)
@@ -87,8 +91,9 @@ class Hub:
     TRAIN_CONFIG_FILE = CONFIG_DIR / "train.yaml"
 
     # train results
-    LAST_CKPT_FILE = "weights/last_ckpt.pt"
-    BEST_CKPT_FILE = "weights/best_ckpt.pt"  # TODO: best metric?
+    WEIGHTS_DIR = Path("weights")
+    LAST_CKPT_FILE = WEIGHTS_DIR / "last_ckpt.pt"
+    BEST_CKPT_FILE = WEIGHTS_DIR / "best_ckpt.pt"  # TODO: best metric?
     METRIC_FILE = "metrics.json"
 
     # evaluate results
@@ -286,7 +291,7 @@ class Hub:
             task (str, optional): Task Name. See Hub.TASKS. Defaults to None.
             model_type (str, optional): Model Type. See Hub.MODEL_TYPES. Defaults to None.
             model_size (str, optional): Model Size. See Hub.MODEL_SIZES. Defaults to None.
-            categories (Union[list[dict], list]): class dictionary or list. [{"supercategory": "name"}, ] or ["name",].
+            categories (Union[list[dict], list], optional): class dictionary or list. [{"supercategory": "name"}, ] or ["name",]. Defaults to None.
             root_dir (str, optional): Root directory of hub repository. Defaults to None.
 
         Returns:
@@ -402,6 +407,51 @@ class Hub:
                     hub_name_list.append(hub_dir.name)
         return hub_name_list
 
+    @classmethod
+    def from_waffle_file(cls, name: str, waffle_file: str, root_dir: str = None) -> "Hub":
+        """Import new Hub with waffle file for inference.
+
+        Args:
+            name (str): hub name.
+            waffle_file (str): waffle file path.
+            root_dir (str, optional): hub root directory. Defaults to None.
+
+        Returns:
+            Hub: New Hub instance
+        """
+        root_dir = Hub.parse_root_dir(root_dir)
+
+        if name in cls.get_hub_list(root_dir):
+            raise FileExistsError(f"{name} already exists. Try another name.")
+
+        if not os.path.exists(waffle_file):
+            raise FileNotFoundError(f"Waffle file {waffle_file} is not exist.")
+
+        if os.path.splitext(waffle_file)[1] != ".waffle":
+            raise ValueError(
+                f"Invalid waffle file: {waffle_file}, Waffle File extension must be .waffle."
+            )
+
+        try:
+            io.unzip(waffle_file, root_dir / name, create_directory=True)
+            model_config_file = root_dir / name / Hub.MODEL_CONFIG_FILE
+            if not model_config_file.exists():
+                raise FileNotFoundError(f"Model[{name}] does not exists. {model_config_file}")
+            model_config = ModelConfig.load(model_config_file)
+            model_config.name = name
+            model_config.save_yaml(model_config_file)
+            return cls.get_hub_class(model_config.backend)(
+                **{
+                    **model_config.to_dict(),
+                    "root_dir": root_dir,
+                }
+            )
+
+        except Exception as e:
+            if (root_dir / name).exists():
+                io.remove_directory(root_dir / name)
+            raise e
+
     # properties
     @property
     def name(self) -> str:
@@ -479,8 +529,13 @@ class Hub:
         return self.__backend
 
     @backend.setter
-    @type_validator(str)
+    @type_validator(str, strict=False)
     def backend(self, v):
+        v = str(v).upper()
+        if v not in BACKEND_MAP:
+            raise ValueError(
+                f"Backend {v} is not supported. Choose one of {list(BACKEND_MAP.keys())}"
+            )
         self.__backend = v
 
     @property
@@ -598,6 +653,11 @@ class Hub:
     def evaluate_file(self) -> Path:
         """Evaluate Json File"""
         return self.hub_dir / Hub.EVALUATE_FILE
+
+    @cached_property
+    def waffle_file(self) -> Path:
+        """Export Waffle file"""
+        return self.hub_dir / f"{self.name}.waffle"
 
     # common functions
     def delete_hub(self):
@@ -909,6 +969,7 @@ class Hub:
             TrainResult: train result
         """
 
+        @device_context("cpu" if device == "cpu" else device)
         def inner(callback: TrainCallback, result: TrainResult):
             try:
                 metric_logger = MetricLogger(
@@ -934,7 +995,6 @@ class Hub:
                 )
                 self.after_train(cfg, result)
                 metric_logger.stop()
-
                 callback.force_finish()
             except FileExistsError as e:
                 callback.force_finish()
@@ -1005,7 +1065,9 @@ class Hub:
                     self.DEFAULT_PARAMS[self.task][self.model_type][self.model_size], k
                 )
                 setattr(cfg, k, field_value)
-        cfg.image_size = cfg.image_size if isinstance(cfg.image_size, list) else [cfg.image_size, cfg.image_size]
+        cfg.image_size = (
+            cfg.image_size if isinstance(cfg.image_size, list) else [cfg.image_size, cfg.image_size]
+        )
 
         ## overwrite train advance config
         if cfg.advance_params:
@@ -1053,13 +1115,15 @@ class Hub:
     def get_model(self):
         raise NotImplementedError
 
-    def before_evaluate(self, cfg: EvaluateConfig):
-        pass
+    def before_evaluate(self, cfg: EvaluateConfig, dataset: Dataset):
+        if len(dataset.get_split_ids()[2]) == 0:
+            cfg.set_name = "val"
+            logger.warning("test set is not exist. use val set instead.")
 
     def on_evaluate_start(self, cfg: EvaluateConfig):
         pass
 
-    def evaluating(self, cfg: EvaluateConfig, callback: EvaluateCallback) -> str:
+    def evaluating(self, cfg: EvaluateConfig, callback: EvaluateCallback, dataset: Dataset) -> str:
         device = cfg.device
 
         model = self.get_model().to(device)
@@ -1090,16 +1154,21 @@ class Hub:
             callback.update(i)
 
         metrics = evaluate_function(preds, labels, self.task, len(self.categories))
-        io.save_json(
-            [
-                {
-                    "tag": tag,
-                    "value": value,
-                }
-                for tag, value in metrics.to_dict().items()
-            ],
-            self.evaluate_file,
-        )
+
+        result_metrics = []
+        for tag, value in metrics.to_dict().items():
+            if isinstance(value, list):
+                values = [
+                    {
+                        "class_name": cat,
+                        "value": cat_value,
+                    }
+                    for cat, cat_value in zip(self.get_category_names(), value)
+                ]
+            else:
+                values = value
+            result_metrics.append({"tag": tag, "value": values})
+        io.save_json(result_metrics, self.evaluate_file)
 
     def on_evaluate_end(self, cfg: EvaluateConfig):
         pass
@@ -1168,11 +1237,12 @@ class Hub:
             EvaluateResult: evaluate result
         """
 
-        def inner(callback: EvaluateCallback, result: EvaluateResult):
+        @device_context("cpu" if device == "cpu" else device)
+        def inner(dataset: Dataset, callback: EvaluateCallback, result: EvaluateResult):
             try:
-                self.before_evaluate(cfg)
+                self.before_evaluate(cfg, dataset)
                 self.on_evaluate_start(cfg)
-                self.evaluating(cfg, callback)
+                self.evaluating(cfg, callback, dataset)
                 self.on_evaluate_end(cfg)
                 self.after_evaluate(cfg, result)
                 callback.force_finish()
@@ -1225,9 +1295,9 @@ class Hub:
         result.callback = callback
 
         if hold:
-            inner(callback, result)
+            inner(dataset, callback, result)
         else:
-            thread = threading.Thread(target=inner, args=(callback, result), daemon=True)
+            thread = threading.Thread(target=inner, args=(dataset, callback, result), daemon=True)
             callback.register_thread(thread)
             callback.start()
 
@@ -1273,29 +1343,43 @@ class Hub:
                 results.append({str(image_info.image_rel_path): [res.to_dict() for res in result]})
 
                 if cfg.draw:
+                    io.make_directory(self.draw_dir)
                     draw = draw_results(
                         image_info.ori_image,
                         result,
                         names=[x["name"] for x in self.categories],
                     )
-                    draw_path = self.draw_dir / Path(image_info.image_rel_path).with_suffix(".png")
-                    io.make_directory(draw_path.parent)
-                    cv2.imwrite(str(draw_path), draw)
 
-                if cfg.draw and cfg.source_type == "video":
-                    if writer is None:
-                        h, w = draw.shape[:2]
-                        writer = cv2.VideoWriter(
-                            str(self.inference_dir / Path(cfg.source).with_suffix(".mp4").name),
-                            cv2.VideoWriter_fourcc(*"mp4v"),
-                            dataset.fps,
-                            (w, h),
+                    if cfg.source_type == "video":
+                        if writer is None:
+                            h, w = draw.shape[:2]
+                            writer = create_video_writer(
+                                str(self.inference_dir / Path(cfg.source).with_suffix(".mp4").name),
+                                dataset.fps,
+                                (w, h),
+                            )
+                        writer.write(draw)
+
+                        draw_path = (
+                            self.draw_dir
+                            / Path(cfg.source).stem
+                            / Path(image_info.image_rel_path).with_suffix(".png")
                         )
-                    writer.write(draw)
+                    else:
+                        draw_path = self.draw_dir / Path(image_info.image_rel_path).with_suffix(
+                            ".png"
+                        )
+                    save_image(draw_path, draw, create_directory=True)
 
                 if cfg.show:
+                    if not cfg.draw:
+                        draw = draw_results(
+                            image_info.ori_image,
+                            result,
+                            names=[x["name"] for x in self.categories],
+                        )
                     cv2.imshow("result", draw)
-                    cv2.waitKey(0)
+                    cv2.waitKey(1)
 
             callback.update(i)
 
@@ -1383,6 +1467,7 @@ class Hub:
             InferenceResult: inference result
         """
 
+        @device_context("cpu" if device == "cpu" else device)
         def inner(callback: InferenceCallback, result: InferenceResult):
             try:
                 self.before_inference(cfg)
@@ -1450,7 +1535,6 @@ class Hub:
         callback = InferenceCallback(100)  # dummy step
         result = InferenceResult()
         result.callback = callback
-
         if hold:
             inner(callback, result)
         else:
@@ -1461,13 +1545,13 @@ class Hub:
         return result
 
     # Export Hook
-    def before_export(self, cfg: ExportConfig):
+    def before_export_onnx(self, cfg: ExportOnnxConfig):
         pass
 
-    def on_export_start(self, cfg: ExportConfig):
+    def on_export_onnx_start(self, cfg: ExportOnnxConfig):
         pass
 
-    def exporting(self, cfg: ExportConfig, callback: ExportCallback) -> str:
+    def exporting_onnx(self, cfg: ExportOnnxConfig, callback: ExportCallback) -> str:
         image_size = cfg.image_size
         image_size = [image_size, image_size] if isinstance(image_size, int) else image_size
 
@@ -1501,13 +1585,13 @@ class Hub:
             dynamic_axes={name: {0: "batch_size"} for name in input_name + output_names},
         )
 
-    def on_export_end(self, cfg: ExportConfig):
+    def on_export_onnx_end(self, cfg: ExportOnnxConfig):
         pass
 
-    def after_export(self, cfg: ExportConfig, result: ExportResult):
-        result.export_file = self.onnx_file
+    def after_export_onnx(self, cfg: ExportOnnxConfig, result: ExportOnnxResult):
+        result.onnx_file = self.onnx_file
 
-    def export(
+    def export_onnx(
         self,
         image_size: Union[int, list[int]] = None,
         batch_size: int = 16,
@@ -1515,8 +1599,8 @@ class Hub:
         half: bool = False,
         device: str = "0",
         hold: bool = True,
-    ) -> ExportResult:
-        """Export Model
+    ) -> ExportOnnxResult:
+        """Export Onnx Model
 
         Args:
             image_size (Union[int, list[int]], optional): inference image size. None for same with train_config (recommended).
@@ -1526,35 +1610,36 @@ class Hub:
             device (str, optional): device. "cpu" or "gpu_id". Defaults to "0".
             hold (bool, optional): hold or not.
                 If True then it holds until task finished.
-                If False then return Inferece Callback and run in background. Defaults to True.
+                If False then return Inference Callback and run in background. Defaults to True.
 
         Example:
-            >>> export_result = hub.export(
+            >>> export_onnx_result = hub.export_onnx(
                 image_size=640,
                 batch_size=16,
                 opset_version=11,
             )
             # or simply use train option by passing None
-            >>> export_result = hub.export(
+            >>> export_onnx_result = hub.export_onnx(
                 ...,
                 image_size=None,  # use train option
                 ...
             )
-            >>> export_result.export_file
+            >>> export_onnx_result.onnx_file
             hubs/my_hub/weights/model.onnx
 
         Returns:
-            ExportResult: export result
+            ExportOnnxResult: export onnx result
         """
         self.check_train_sanity()
 
-        def inner(callback: ExportCallback, result: ExportResult):
+        @device_context("cpu" if device == "cpu" else device)
+        def inner(callback: ExportCallback, result: ExportOnnxResult):
             try:
-                self.before_export(cfg)
-                self.on_export_start(cfg)
-                self.exporting(cfg, callback)
-                self.on_export_end(cfg)
-                self.after_export(cfg, result)
+                self.before_export_onnx(cfg)
+                self.on_export_onnx_start(cfg)
+                self.exporting_onnx(cfg, callback)
+                self.on_export_onnx_end(cfg)
+                self.after_export_onnx(cfg, result)
                 callback.force_finish()
             except Exception as e:
                 if self.onnx_file.exists():
@@ -1568,7 +1653,7 @@ class Hub:
         if image_size is None:
             image_size = train_config.image_size
 
-        cfg = ExportConfig(
+        cfg = ExportOnnxConfig(
             image_size=image_size if isinstance(image_size, list) else [image_size, image_size],
             batch_size=batch_size,
             opset_version=opset_version,
@@ -1577,7 +1662,7 @@ class Hub:
         )
 
         callback = ExportCallback(1)
-        result = ExportResult()
+        result = ExportOnnxResult()
         result.callback = callback
 
         if hold:
@@ -1666,3 +1751,20 @@ class Hub:
             "cpu_name": cpuinfo.get_cpu_info()["brand_raw"],
             "gpu_name": torch.cuda.get_device_name(0) if device != "cpu" else None,
         }
+
+    def export_waffle(self, root_dir: str = None) -> ExportWaffleResult:
+        """Export Waffle Model
+        Args:
+            root_dir (str, optional): hub root directory. Defaults to None.
+        Example:
+            >>> export_waffle_result = hub.export_waffle()
+            >>> export_waffle_result.waffle_file
+            hubs/my_hub/my_hub.waffle
+        Returns:
+            ExportWaffleResult: export waffle result
+        """
+        io.zip([self.hub_dir / Hub.CONFIG_DIR, self.hub_dir / Hub.WEIGHTS_DIR], self.waffle_file)
+        result = ExportWaffleResult()
+        result.waffle_file = self.waffle_file
+
+        return result
