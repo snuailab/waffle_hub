@@ -90,11 +90,8 @@ def test_evalute_semantic_segmentation():
             [
                 Annotation.semantic_segmentation(category_id=1, segmentation=[[0, 0, 1, 0, 1, 1]], score=1.0),
                 Annotation.semantic_segmentation(category_id=2, segmentation=[[0, 0, 1, 0, 1, 1]], score=1.0),
-                Annotation.semantic_segmentation(category_id=2, segmentation=[[0, 0, 1, 0, 1, 1]], score=1.0),
             ],
             [
-                Annotation.semantic_segmentation(category_id=1, segmentation=[[0, 0, 1, 0, 1, 1]], score=1.0),
-                Annotation.semantic_segmentation(category_id=1, segmentation=[[0, 0, 1, 0, 1, 1]], score=1.0),
                 Annotation.semantic_segmentation(category_id=1, segmentation=[[0, 0, 1, 0, 1, 1]], score=1.0),
             ],
         ],
