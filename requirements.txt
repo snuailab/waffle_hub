@@ -35,3 +35,4 @@ plotly==5.16.1
 Pillow==9.5.0
 kaleido==0.2.1
 pyarrow==11.0.0
+fsspec<2023.10.0
