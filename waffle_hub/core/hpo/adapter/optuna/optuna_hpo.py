@@ -17,7 +17,6 @@ from waffle_utils.utils import type_validator
 from waffle_hub.core.hpo.adapter.optuna.config import DEFAULT_CONFIG
 from waffle_hub.schema.configs import HPOConfig
 from waffle_hub.schema.result import HPOResult
-from waffle_hub.utils.callback import HPOCallback
 
 from .config import PRUNER_MAP, SAMPLER_MAP
 from .hpo_helper import ChoiceMethod, draw_error_image
@@ -450,7 +449,6 @@ class OptunaHPO:
     def optimize(self, objective: Callable, **kwargs) -> None:
         def objective_wrapper(trial: optuna.trial.Trial) -> float:
             search_space_values = self._get_search_space(trial, self.search_space, self.is_hub)
-
             if self.is_hub:
                 search_space_values.update({"metric": self.metric, "trial": trial})
             kwargs.update(search_space_values)
@@ -481,7 +479,6 @@ class OptunaHPO:
     def run_hpo(
         self,
         objective: Callable,
-        callback: HPOCallback = None,
         visualize_hpo: bool = True,
         **kwargs,
     ) -> HPOResult:
@@ -499,7 +496,7 @@ class OptunaHPO:
         sampler = self.get_sampler(self.sampler_name, **self.sampler_param)
         pruner = self.get_pruner(self.pruner_name, **self.pruner_param)
         self.create_study(sampler, pruner)
-        self.optimize(objective=objective, callback=callback, **kwargs)
+        self.optimize(objective=objective, **kwargs)
 
         hpo_results = HPOResult(
             best_trial=self._study.best_trial.number,
