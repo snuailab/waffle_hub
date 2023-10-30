@@ -1569,6 +1569,8 @@ class Hub:
             output_names = ["bbox", "conf", "class_id", "masks"]
         elif self.task == TaskType.TEXT_RECOGNITION:
             output_names = ["class_ids", "confs"]
+        elif self.task == TaskType.SEMANTIC_SEGMENTATION:
+            output_names = ["score_map"]
         else:
             raise NotImplementedError(f"{self.task} does not support export yet.")
 
