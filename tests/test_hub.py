@@ -446,7 +446,6 @@ def test_autocare_dlt_text_recognition(text_recognition_dataset: Dataset, tmpdir
     _total(hub, dataset, image_size, tmpdir)
 
 
-@pytest.mark.skip("Need to modfiy autocate_dlt")
 def test_autocare_dlt_semantic_segmentation(semantic_segmentation_dataset: Dataset, tmpdir: Path):
     image_size = 32
     dataset = semantic_segmentation_dataset
