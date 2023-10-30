@@ -1493,7 +1493,7 @@ class Hub:
                     source = source.absolute()
                     source_type = "image"
                 elif source.suffix in IMAGE_EXTS:
-                    source = [source.absolute()]
+                    source = source.absolute()
                     source_type = "image"
                 elif source.suffix in VIDEO_EXTS:
                     source = str(source.absolute())
