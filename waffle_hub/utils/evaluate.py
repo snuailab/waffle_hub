@@ -230,6 +230,8 @@ def evalute_semantic_segmentation(
     # iou
     iou = 0
     for pred, label in zip(preds, labels):
+        if pred["masks"].numel() == 0:  # If the object isn't detected
+            continue
         intersection = torch.sum((pred["masks"] == 255) & (label["masks"] == 255))
         union = torch.sum(pred["masks"] == 255) + torch.sum(label["masks"] == 255) - intersection
         iou += intersection / union
