@@ -230,8 +230,8 @@ def evalute_semantic_segmentation(
             if pred_index.numel() == 0:
                 continue
 
-            _mpa += torch.sum(pred["masks"][pred_index] == label["masks"][label_index])
-        mean_pixel_accuracy += _mpa / torch.numel(label["masks"][label_index])
+            _mpa += torch.sum(pred["masks"][pred_index] == label["masks"][label_index]) / torch.numel(label["masks"][label_index])
+        mean_pixel_accuracy += _mpa / len(label["labels"])
     mean_pixel_accuracy /= len(labels)
 
     # iou
@@ -241,13 +241,11 @@ def evalute_semantic_segmentation(
             continue
         
         _iou = 0
-        _valid_samples = 0
         for label_index, class_id in enumerate(label["labels"]):
             pred_index = torch.where(pred["labels"] == class_id)[0]
             if pred_index.numel() == 0:
                 continue
 
-            _valid_samples += 1
             label_mask = (label["masks"][label_index] == 255)
             pred_mask = (pred["masks"][pred_index] == 255)
 
@@ -258,7 +256,7 @@ def evalute_semantic_segmentation(
                 continue
 
             _iou += (intersection / union)
-        iou += _iou / _valid_samples
+        iou += _iou / len(label["labels"])
     iou /= len(labels)
 
     result = SemanticSegmentationMetric(float(mean_pixel_accuracy), float(iou))
