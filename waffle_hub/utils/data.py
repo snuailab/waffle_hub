@@ -109,7 +109,7 @@ def resize_image(
 
 def get_image_transform(image_size: Union[int, list[int]], letter_box: bool = False):
     def transform(image: Union[np.ndarray, str]) -> tuple[torch.Tensor, ImageInfo]:
-        if isinstance(image, str):
+        if isinstance(image, (str, Path)):
             image = load_image(image)
         image = cv2.cvtColor(image, cv2.COLOR_BGR2RGB)
         image, image_info = resize_image(image, image_size, letter_box)
