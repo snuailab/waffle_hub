@@ -79,6 +79,46 @@ def test_evaluate_object_detection():
     assert result.mAP < 1.0
 
 
+def test_evaluate_instance_segmentation():
+    result: InstanceSegmentationMetric = evaluate_instance_segmentation(
+    preds=[
+            [
+                Annotation.instance_segmentation(category_id=1, segmentation=[[0, 0, 1, 0, 1, 1]], score=1.0),
+                Annotation.instance_segmentation(category_id=2, segmentation=[[0, 0, 1, 0, 1, 1]], score=1.0),
+                Annotation.instance_segmentation(category_id=3, segmentation=[[0, 0, 1, 0, 1, 1]], score=1.0),
+            ],
+            [
+                Annotation.instance_segmentation(category_id=1, segmentation=[[0, 0, 1, 0, 1, 1]], score=1.0),
+                Annotation.instance_segmentation(category_id=2, segmentation=[[0, 0, 1, 0, 1, 1]], score=1.0),
+            ],
+            [
+                Annotation.instance_segmentation(category_id=1, segmentation=[[0, 0, 1, 0, 1, 1]], score=1.0),
+            ],
+        ],
+        labels=[
+            [
+                Annotation.instance_segmentation(category_id=1, segmentation=[[0, 0, 1, 0, 1, 1]]),
+                Annotation.instance_segmentation(category_id=2, segmentation=[[0, 0, 1, 0, 1, 1]]),
+                Annotation.instance_segmentation(category_id=3, segmentation=[[0, 0, 1, 0, 1, 1]]),
+            ],
+            [
+                Annotation.instance_segmentation(category_id=1, segmentation=[[0, 0, 1, 0, 1, 1]]),
+                Annotation.instance_segmentation(category_id=2, segmentation=[[0, 0, 1, 0, 1, 1]]),
+                Annotation.instance_segmentation(category_id=3, segmentation=[[0, 0, 1, 0, 1, 1]]),
+            ],
+            [
+                Annotation.instance_segmentation(category_id=1, segmentation=[[0, 0, 1, 0, 1, 1]]),
+                Annotation.instance_segmentation(category_id=2, segmentation=[[0, 0, 1, 0, 1, 1]]),
+                Annotation.instance_segmentation(category_id=3, segmentation=[[0, 0, 1, 0, 1, 1]]),
+            ],
+        ],
+        num_classes=3,
+        image_size=[32,32],
+    )
+
+    assert result.mAP < 1.0 and result.mAP > 0.0
+
+
 def test_evalute_semantic_segmentation():
     result: SemanticSegmentationMetric = evalute_semantic_segmentation(
     preds=[
