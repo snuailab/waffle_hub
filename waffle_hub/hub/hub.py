@@ -1825,6 +1825,7 @@ class Hub:
         dataset = kwargs.get("dataset", None)
         metric = kwargs.get("metric", None)
         selected_params = kwargs.get("advance_params", None)
+        callback = kwargs.get("callback", None)
         hub = Hub.new(
             name=f"trial_{trial.number}",
             backend=self.backend,
@@ -1851,6 +1852,7 @@ class Hub:
             if metric_value["tag"] == metric:
                 result = metric_value["value"]
                 break
+        callback.update(trial.number + 1)
         return float(result)
 
     def hpo(
@@ -1885,6 +1887,7 @@ class Hub:
                 optuna_hpo.run_hpo(
                     study_name=self.name,
                     objective=self.hpo_hub_objective,
+                    callback=callback,
                     dataset=dataset,
                     device=device,
                     workers=workers,
@@ -1932,7 +1935,7 @@ class Hub:
                 f"Dataset task is not matched with hub task. Dataset task: {dataset.task}, Hub task: {self.task}"
             )
 
-        callback = HPOCallback(1)
+        callback = HPOCallback(n_trials)
         result = HPOConfig(
             search_space=search_space,
             sampler=sampler,
