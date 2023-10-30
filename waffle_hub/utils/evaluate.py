@@ -219,23 +219,28 @@ def evalute_semantic_segmentation(
 
     # mpa
     mean_pixel_accuracy = 0
-    for pred, label in zip(preds, labels):
+    for pred in preds:
         if pred["masks"].numel() == 0:  # If the object isn't detected
             continue
-        mean_pixel_accuracy += torch.sum(pred["masks"] == label["masks"]) / torch.numel(
-            pred["masks"]
-        )
-    mean_pixel_accuracy /= len(preds)
+        for label in labels:
+            if torch.equal(pred["labels"], label["labels"]):
+                mean_pixel_accuracy += torch.sum(pred["masks"] == label["masks"]) / torch.numel(
+                    label["masks"]
+                )
+    mean_pixel_accuracy /= len(labels)
 
     # iou
     iou = 0
-    for pred, label in zip(preds, labels):
+    for pred in preds:
         if pred["masks"].numel() == 0:  # If the object isn't detected
             continue
-        intersection = torch.sum((pred["masks"] == 255) & (label["masks"] == 255))
-        union = torch.sum(pred["masks"] == 255) + torch.sum(label["masks"] == 255) - intersection
-        iou += intersection / union
-    iou /= len(preds)
+
+        for label in labels:
+            if torch.equal(pred["labels"], label["labels"]):
+                intersection = torch.sum((pred["masks"] == 255) & (label["masks"] == 255))
+                union = torch.sum(pred["masks"] == 255) + torch.sum(label["masks"] == 255) - intersection
+                iou += intersection / union
+    iou /= len(labels)
 
     result = SemanticSegmentationMetric(float(mean_pixel_accuracy), float(iou))
     return result
