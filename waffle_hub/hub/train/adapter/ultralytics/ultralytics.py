@@ -43,6 +43,7 @@ class UltralyticsManager(BaseManager):
         model_type: str,
         model_size: str,
         categories: list[Union[str, int, float, dict, Category]],
+        load: bool = False,
     ):
         super().__init__(
             root_dir=root_dir,
@@ -51,6 +52,7 @@ class UltralyticsManager(BaseManager):
             model_type=model_type,
             model_size=model_size,
             categories=categories,
+            load=load,
         )
 
         if self.VERSION is not None and ultralytics.__version__ != self.VERSION:
@@ -87,8 +89,8 @@ class UltralyticsManager(BaseManager):
             id_mapper[i] = yolo_names_inv[name]
 
         # get adapt functions
-        preprocess = self.get_preprocess()
-        postprocess = self.get_postprocess(id_mapper=id_mapper)
+        preprocess = self._get_preprocess()
+        postprocess = self._get_postprocess(id_mapper=id_mapper)
 
         # return model wrapper
         return ModelWrapper(
@@ -97,7 +99,7 @@ class UltralyticsManager(BaseManager):
             postprocess=postprocess,
         )
 
-    def get_preprocess(self, *args, **kwargs):
+    def _get_preprocess(self, *args, **kwargs):
 
         if self.task == TaskType.CLASSIFICATION:
             normalize = T.Normalize([0, 0, 0], [1, 1, 1], inplace=True)
@@ -122,7 +124,7 @@ class UltralyticsManager(BaseManager):
 
         return preprocess
 
-    def get_postprocess(self, *args, **kwargs):
+    def _get_postprocess(self, *args, **kwargs):
 
         id_mapper: list[int] = kwargs.get("id_mapper", [i for i in range(len(self.categories))])
 
@@ -207,7 +209,7 @@ class UltralyticsManager(BaseManager):
         # [[{"tag": train/box_loss, "value": 0.0}, {"tag": train/box_loss, "value": 1.7328}, ...], ...]
         # and return it
 
-        csv_path = self.artifact_dir / "results.csv"
+        csv_path = self.artifacts_dir / "results.csv"
 
         if not csv_path.exists():
             return []
@@ -282,7 +284,7 @@ class UltralyticsManager(BaseManager):
             "seed": self.train_cfg.seed,
             "verbose": self.train_cfg.verbose,
             "project": str(self.root_dir),
-            "name": str(self.ARTIFACT_DIR),
+            "name": str(self.ARTIFACTS_DIR),
         }
         params.update(self.train_cfg.advance_params)
 
@@ -308,12 +310,12 @@ class UltralyticsManager(BaseManager):
 
     def on_train_end(self):
         io.copy_file(
-            self.artifact_dir / "weights" / "best.pt",
+            self.artifacts_dir / "weights" / "best.pt",
             self.best_ckpt_file,
             create_directory=True,
         )
         io.copy_file(
-            self.artifact_dir / "weights" / "last.pt",
+            self.artifacts_dir / "weights" / "last.pt",
             self.last_ckpt_file,
             create_directory=True,
         )

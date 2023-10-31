@@ -30,11 +30,11 @@ from waffle_utils.video.io import create_video_writer
 from waffle_dough.type.task_type import TaskType
 from waffle_hub import BACKEND_MAP
 from waffle_hub.dataset import Dataset
+from waffle_hub.hub.eval.evaluator import Evaluator
 from waffle_hub.hub.model.result_parser import get_parser
 from waffle_hub.hub.model.wrapper import ModelWrapper
 from waffle_hub.hub.train.adapter.base_manager import BaseManager
 from waffle_hub.schema.configs import (
-    EvaluateConfig,
     ExportOnnxConfig,
     InferenceConfig,
     ModelConfig,
@@ -51,10 +51,8 @@ from waffle_hub.schema.result import (
 )
 from waffle_hub.type.backend_type import BackendType
 from waffle_hub.utils.callback import (
-    EvaluateCallback,
     ExportCallback,
     InferenceCallback,
-    TrainCallback,
 )
 from waffle_hub.utils.data import (
     IMAGE_EXTS,
@@ -63,9 +61,7 @@ from waffle_hub.utils.data import (
     get_image_transform,
 )
 from waffle_hub.utils.draw import draw_results
-from waffle_hub.utils.evaluate import evaluate_function
 from waffle_hub.utils.memory import device_context
-from waffle_hub.utils.metric_logger import MetricLogger
 
 logger = logging.getLogger(__name__)
 
@@ -113,20 +109,24 @@ class Hub:
         self.model_size: str = model_size
         self.categories: list[Category] = categories
 
-        self.manager = self.get_manager_class(backend)(
-            root_dir=self.hub_dir,
-            name=self.name,
-            task=self.task,
-            model_type=self.model_type,
-            model_size=self.model_size,
-            categories=self.categories,
+        self.manager = (
+            self.get_manager_class(backend).load(root_dir=self.hub_dir)
+            if BaseManager.is_exists(root_dir=self.hub_dir)
+            else self.get_manager_class(backend)(
+                root_dir=self.hub_dir,
+                name=self.name,
+                task=self.task,
+                model_type=self.model_type,
+                model_size=self.model_size,
+                categories=self.categories,
+            )
         )
 
         self.backend: str = self.manager.backend
         self.version: str = self.manager.VERSION
 
     def __repr__(self):
-        return self.manager.get_model_config().__repr__()
+        return self.get_model_config().__repr__()
 
     @classmethod
     def get_manager_class(cls, backend: str = None) -> "BaseManager":
@@ -149,28 +149,6 @@ class Hub:
         module = importlib.import_module(backend_info["adapter_import_path"])
         adapter_class = getattr(module, backend_info["adapter_class_name"])
         return adapter_class
-
-    # @classmethod
-    # def get_hub_class(cls, backend: str = None) -> "Hub":
-    #     """
-    #     Get hub class
-
-    #     Args:
-    #         backend (str): Backend name
-
-    #     Raises:
-    #         ModuleNotFoundError: If backend is not supported
-
-    #     Returns:
-    #         Hub: Backend hub Class
-    #     """
-    #     if backend not in BACKEND_MAP:
-    #         raise ModuleNotFoundError(f"Backend {backend} is not supported")
-
-    #     backend_info = BACKEND_MAP[backend]
-    #     module = importlib.import_module(backend_info["import_path"])
-    #     hub_class = getattr(module, backend_info["class_name"])
-    #     return hub_class
 
     @classmethod
     def get_available_backends(cls) -> list[str]:
@@ -578,7 +556,7 @@ class Hub:
         Returns:
             ModelConfig: model config
         """
-        return self.manager.get_model_config()
+        return self.manager.get_model_config(root_dir=self.hub_dir)
 
     def get_train_config(self) -> TrainConfig:
         """Get train config from train config file.
@@ -587,7 +565,7 @@ class Hub:
             TrainConfig: train config
         """
 
-        return self.manager.get_train_config()
+        return self.manager.get_train_config(root_dir=self.hub_dir)
 
     def get_categories(self) -> list[Category]:
         return self.manager.categories
@@ -644,11 +622,9 @@ class Hub:
             ]
 
         Returns:
-            dict: evaluate result
+            list[dict]: evaluate result
         """
-        if not self.evaluate_file.exists():
-            return []
-        return io.load_json(self.evaluate_file)
+        return Evaluator.get_evaluate_result(root_dir=self.hub_dir)
 
     def get_inference_result(self) -> list[dict]:
         """Get inference result from inference file.
@@ -724,9 +700,12 @@ class Hub:
 
         return inner
 
+    def get_model(self) -> ModelWrapper:
+        return self.manager.get_model()
+
     def train(
         self,
-        dataset: Union[Dataset, str],
+        dataset: Union[Dataset, str, Path],
         dataset_root_dir: str = None,
         epochs: int = None,
         batch_size: int = None,
@@ -806,74 +785,11 @@ class Hub:
             hold=hold,
         )
 
-    # Evaluation Hook
-    def get_model(self) -> ModelWrapper:
-        return self.manager.get_model()
-
-    def before_evaluate(self, cfg: EvaluateConfig, dataset: Dataset):
-        if len(dataset.get_split_ids()[2]) == 0:
-            cfg.set_name = "val"
-            logger.warning("test set is not exist. use val set instead.")
-
-    def on_evaluate_start(self, cfg: EvaluateConfig):
-        pass
-
-    def evaluating(self, cfg: EvaluateConfig, callback: EvaluateCallback, dataset: Dataset) -> str:
-        device = cfg.device
-
-        model = self.get_model().to(device)
-
-        dataset = Dataset.load(cfg.dataset_name, cfg.dataset_root_dir)
-        dataloader = get_dataset_class("dataset")(
-            dataset,
-            cfg.image_size,
-            letter_box=cfg.letter_box,
-            set_name=cfg.set_name,
-        ).get_dataloader(cfg.batch_size, cfg.workers)
-
-        result_parser = get_parser(self.task)(**cfg.to_dict(), categories=self.categories)
-
-        callback._total_steps = len(dataloader) + 1
-
-        preds = []
-        labels = []
-        for i, (images, image_infos, annotations) in tqdm.tqdm(
-            enumerate(dataloader, start=1), total=len(dataloader)
-        ):
-            result_batch = model(images.to(device))
-            result_batch = result_parser(result_batch, image_infos)
-
-            preds.extend(result_batch)
-            labels.extend(annotations)
-
-            callback.update(i)
-
-        metrics = evaluate_function(preds, labels, self.task, len(self.categories))
-
-        result_metrics = []
-        for tag, value in metrics.to_dict().items():
-            if isinstance(value, list):
-                values = [
-                    {
-                        "class_name": cat,
-                        "value": cat_value,
-                    }
-                    for cat, cat_value in zip(self.get_category_names(), value)
-                ]
-            else:
-                values = value
-            result_metrics.append({"tag": tag, "value": values})
-        io.save_json(result_metrics, self.evaluate_file)
-
-    def on_evaluate_end(self, cfg: EvaluateConfig):
-        pass
-
-    def after_evaluate(self, cfg: EvaluateConfig, result: EvaluateResult):
-        result.eval_metrics = self.get_evaluate_result()
+    # Evaluation
 
     def evaluate(
         self,
-        dataset: Union[Dataset, str],
+        dataset: Union[Dataset, str, Path],
         dataset_root_dir: str = None,
         set_name: str = "test",
         batch_size: int = 4,
@@ -892,20 +808,17 @@ class Hub:
         Args:
             dataset (Union[Dataset, str]): Waffle Dataset object or path or name.
             dataset_root_dir (str, optional): Waffle Dataset root directory. Defaults to None.
+            set_name (str, optional): Waffle Dataset evalutation set name. Defaults to "test".
             batch_size (int, optional): batch size. Defaults to 4.
             image_size (Union[int, list[int]], optional): image size. Defaults to None.
             letter_box (bool, optional): letter box. Defaults to None.
-            confidence_threshold (float, optional): confidence threshold. Defaults to 0.25.
-            iou_threshold (float, optional): iou threshold. Defaults to 0.5.
+            confidence_threshold (float, optional): confidence threshold. Not required in classification. Defaults to 0.25.
+            iou_threshold (float, optional): iou threshold. Not required in classification. Defaults to 0.5.
             half (bool, optional): half. Defaults to False.
             workers (int, optional): workers. Defaults to 2.
             device (str, optional): device. Defaults to "0".
             draw (bool, optional): draw. Defaults to False.
             hold (bool, optional): hold. Defaults to True.
-
-        Raises:
-            FileNotFoundError: if can not detect appropriate dataset.
-            e: something gone wrong with ultralytics
 
         Examples:
             >>> evaluate_result = hub.evaluate(
@@ -931,72 +844,27 @@ class Hub:
         Returns:
             EvaluateResult: evaluate result
         """
-
-        @device_context("cpu" if device == "cpu" else device)
-        def inner(dataset: Dataset, callback: EvaluateCallback, result: EvaluateResult):
-            try:
-                self.before_evaluate(cfg, dataset)
-                self.on_evaluate_start(cfg)
-                self.evaluating(cfg, callback, dataset)
-                self.on_evaluate_end(cfg)
-                self.after_evaluate(cfg, result)
-                callback.force_finish()
-            except Exception as e:
-                if self.evaluate_file.exists():
-                    io.remove_file(self.evaluate_file)
-                callback.force_finish()
-                callback.set_failed()
-                raise e
-
-        if "," in device:
-            warnings.warn("multi-gpu is not supported in evaluation. use first gpu only.")
-            device = device.split(",")[0]
-
-        if isinstance(dataset, (str, Path)):
-            if Path(dataset).exists():
-                dataset = Path(dataset)
-                dataset = Dataset.load(
-                    name=dataset.parts[-1], root_dir=dataset.parents[0].absolute()
-                )
-            elif dataset in Dataset.get_dataset_list(dataset_root_dir):
-                dataset = Dataset.load(name=dataset, root_dir=dataset_root_dir)
-            else:
-                raise FileNotFoundError(f"Dataset {dataset} is not exist.")
-
-        # overwrite training config
-        train_config = self.get_train_config()
-        if image_size is None:
-            image_size = train_config.image_size
-        if letter_box is None:
-            letter_box = train_config.letter_box
-
-        cfg = EvaluateConfig(
-            dataset_name=dataset.name,
+        evaluator = Evaluator(
+            root_dir=self.hub_dir,
+            model=self.manager.get_model(),
+            task=self.task,
+            train_config=self.get_train_config(),
+        )
+        return evaluator.evaluate(
+            dataset=dataset,
+            dataset_root_dir=dataset_root_dir,
             set_name=set_name,
             batch_size=batch_size,
-            image_size=image_size if isinstance(image_size, list) else [image_size, image_size],
+            image_size=image_size,
             letter_box=letter_box,
             confidence_threshold=confidence_threshold,
             iou_threshold=iou_threshold,
             half=half,
             workers=workers,
-            device="cpu" if device == "cpu" else f"cuda:{device}",
+            device=device,
             draw=draw,
-            dataset_root_dir=dataset.root_dir,
+            hold=hold,
         )
-
-        callback = EvaluateCallback(100)  # dummy step
-        result = EvaluateResult()
-        result.callback = callback
-
-        if hold:
-            inner(dataset, callback, result)
-        else:
-            thread = threading.Thread(target=inner, args=(dataset, callback, result), daemon=True)
-            callback.register_thread(thread)
-            callback.start()
-
-        return result
 
     # inference hooks
     def before_inference(self, cfg: InferenceConfig):

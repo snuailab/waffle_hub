@@ -9,6 +9,7 @@ import torch
 from waffle_utils.file import io
 
 from waffle_hub.dataset import Dataset
+from waffle_hub.hub.eval.evaluator import Evaluator
 from waffle_hub.schema.configs import TrainConfig
 from waffle_hub.schema.result import TrainResult
 from waffle_hub.utils.callback import TrainCallback
@@ -30,7 +31,7 @@ class Trainer(ABC):
     DEFAULT_ADVANCE_PARAMS = {}
 
     # directory settting
-    ARTIFACT_DIR = Path("artifacts")
+    ARTIFACTS_DIR = Path("artifacts")
     TRAIN_LOG_DIR = Path("logs")
     WEIGHTS_DIR = Path("weights")
 
@@ -56,9 +57,9 @@ class Trainer(ABC):
         self.root_dir = Path(root_dir)
 
     @property
-    def artifact_dir(self) -> Path:
-        """Artifact Directory. This is raw output of each backend."""
-        return self.root_dir / self.ARTIFACT_DIR
+    def artifacts_dir(self) -> Path:
+        """Artifacts Directory. This is raw output of each backend."""
+        return self.root_dir / self.ARTIFACTS_DIR
 
     @property
     def weights_dir(self) -> Path:
@@ -86,9 +87,69 @@ class Trainer(ABC):
     def metric_file(self) -> Path:
         return self.root_dir / self.METRIC_FILE
 
+    @classmethod
+    def get_train_config(cls, root_dir: Union[str, Path]) -> TrainConfig:
+        """Get train config from train config yaml file.
+
+        Returns:
+            TrainConfig: train config of train config yaml file
+        """
+        train_config_file_path = Path(root_dir) / cls.CONFIG_DIR / cls.TRAIN_CONFIG_FILE
+        if not train_config_file_path.exists():
+            warnings.warn(f"Train config file {train_config_file_path} is not exist. Train first!")
+            return None
+        return TrainConfig.load(train_config_file_path)
+
+    def save_train_config(
+        self,
+        cfg: TrainConfig,
+        train_config_path: Path,
+    ):
+        """Save train config to yaml file
+
+        Args:
+            train_config_path (Path): file path for saving train config
+        """
+        cfg.save_yaml(train_config_path)
+
+    def load_train_config(self, train_config_path: Path):
+        """Load train config from yaml file (set self.train_cfg from yaml file)
+
+        Args:
+            train_config_path (Path): file path for loading train config
+        """
+        if not train_config_path.exists():
+            raise FileNotFoundError(f"{train_config_path} is not exist.")
+        self.train_cfg = TrainConfig.load(train_config_path)
+
+    @abstractmethod
+    def get_metrics(self):
+        raise NotImplementedError
+
+    def check_train_sanity(self) -> bool:
+        """Check if all essential files are exist.
+
+        Returns:
+            bool: True if all files are exist else False
+        """
+        if not (
+            self.model_config_file.exists()
+            and self.best_ckpt_file.exists()
+            # and self.last_ckpt_file.exists()
+        ):
+            raise FileNotFoundError("Train first! hub.train(...).")
+        return True
+
+    def delete_artifact(self):
+        """Delete Artifact Directory. It can be trained again."""
+        if self.artifacts_dir.exists():
+            io.remove_directory(self.artifacts_dir)
+        else:
+            warnings.warn(f"{self.artifacts_dir} is not exist.")  ## log
+
     def train(
         self,
-        dataset: Union[Dataset, str],
+        dataset: Union[Dataset, str, Path],
         dataset_root_dir: str = None,
         epochs: int = None,
         batch_size: int = None,
@@ -106,7 +167,7 @@ class Trainer(ABC):
         """Start Train
 
         Args:
-            dataset (Union[Dataset, str]): Waffle Dataset object or path or name.
+            dataset (Union[Dataset, str, Path]): Waffle Dataset object or path or name.
             dataset_root_dir (str, optional): Waffle Dataset root directory. Defaults to None.
             epochs (int, optional): number of epochs. None to use default. Defaults to None.
             batch_size (int, optional): batch size. None to use default. Defaults to None.
@@ -158,13 +219,16 @@ class Trainer(ABC):
                 callback.set_failed()
                 raise e
             except Exception as e:
-                if self.artifact_dir.exists():
-                    io.remove_directory(self.artifact_dir)
+                if self.artifacts_dir.exists():
+                    io.remove_directory(self.artifacts_dir)
                 callback.force_finish()
                 callback.set_failed()
                 raise e
 
-        export_dir = self.parse_dataset(dataset, dataset_root_dir)
+        export_dir, dataset_dir = self.parse_dataset(dataset, dataset_root_dir)
+
+        # for evaluate
+        self.eval_dataset_dir = dataset_dir
 
         # parse train config
         self.train_cfg = TrainConfig(
@@ -266,12 +330,12 @@ class Trainer(ABC):
 
         # check if it is already trained
         rank = os.getenv("RANK", -1)
-        if self.artifact_dir.exists() and rank in [
+        if self.artifacts_dir.exists() and rank in [
             -1,
             0,
         ]:  # TODO: need to ensure that training is not already running
             raise FileExistsError(
-                f"{self.artifact_dir}\n"
+                f"{self.artifacts_dir}\n"
                 "Train artifacts already exist. Remove artifact to re-train (hub.delete_artifact())."
             )
 
@@ -286,65 +350,24 @@ class Trainer(ABC):
         pass
 
     def after_train(self, result: TrainResult):
+        # evaluate
+        evaluator = Evaluator(
+            root_dir=self.root_dir,
+            model=self.get_model(),
+            task=self.task,
+            train_config=self.train_cfg,
+        )
+        evaluator.evaluate(
+            dataset=self.eval_dataset_dir,
+            batch_size=self.train_cfg.batch_size,
+            image_size=self.train_cfg.image_size,
+            letter_box=self.train_cfg.letter_box,
+            device=self.train_cfg.device,
+            workers=self.train_cfg.workers,
+        )
+
+        # write result
         result.best_ckpt_file = self.best_ckpt_file
         result.last_ckpt_file = self.last_ckpt_file
         result.metrics = self.get_metrics()
-        # result.eval_metrics = self.get_evaluate_result()
-
-    @abstractmethod
-    def get_metrics(self):
-        raise NotImplementedError
-
-    def get_train_config(self) -> TrainConfig:
-        """Get train config from train config yaml file.
-
-        Returns:
-            TrainConfig: train config
-        """
-        if not self.train_config_file.exists():
-            warnings.warn("Train config file is not exist. Train first!")
-            return None
-        return TrainConfig.load(self.train_config_file)
-
-    def save_train_config(
-        self,
-        cfg: TrainConfig,
-        train_config_path: Path,
-    ):
-        """Save train config to yaml file
-
-        Args:
-            train_config_path (Path): file path for saving train config
-        """
-        cfg.save_yaml(train_config_path)
-
-    def load_train_config(self, train_config_path: Path):
-        """Load train config from yaml file (set self.train_cfg from yaml file)
-
-        Args:
-            train_config_path (Path): file path for loading train config
-        """
-        if not train_config_path.exists():
-            raise FileNotFoundError(f"{train_config_path} is not exist.")
-        self.train_cfg = TrainConfig.load(train_config_path)
-
-    def check_train_sanity(self) -> bool:
-        """Check if all essential files are exist.
-
-        Returns:
-            bool: True if all files are exist else False
-        """
-        if not (
-            self.model_config_file.exists()
-            and self.best_ckpt_file.exists()
-            # and self.last_ckpt_file.exists()
-        ):
-            raise FileNotFoundError("Train first! hub.train(...).")
-        return True
-
-    def delete_artifact(self):
-        """Delete Artifact Directory. It can be trained again."""
-        if self.artifact_dir.exists():
-            io.remove_directory(self.artifact_dir)
-        else:
-            warnings.warn(f"{self.artifact_dir} is not exist.")  ## log
+        result.eval_metrics = evaluator.get_evaluate_result(root_dir=self.root_dir)

@@ -57,6 +57,7 @@ class TransformersManager(BaseManager):
         model_type: str,
         model_size: str,
         categories: list[Union[str, int, float, dict, Category]],
+        load: bool = False,
     ):
         super().__init__(
             root_dir=root_dir,
@@ -65,6 +66,7 @@ class TransformersManager(BaseManager):
             model_type=model_type,
             model_size=model_size,
             categories=categories,
+            load=load,
         )
 
         if self.VERSION is not None and transformers.__version__ != self.VERSION:
@@ -87,8 +89,8 @@ class TransformersManager(BaseManager):
         self.check_train_sanity()
 
         # get adapt functions
-        preprocess = self.get_preprocess()
-        postprocess = self.get_postprocess()
+        preprocess = self._get_preprocess()
+        postprocess = self._get_postprocess()
 
         # get model
         if self.task == TaskType.OBJECT_DETECTION:
@@ -99,6 +101,8 @@ class TransformersManager(BaseManager):
             model = AutoModelForImageClassification.from_pretrained(
                 str(self.best_ckpt_file),
             )
+        else:
+            raise NotImplementedError(f"Task {self.task} is not implemented.")
 
         model = ModelWrapper(
             model=model.eval(),
@@ -108,7 +112,7 @@ class TransformersManager(BaseManager):
 
         return model
 
-    def get_preprocess(self, pretrained_model: str = None) -> Callable:
+    def _get_preprocess(self, pretrained_model: str = None) -> Callable:
         if pretrained_model is None:
             pretrained_model = self.best_ckpt_file
         image_processer = AutoImageProcessor.from_pretrained(pretrained_model)
@@ -120,7 +124,7 @@ class TransformersManager(BaseManager):
 
         return preprocess
 
-    def get_postprocess(self: str, pretrained_model: str = None) -> Callable:
+    def _get_postprocess(self: str, pretrained_model: str = None) -> Callable:
         if pretrained_model is None:
             pretrained_model = self.best_ckpt_file
         image_processer = AutoImageProcessor.from_pretrained(pretrained_model)
@@ -200,7 +204,7 @@ class TransformersManager(BaseManager):
         self.train_cfg.train_input.dataset = dataset
 
         self.train_cfg.train_input.training_args = TrainingArguments(
-            output_dir=str(self.artifact_dir),
+            output_dir=str(self.artifacts_dir),
             per_device_train_batch_size=self.train_cfg.batch_size,
             num_train_epochs=self.train_cfg.epochs,
             remove_unused_columns=False,
@@ -230,18 +234,18 @@ class TransformersManager(BaseManager):
         )
         trainer.add_callback(CustomCallback(trainer, self.metric_file))
         trainer.train()
-        trainer.save_model(str(self.artifact_dir / "weights" / self.LAST_CKPT_FILE))
+        trainer.save_model(str(self.artifacts_dir / "weights" / self.LAST_CKPT_FILE))
         trainer._load_best_model()
-        trainer.save_model(str(self.artifact_dir / "weights" / self.BEST_CKPT_FILE))
+        trainer.save_model(str(self.artifacts_dir / "weights" / self.BEST_CKPT_FILE))
 
     def on_train_end(self):
         io.copy_files_to_directory(
-            self.artifact_dir / "weights" / self.BEST_CKPT_FILE,
+            self.artifacts_dir / "weights" / self.BEST_CKPT_FILE,
             self.best_ckpt_file,
             create_directory=True,
         )
         io.copy_files_to_directory(
-            self.artifact_dir / "weights" / self.LAST_CKPT_FILE,
+            self.artifacts_dir / "weights" / self.LAST_CKPT_FILE,
             self.last_ckpt_file,
             create_directory=True,
         )

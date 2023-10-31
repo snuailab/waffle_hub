@@ -36,6 +36,7 @@ class Model(ABC):
         model_type: str,
         model_size: str,
         categories: list[Union[str, int, float, dict, Category]],
+        load: bool = False,
     ):
         # abstract property
         if self.BACKEND_NAME is None:
@@ -53,6 +54,9 @@ class Model(ABC):
         self.model_type = model_type
         self.model_size = model_size
         self.categories = categories
+
+        if self.model_config_file.exists() and not load:
+            raise FileExistsError("Model already exists. Try to 'load_manager' function.")
 
         self.save_model_config(
             model_config_file=self.model_config_file,
@@ -169,11 +173,11 @@ class Model(ABC):
     #     raise NotImplementedError
 
     @abstractmethod
-    def get_preprocess(self, *args, **kwargs):
+    def _get_preprocess(self, *args, **kwargs):
         raise NotImplementedError
 
     @abstractmethod
-    def get_postprocess(self, *args, **kwargs):
+    def _get_postprocess(self, *args, **kwargs):
         raise NotImplementedError
 
     @abstractmethod
@@ -195,16 +199,21 @@ class Model(ABC):
         #     postprocess=postprocess,
         # )
 
-    def get_model_config(self) -> ModelConfig:
+    @classmethod
+    def get_model_config(cls, root_dir: Union[str, Path]) -> ModelConfig:
         """Get model config from model config yaml file
 
         Args:
-            model_config_file (Path): model config yaml file
+            root_dir (Path): root directory of model config yaml file
 
         Returns:
             ModelConfig: model config
         """
-        return ModelConfig.load(self.model_config_file)
+        model_config_file_path = Path(root_dir) / cls.CONFIG_DIR / cls.MODEL_CONFIG_FILE
+        if not model_config_file_path.exists():
+            warnings.warn(f"Model config file {model_config_file_path} is not exist.")
+            return []
+        return ModelConfig.load(model_config_file_path)
 
     def save_model_config(
         self,
@@ -223,9 +232,8 @@ class Model(ABC):
             model_type=self.model_type,
             model_size=self.model_size,
             categories=list(map(lambda x: x.to_dict(), self.categories)),
-        ).save_yaml(self.model_config_file)
+        ).save_yaml(model_config_file)
 
-    # TODO: implement
     # def load_model_config(self, model_config_file: Path):
     #     """Load model config from model config yaml file (set self.model_cfg from yaml file)
 
