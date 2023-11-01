@@ -241,6 +241,23 @@ class Model(ABC):
     #         model_config_file (Path): model config yaml file
     #     """
     #     self.model_cfg = ModelConfig.load(model_config_file)
+    def set_model_name(self, name: str):
+        """Set model name
+        if model name is not same with model config name, it will cause unexpected errors
+
+        Args:
+            name (str): model name
+        """
+        self.name = name
+        ModelConfig(
+            name=self.name,
+            backend=self.BACKEND_NAME,
+            version=self.VERSION,
+            task=self.task,
+            model_type=self.model_type,
+            model_size=self.model_size,
+            categories=list(map(lambda x: x.to_dict(), self.categories)),
+        ).save_yaml(self.model_config_file)
 
     def get_categories(self) -> list[Category]:
         return self.categories

@@ -23,23 +23,17 @@ import numpy as np
 import torch
 import tqdm
 from waffle_utils.file import io
-from waffle_utils.image.io import save_image
 from waffle_utils.utils import type_validator
-from waffle_utils.video.io import create_video_writer
 
 from waffle_dough.type.task_type import TaskType
 from waffle_hub import BACKEND_MAP
 from waffle_hub.dataset import Dataset
 from waffle_hub.hub.eval.evaluator import Evaluator
-from waffle_hub.hub.model.result_parser import get_parser
+from waffle_hub.hub.infer.inferencer import Inferencer
 from waffle_hub.hub.model.wrapper import ModelWrapper
+from waffle_hub.hub.onnx.exporter import OnnxExporter
 from waffle_hub.hub.train.adapter.base_manager import BaseManager
-from waffle_hub.schema.configs import (
-    ExportOnnxConfig,
-    InferenceConfig,
-    ModelConfig,
-    TrainConfig,
-)
+from waffle_hub.schema.configs import ModelConfig, TrainConfig
 from waffle_hub.schema.data import ImageInfo
 from waffle_hub.schema.fields import Category
 from waffle_hub.schema.result import (
@@ -50,18 +44,8 @@ from waffle_hub.schema.result import (
     TrainResult,
 )
 from waffle_hub.type.backend_type import BackendType
-from waffle_hub.utils.callback import (
-    ExportCallback,
-    InferenceCallback,
-)
-from waffle_hub.utils.data import (
-    IMAGE_EXTS,
-    VIDEO_EXTS,
-    get_dataset_class,
-    get_image_transform,
-)
-from waffle_hub.utils.draw import draw_results
-from waffle_hub.utils.memory import device_context
+from waffle_hub.utils.callback import ExportCallback
+from waffle_hub.utils.data import get_image_transform
 
 logger = logging.getLogger(__name__)
 
@@ -69,20 +53,6 @@ logger = logging.getLogger(__name__)
 class Hub:
     # directory settings
     DEFAULT_HUB_ROOT_DIR = Path("./hubs")
-
-    INFERENCE_DIR = Path("inferences")
-    EXPORT_DIR = Path("exports")
-
-    DRAW_DIR = Path("draws")
-
-    # evaluate results
-    EVALUATE_FILE = "evaluate.json"
-
-    # inference results
-    INFERENCE_FILE = "inferences.json"
-
-    # export results
-    ONNX_FILE = "weights/model.onnx"
 
     # train files ##--
     TRAIN_CONFIG_FILE = BaseManager.CONFIG_DIR / BaseManager.TRAIN_CONFIG_FILE
@@ -121,6 +91,8 @@ class Hub:
                 categories=self.categories,
             )
         )
+        if self.manager.name != self.name:
+            self.manager.set_model_name(self.name)
 
         self.backend: str = self.manager.backend
         self.version: str = self.manager.VERSION
@@ -427,13 +399,14 @@ class Hub:
                 root_dir / name / BaseManager.CONFIG_DIR / BaseManager.MODEL_CONFIG_FILE
             )
             if not model_config_file.exists():
-                raise FileNotFoundError(f"Model[{name}] does not exists. {model_config_file}")
-            model_config = ModelConfig.load(model_config_file)
-            model_config.name = name
-            model_config.save_yaml(model_config_file)
+                raise FileNotFoundError(
+                    f"{model_config_file} does not exists. Please check waffle file."
+                )
+            model_config = io.load_yaml(model_config_file)
             return cls(
                 **{
-                    **model_config.to_dict(),
+                    **model_config,
+                    "name": name,
                     "root_dir": root_dir,
                 }
             )
@@ -494,44 +467,27 @@ class Hub:
         return self.root_dir / self.name
 
     @cached_property
-    def inference_dir(self) -> Path:
-        """Inference Results Directory"""
-        return self.hub_dir / Hub.INFERENCE_DIR
-
-    @cached_property
-    def inference_file(self) -> Path:
-        """Inference Results File"""
-        return self.inference_dir / Hub.INFERENCE_FILE
-
-    @cached_property
-    def draw_dir(self) -> Path:
-        """Draw Results Directory"""
-        return self.inference_dir / Hub.DRAW_DIR
-
-    @cached_property
-    def onnx_file(self) -> Path:
-        """Best Checkpoint ONNX File"""
-        return self.hub_dir / Hub.ONNX_FILE
-
-    @cached_property
-    def evaluate_file(self) -> Path:
-        """Evaluate Json File"""
-        return self.hub_dir / Hub.EVALUATE_FILE
-
-    @cached_property
     def waffle_file(self) -> Path:
         """Export Waffle file"""
         return self.hub_dir / f"{self.name}.waffle"
 
     # path getters
     ## model
+    def get_config_dir(self) -> Path:
+        """Config Directory (model config, train config)"""
+        return self.manager.config_dir
+
     def get_model_config_file_path(self) -> Path:
         """Model Config yaml File"""
         return self.manager.model_config_file
 
-    def get_artifact_dir(self) -> Path:
+    ## trainer
+    def get_weights_dir(self) -> Path:
+        return self.manager.weights_dir
+
+    def get_artifacts_dir(self) -> Path:
         """Artifact Directory. This is raw output of each backend."""
-        return self.manager.artifact_dir
+        return self.manager.artifacts_dir
 
     def get_train_config_file_path(self) -> Path:
         """Train Config yaml File"""
@@ -548,6 +504,28 @@ class Hub:
     def get_metrics_file_path(self) -> Path:
         """Metrics File"""
         return self.manager.metric_file
+
+    ## evaluator
+    def get_evaluate_file_path(self) -> Path:
+        """Evaluate Json File"""
+        return self.hub_dir / Evaluator.EVALUATE_FILE
+
+    ## inferencer
+    def get_inference_dir(self) -> Path:
+        """Inference Results Directory"""
+        return self.hub_dir / Inferencer.INFERENCE_DIR
+
+    def get_inference_file_path(self) -> Path:
+        """Inference Results File"""
+        return self.hub_dir / Inferencer.INFERENCE_FILE
+
+    def get_draw_dir(self) -> Path:
+        """Draw Results Directory"""
+        return self.hub_dir / Inferencer.DRAW_DIR
+
+    def get_onnx_file_path(self) -> Path:
+        """Best Checkpoint ONNX File"""
+        return self.hub_dir / OnnxExporter.ONNX_FILE
 
     # getters
     def get_model_config(self) -> ModelConfig:
@@ -643,9 +621,7 @@ class Hub:
         Returns:
             list[dict]: inference result
         """
-        if not self.inference_file.exists():
-            return []
-        return io.load_json(self.inference_file)
+        return Inferencer.get_inference_result(root_dir=self.hub_dir)
 
     # common functions
     def delete_hub(self):
@@ -786,7 +762,6 @@ class Hub:
         )
 
     # Evaluation
-
     def evaluate(
         self,
         dataset: Union[Dataset, str, Path],
@@ -810,8 +785,8 @@ class Hub:
             dataset_root_dir (str, optional): Waffle Dataset root directory. Defaults to None.
             set_name (str, optional): Waffle Dataset evalutation set name. Defaults to "test".
             batch_size (int, optional): batch size. Defaults to 4.
-            image_size (Union[int, list[int]], optional): image size. Defaults to None.
-            letter_box (bool, optional): letter box. Defaults to None.
+            image_size (Union[int, list[int]], optional): image size. If None, use train config or defaults to 224.
+            letter_box (bool, optional): letter box. If None, use train config or defaults to True.
             confidence_threshold (float, optional): confidence threshold. Not required in classification. Defaults to 0.25.
             iou_threshold (float, optional): iou threshold. Not required in classification. Defaults to 0.5.
             half (bool, optional): half. Defaults to False.
@@ -834,8 +809,8 @@ class Hub:
             # or you can use train option by passing None
             >>> evaluate_result = hub.evaluate(
                     ...
-                    image_size=None,  # use train option
-                    letterbox=None,  # use train option
+                    image_size=None,  # use train option or default to 224
+                    letterbox=None,  # use train option or default to True
                     ...
                 )
             >>> evaluate_result.metrics
@@ -866,106 +841,6 @@ class Hub:
             hold=hold,
         )
 
-    # inference hooks
-    def before_inference(self, cfg: InferenceConfig):
-        pass
-
-    def on_inference_start(self, cfg: InferenceConfig):
-        pass
-
-    def inferencing(self, cfg: InferenceConfig, callback: InferenceCallback) -> str:
-        device = cfg.device
-        model = self.get_model().to(device)
-        result_parser = get_parser(self.task)(**cfg.to_dict(), categories=self.categories)
-
-        if cfg.source_type == "image":
-            dataset = get_dataset_class(cfg.source_type)(
-                cfg.source, cfg.image_size, letter_box=cfg.letter_box, recursive=cfg.recursive
-            )
-            dataloader = dataset.get_dataloader(cfg.batch_size, cfg.workers)
-        elif cfg.source_type == "video":
-            dataset = get_dataset_class(cfg.source_type)(
-                cfg.source, cfg.image_size, letter_box=cfg.letter_box
-            )
-            dataloader = dataset.get_dataloader(cfg.batch_size, cfg.workers)
-        else:
-            raise ValueError(f"Invalid source type: {cfg.source_type}")
-
-        if cfg.draw and cfg.source_type == "video":
-            writer = None
-
-        results = []
-        callback._total_steps = len(dataloader) + 1
-        for i, (images, image_infos) in tqdm.tqdm(
-            enumerate(dataloader, start=1), total=len(dataloader)
-        ):
-            result_batch = model(images.to(device))
-            result_batch = result_parser(result_batch, image_infos)
-            for result, image_info in zip(result_batch, image_infos):
-
-                results.append({str(image_info.image_rel_path): [res.to_dict() for res in result]})
-
-                if cfg.draw:
-                    io.make_directory(self.draw_dir)
-                    draw = draw_results(
-                        image_info.ori_image,
-                        result,
-                        names=[x["name"] for x in self.categories],
-                    )
-
-                    if cfg.source_type == "video":
-                        if writer is None:
-                            h, w = draw.shape[:2]
-                            writer = create_video_writer(
-                                str(self.inference_dir / Path(cfg.source).with_suffix(".mp4").name),
-                                dataset.fps,
-                                (w, h),
-                            )
-                        writer.write(draw)
-
-                        draw_path = (
-                            self.draw_dir
-                            / Path(cfg.source).stem
-                            / Path(image_info.image_rel_path).with_suffix(".png")
-                        )
-                    else:
-                        draw_path = self.draw_dir / Path(image_info.image_rel_path).with_suffix(
-                            ".png"
-                        )
-                    save_image(draw_path, draw, create_directory=True)
-
-                if cfg.show:
-                    if not cfg.draw:
-                        draw = draw_results(
-                            image_info.ori_image,
-                            result,
-                            names=[x["name"] for x in self.categories],
-                        )
-                    cv2.imshow("result", draw)
-                    cv2.waitKey(1)
-
-            callback.update(i)
-
-        if cfg.draw and cfg.source_type == "video":
-            writer.release()
-
-        if cfg.show:
-            cv2.destroyAllWindows()
-
-        io.save_json(
-            results,
-            self.inference_file,
-            create_directory=True,
-        )
-
-    def on_inference_end(self, cfg: InferenceConfig):
-        pass
-
-    def after_inference(self, cfg: InferenceConfig, result: EvaluateResult):
-        result.predictions = self.get_inference_result()
-        if cfg.draw:
-            result.draw_dir = self.draw_dir
-
     def inference(
         self,
         source: Union[str, Dataset],
@@ -987,11 +862,11 @@ class Hub:
         Args:
             source (str): image directory or image path or video path.
             recursive (bool, optional): recursive. Defaults to True.
-            image_size (Union[int, list[int]], optional): image size. None for using training config. Defaults to None.
-            letter_box (bool, optional): letter box. None for using training config. Defaults to None.
+            image_size (Union[int, list[int]], optional): image size. If None, use train config or defaults to 224.
+            letter_box (bool, optional): letter box. If None, use train config or defaults to True.
             batch_size (int, optional): batch size. Defaults to 4.
-            confidence_threshold (float, optional): confidence threshold. Defaults to 0.25.
-            iou_threshold (float, optional): iou threshold. Defaults to 0.5.
+            confidence_threshold (float, optional): confidence threshold. Not required in classification. Defaults to 0.25.
+            iou_threshold (float, optional): iou threshold. Not required in classification. Defaults to 0.5.
             half (bool, optional): half. Defaults to False.
             workers (int, optional): workers. Defaults to 2.
             device (str, optional): device. "cpu" or "gpu_id". Defaults to "0".
@@ -1019,8 +894,8 @@ class Hub:
             # or simply use train option by passing None
             >>> inference_result = hub.inference(
                     ...
-                    image_size=None,  # use train option
-                    letterbox=None,  # use train option
+                    image_size=None,  # use train option or default to 224
+                    letterbox=None,  # use train option or default to True
                     ...
                 )
             >>> inference_result.predictions
@@ -1029,130 +904,28 @@ class Hub:
         Returns:
             InferenceResult: inference result
         """
-
-        @device_context("cpu" if device == "cpu" else device)
-        def inner(callback: InferenceCallback, result: InferenceResult):
-            try:
-                self.before_inference(cfg)
-                self.on_inference_start(cfg)
-                self.inferencing(cfg, callback)
-                self.on_inference_end(cfg)
-                self.after_inference(cfg, result)
-                callback.force_finish()
-            except Exception as e:
-                if self.inference_dir.exists():
-                    io.remove_directory(self.inference_dir)
-                callback.force_finish()
-                callback.set_failed()
-                raise e
-
-        # image_dir, image_path, video_path, dataset_name, dataset
-        if isinstance(source, (str, Path)):
-            if Path(source).exists():
-                source = Path(source)
-                if source.is_dir():
-                    source = source.absolute()
-                    source_type = "image"
-                elif source.suffix in IMAGE_EXTS:
-                    source = [source.absolute()]
-                    source_type = "image"
-                elif source.suffix in VIDEO_EXTS:
-                    source = str(source.absolute())
-                    source_type = "video"
-                else:
-                    raise ValueError(
-                        f"Invalid source: {source}\n"
-                        + "Please use image directory or image path or video path."
-                    )
-            else:
-                raise FileNotFoundError(f"Source {source} is not exist.")
-        else:
-            raise ValueError(
-                f"Invalid source: {source}\n"
-                + "Please use image directory or image path or video path."
-            )
-
-        # overwrite training config
-        train_config = self.get_train_config()
-        if image_size is None:
-            image_size = train_config.image_size
-        if letter_box is None:
-            letter_box = train_config.letter_box
-
-        cfg = InferenceConfig(
+        inferencer = Inferencer(
+            root_dir=self.hub_dir,
+            model=self.manager.get_model(),
+            task=self.task,
+            categories=self.get_categories(),
+            train_config=self.get_train_config(),
+        )
+        return inferencer.inference(
             source=source,
-            source_type=source_type,
-            batch_size=batch_size,
             recursive=recursive,
-            image_size=image_size if isinstance(image_size, list) else [image_size, image_size],
+            image_size=image_size,
             letter_box=letter_box,
+            batch_size=batch_size,
             confidence_threshold=confidence_threshold,
             iou_threshold=iou_threshold,
             half=half,
             workers=workers,
-            device="cpu" if device == "cpu" else f"cuda:{device}",
-            draw=draw or show,
+            device=device,
+            draw=draw,
             show=show,
+            hold=hold,
         )
-
-        callback = InferenceCallback(100)  # dummy step
-        result = InferenceResult()
-        result.callback = callback
-        if hold:
-            inner(callback, result)
-        else:
-            thread = threading.Thread(target=inner, args=(callback, result), daemon=True)
-            callback.register_thread(thread)
-            callback.start()
-
-        return result
-
-    # Export Hook
-    def before_export_onnx(self, cfg: ExportOnnxConfig):
-        pass
-
-    def on_export_onnx_start(self, cfg: ExportOnnxConfig):
-        pass
-
-    def exporting_onnx(self, cfg: ExportOnnxConfig, callback: ExportCallback) -> str:
-        image_size = cfg.image_size
-        image_size = [image_size, image_size] if isinstance(image_size, int) else image_size
-
-        model = self.get_model().half() if cfg.half else self.get_model()
-        model = model.to(cfg.device)
-
-        input_name = ["inputs"]
-        if self.task == TaskType.OBJECT_DETECTION:
-            output_names = ["bbox", "conf", "class_id"]
-        elif self.task == TaskType.CLASSIFICATION:
-            output_names = ["predictions"]
-        elif self.task == TaskType.INSTANCE_SEGMENTATION:
-            output_names = ["bbox", "conf", "class_id", "masks"]
-        elif self.task == TaskType.TEXT_RECOGNITION:
-            output_names = ["class_ids", "confs"]
-        else:
-            raise NotImplementedError(f"{self.task} does not support export yet.")
-
-        dummy_input = torch.randn(
-            cfg.batch_size, 3, *image_size, dtype=torch.float16 if cfg.half else torch.float32
-        )
-        dummy_input = dummy_input.to(cfg.device)
-
-        torch.onnx.export(
-            model,
-            dummy_input,
-            str(self.onnx_file),
-            input_names=input_name,
-            output_names=output_names,
-            opset_version=cfg.opset_version,
-            dynamic_axes={name: {0: "batch_size"} for name in input_name + output_names},
-        )
-
-    def on_export_onnx_end(self, cfg: ExportOnnxConfig):
-        pass
-
-    def after_export_onnx(self, cfg: ExportOnnxConfig, result: ExportOnnxResult):
-        result.onnx_file = self.onnx_file
 
     def export_onnx(
         self,
@@ -1166,7 +939,7 @@ class Hub:
         """Export Onnx Model
 
         Args:
-            image_size (Union[int, list[int]], optional): inference image size. None for same with train_config (recommended).
+            image_size (Union[int, list[int]], optional): image size. If None, same train config (recommended) or defaults to 224.
             batch_size (int, optional): dynamic batch size. Defaults to 16.
             opset_version (int, optional): onnx opset version. Defaults to 11.
             half (bool, optional): half. Defaults to False.
@@ -1193,49 +966,20 @@ class Hub:
         Returns:
             ExportOnnxResult: export onnx result
         """
-        self.check_train_sanity()
-
-        @device_context("cpu" if device == "cpu" else device)
-        def inner(callback: ExportCallback, result: ExportOnnxResult):
-            try:
-                self.before_export_onnx(cfg)
-                self.on_export_onnx_start(cfg)
-                self.exporting_onnx(cfg, callback)
-                self.on_export_onnx_end(cfg)
-                self.after_export_onnx(cfg, result)
-                callback.force_finish()
-            except Exception as e:
-                if self.onnx_file.exists():
-                    io.remove_file(self.onnx_file)
-                callback.force_finish()
-                callback.set_failed()
-                raise e
-
-        # overwrite training config
-        train_config = self.get_train_config()
-        if image_size is None:
-            image_size = train_config.image_size
-
-        cfg = ExportOnnxConfig(
-            image_size=image_size if isinstance(image_size, list) else [image_size, image_size],
+        onnx_exporter = OnnxExporter(
+            root_dir=self.hub_dir,
+            model=self.manager.get_model(),
+            task=self.task,
+            train_config=self.get_train_config(),
+        )
+        return onnx_exporter.export(
+            image_size=image_size,
             batch_size=batch_size,
             opset_version=opset_version,
             half=half,
-            device="cpu" if device == "cpu" else f"cuda:{device}",
+            device=device,
+            hold=hold,
         )
-
-        callback = ExportCallback(1)
-        result = ExportOnnxResult()
-        result.callback = callback
-
-        if hold:
-            inner(callback, result)
-        else:
-            thread = threading.Thread(target=inner, args=(callback, result), daemon=True)
-            callback.register_thread(thread)
-            callback.start()
-
-        return result
 
     def benchmark(
         self,
@@ -1332,9 +1076,7 @@ class Hub:
 
         def inner(callback: ExportCallback, result: ExportWaffleResult):
             try:
-                io.zip(
-                    [self.hub_dir / Hub.CONFIG_DIR, self.hub_dir / Hub.WEIGHTS_DIR], self.waffle_file
-                )
+                io.zip([self.get_weights_dir(), self.get_config_dir()], self.waffle_file)
                 result.waffle_file = self.waffle_file
                 callback.force_finish()
             except Exception as e:

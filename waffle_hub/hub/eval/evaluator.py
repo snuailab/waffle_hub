@@ -107,8 +107,8 @@ class Evaluator:
             dataset_root_dir (str, optional): Waffle Dataset root directory. Defaults to None.
             set_name (str, optional): Waffle Dataset evalutation set name. Defaults to "test".
             batch_size (int, optional): batch size. Defaults to 4.
-            image_size (Union[int, list[int]], optional): image size. Defaults to 224.
-            letter_box (bool, optional): letter box. Defaults to True.
+            image_size (Union[int, list[int]], optional): image size. If None, use train config or defaults to 224.
+            letter_box (bool, optional): letter box. If None, use train config or defaults to True.
             confidence_threshold (float, optional): confidence threshold. Not required in classification. Defaults to 0.25.
             iou_threshold (float, optional): iou threshold. Not required in classification. Defaults to 0.5.
             half (bool, optional): half. Defaults to False.
@@ -133,8 +133,8 @@ class Evaluator:
             >>> evaluator = Evaluator(... , train_config=train_config)
             >>> evaluate_result = evaluator.evaluate(
                     ...
-                    image_size=None,  # use train option
-                    letterbox=None,  # use train option
+                    image_size=None,  # use train option or default to 224
+                    letterbox=None,  # use train option or default to True
                     ...
                 )
             >>> evaluate_result.metrics
@@ -169,7 +169,7 @@ class Evaluator:
 
         self._check_dataset(dataset)
 
-        # overwrite training config
+        # overwrite training config or default
         if image_size is None:
             if self.train_config is not None:
                 image_size = self.train_config.image_size

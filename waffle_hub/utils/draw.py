@@ -180,7 +180,7 @@ def draw_results(
 
     task_results = {task: [] for task in TaskType}
     for result in results:
-        task_results[result.task.upper()].append(result)
+        task_results[result.task.lower()].append(result)
 
     font_scale = max(image.shape[0], image.shape[1]) / 1000
     font_scale = 1.0 if font_scale < 1.0 else font_scale
