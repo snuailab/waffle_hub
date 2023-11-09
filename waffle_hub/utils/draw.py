@@ -169,6 +169,34 @@ def draw_text_recognition(
     return image
 
 
+def draw_semantic_segmentation(
+    image: np.ndarray,
+    annotation: Annotation,
+    names: list[str],
+):
+    segments: list = annotation.segmentation
+
+    if len(segments) == 0:
+        return image
+
+    pil_image = Image.fromarray(image)
+    draw = ImageDraw.Draw(pil_image, "RGBA")
+    fill_color = tuple(colors[annotation.category_id - 1])
+    fill_color = fill_color + (120,)
+    for segment in segments:
+        if len(segment) < 6:
+            continue
+
+        draw.polygon(
+            segment,
+            fill=fill_color,
+        )
+
+    image = np.array(pil_image)
+
+    return image
+
+
 def draw_results(
     image: Union[np.ndarray, str],
     results: list[Annotation],
@@ -202,5 +230,8 @@ def draw_results(
 
     for i, result in enumerate(task_results[TaskType.TEXT_RECOGNITION], start=1):
         image = draw_text_recognition(image, result, loc_x=10, loc_y=10)
+
+    for i, result in enumerate(task_results[TaskType.SEMANTIC_SEGMENTATION], start=1):
+        image = draw_semantic_segmentation(image, result, names=names)
 
     return image

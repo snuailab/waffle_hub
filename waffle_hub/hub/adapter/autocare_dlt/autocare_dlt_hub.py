@@ -75,6 +75,8 @@ class AutocareDLTHub(Hub):
             root_dir=root_dir,
         )
 
+        self.model_json_output_path = self.hub_dir / self.CONFIG_DIR / "model.json"
+
     @classmethod
     def new(
         cls,
@@ -130,6 +132,13 @@ class AutocareDLTHub(Hub):
             def preprocess(x, *args, **kwargs):
                 return normalize(x)
 
+        elif self.task == TaskType.SEMANTIC_SEGMENTATION:
+            normalize = T.Normalize([0], [1], inplace=True)
+            gray_sacle = T.Grayscale()
+
+            def preprocess(x, *args, **kwargs):
+                return normalize(gray_sacle(x))
+
         else:
             raise NotImplementedError(f"task {self.task} is not supported yet")
 
@@ -157,6 +166,11 @@ class AutocareDLTHub(Hub):
             def inner(x: torch.Tensor, *args, **kwargs):
                 scores, character_class_ids = x.max(dim=-1)
                 return character_class_ids, scores
+
+        elif self.task == TaskType.SEMANTIC_SEGMENTATION:
+
+            def inner(x: torch.Tensor, *args, **kwargs):
+                return x
 
         else:
             raise NotImplementedError(f"task {self.task} is not supported yet")
@@ -212,6 +226,8 @@ class AutocareDLTHub(Hub):
         )
         if self.model_type == "LicencePlateRecognition":
             data_config["data"]["mode"] = "lpr"
+        if self.model_type == "Segmenter":
+            data_config["data"]["gray"] = True
 
         cfg.data_config = self.artifact_dir / "data.json"
         io.save_json(data_config, cfg.data_config, create_directory=True)
@@ -281,6 +297,9 @@ class AutocareDLTHub(Hub):
             self.last_ckpt_file,
             create_directory=True,
         )
+        io.copy_file(
+            self.artifact_dir / "model.json", self.model_json_output_path, create_directory=True
+        )
         io.save_json(self.get_metrics(), self.metric_file)
 
     # Inference Hook
@@ -297,7 +316,7 @@ class AutocareDLTHub(Hub):
 
         # get model
         categories = [x["name"] for x in self.categories]
-        cfg = io.load_json(self.artifact_dir / "model.json")
+        cfg = io.load_json(self.model_json_output_path)
         cfg["ckpt"] = str(self.best_ckpt_file)
         if self.task == TaskType.TEXT_RECOGNITION:
             cfg["model"]["Prediction"]["num_classes"] = len(categories) + 1
