@@ -15,11 +15,11 @@ from ultralytics import YOLO
 from ultralytics.yolo.utils import DEFAULT_CFG as YOLO_DEFAULT_ADVANCE_PARAMS
 from waffle_utils.file import io
 
-from waffle_hub import TaskType, DataType
+from waffle_hub import DataType, TaskType
 from waffle_hub.hub import Hub
 from waffle_hub.hub.model.wrapper import ModelWrapper
 from waffle_hub.schema.configs import TrainConfig
-from waffle_hub.utils.callback import TrainCallback
+from waffle_hub.schema.status import StatusController
 from waffle_hub.utils.process import run_python_file
 
 from .config import DEFAULT_PARAMS, MODEL_TYPES, TASK_MAP
@@ -283,43 +283,33 @@ class UltralyticsHub(Hub):
                 "letter_box False is not supported for Object Detection and Segmentation."
             )
 
-    def training(self, cfg: TrainConfig, callback: TrainCallback):
-        params = {
-            "data": str(cfg.dataset_path).replace("\\", "/"),
-            "epochs": cfg.epochs,
-            "batch": cfg.batch_size,
-            "imgsz": cfg.image_size,
-            "lr0": cfg.learning_rate,
-            "lrf": cfg.learning_rate,
-            "rect": False,  # TODO: hard coding for mosaic
-            "device": cfg.device,
-            "workers": cfg.workers,
-            "seed": cfg.seed,
-            "verbose": cfg.verbose,
-            "project": str(self.hub_dir),
-            "name": str(self.ARTIFACT_DIR),
-        }
-        params.update(cfg.advance_params)
-
-        code = f"""if __name__ == "__main__":
-        from ultralytics import YOLO
-        import os
-        os.environ["KMP_DUPLICATE_LIB_OK"] = "TRUE"
+    def training(self, cfg: TrainConfig, status_controller: StatusController):
         try:
-            model = YOLO("{cfg.pretrained_model}", task="{self.backend_task_name}")
-            model.train(
-                **{params}
-            )
-        except Exception as e:
-            print(e)
+            params = {
+                "data": str(cfg.dataset_path).replace("\\", "/"),
+                "epochs": cfg.epochs,
+                "batch": cfg.batch_size,
+                "imgsz": cfg.image_size,
+                "lr0": cfg.learning_rate,
+                "lrf": cfg.learning_rate,
+                "rect": False,  # TODO: hard coding for mosaic
+                "device": cfg.device,
+                "workers": cfg.workers,
+                "seed": cfg.seed,
+                "verbose": cfg.verbose,
+                "project": str(self.hub_dir),
+                "name": str(self.ARTIFACT_DIR),
+            }
+            params.update(cfg.advance_params)
+
+            model = YOLO(cfg.pretrained_model, task=self.backend_task_name)
+            model.train(**params)
+        except KeyboardInterrupt as e:
+            status_controller.set_stopped(e)
             raise e
-        """
-
-        script_file = str((self.hub_dir / "train.py").absolute())
-        with open(script_file, "w") as f:
-            f.write(code)
-
-        run_python_file(script_file)
+        except SystemExit as e:
+            status_controller.set_stopped(e)
+            raise e
 
     def on_train_end(self, cfg: TrainConfig):
         io.copy_file(

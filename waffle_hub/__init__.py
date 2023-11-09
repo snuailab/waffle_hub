@@ -1,6 +1,7 @@
 __version__ = "0.2.16"
 
 import enum
+import signal
 from collections import OrderedDict
 
 
@@ -117,3 +118,16 @@ for key in list(EXPORT_MAP.keys()):
 for key in list(BACKEND_MAP.keys()):
     BACKEND_MAP[str(key).lower()] = BACKEND_MAP[key]
     BACKEND_MAP[str(key).upper()] = BACKEND_MAP[key]
+
+
+# except handler for SIGINT, SIGTERM, SIGCHILD
+def sigint_handler(signum, frame):
+    raise KeyboardInterrupt
+
+
+def sigterm_handler(signum, frame):
+    raise SystemExit
+
+
+signal.signal(signal.SIGINT, sigint_handler)
+signal.signal(signal.SIGTERM, sigterm_handler)
