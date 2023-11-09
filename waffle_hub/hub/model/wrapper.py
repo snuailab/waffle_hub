@@ -221,7 +221,7 @@ class TextRecognitionResultParser(ResultParser):
         return parseds
 
 
-class SemanticSegmentationResultParset(ResultParser):
+class SemanticSegmentationResultParser(ResultParser):
     def __init__(self, *args, **kwargs):
         pass
 
@@ -273,7 +273,7 @@ def get_parser(task: str):
     elif task == TaskType.TEXT_RECOGNITION:
         return TextRecognitionResultParser
     elif task == TaskType.SEMANTIC_SEGMENTATION:
-        return SemanticSegmentationResultParset
+        return SemanticSegmentationResultParser
     else:
         raise ValueError(f"Unsupported task type: {task}")
 
