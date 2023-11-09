@@ -35,7 +35,7 @@ from waffle_hub.hub.adapter.transformers.train_input_helper import (
 )
 from waffle_hub.hub.model.wrapper import ModelWrapper
 from waffle_hub.schema.configs import TrainConfig
-from waffle_hub.schema.status import StatusController
+from waffle_hub.schema.working_info import TrainingInfoController
 
 from .config import DEFAULT_PARAMS, MODEL_TYPES
 
@@ -205,31 +205,23 @@ class TransformersHub(Hub):
             device=cfg.device,
         )
 
-    def training(self, cfg: TrainConfig, status_controller: StatusController):
-        try:
-            trainer = Trainer(
-                model=cfg.train_input.model,
-                args=cfg.train_input.training_args,
-                data_collator=cfg.train_input.collator,
-                train_dataset=cfg.train_input.dataset["train"],
-                eval_dataset=cfg.train_input.dataset["val"],
-                tokenizer=cfg.train_input.image_processor,
-                compute_metrics=cfg.train_input.compute_metrics,
-            )
-            trainer.add_callback(CustomCallback(trainer, self.metric_file))
-            trainer.train()
-            trainer.save_model(str(self.artifact_dir / "weights" / "last_ckpt"))
-            trainer._load_best_model()
-            trainer.save_model(str(self.artifact_dir / "weights" / "best_ckpt"))
+    def training(self, cfg: TrainConfig, info_controller: TrainingInfoController):
+        trainer = Trainer(
+            model=cfg.train_input.model,
+            args=cfg.train_input.training_args,
+            data_collator=cfg.train_input.collator,
+            train_dataset=cfg.train_input.dataset["train"],
+            eval_dataset=cfg.train_input.dataset["val"],
+            tokenizer=cfg.train_input.image_processor,
+            compute_metrics=cfg.train_input.compute_metrics,
+        )
+        trainer.add_callback(CustomCallback(trainer, self.metric_file))
+        trainer.train()
+        trainer.save_model(str(self.artifact_dir / "weights" / "last_ckpt"))
+        trainer._load_best_model()
+        trainer.save_model(str(self.artifact_dir / "weights" / "best_ckpt"))
 
-            self.train_log = trainer.state.log_history
-
-        except KeyboardInterrupt as e:
-            status_controller.set_stopped(e)
-            raise e
-        except SystemExit as e:
-            status_controller.set_stopped(e)
-            raise e
+        self.train_log = trainer.state.log_history
 
     def get_metrics(self) -> list[list[dict]]:
         return io.load_json(self.metric_file) if self.metric_file.exists() else []

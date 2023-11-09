@@ -81,6 +81,39 @@ class SplitMethod(BaseEnum):
     STRATIFIED = enum.auto()
 
 
+# for changeable status
+class TrainStatus(BaseEnum):
+    INIT = enum.auto()
+    RUNNING = enum.auto()
+    SUCCESS = enum.auto()
+    FAILED = enum.auto()
+    STOPPED = enum.auto()
+
+
+class EvaluateStatus(BaseEnum):
+    INIT = enum.auto()
+    RUNNING = enum.auto()
+    SUCCESS = enum.auto()
+    FAILED = enum.auto()
+    STOPPED = enum.auto()
+
+
+class InferenceStatus(BaseEnum):
+    INIT = enum.auto()
+    RUNNING = enum.auto()
+    SUCCESS = enum.auto()
+    FAILED = enum.auto()
+    STOPPED = enum.auto()
+
+
+class ExportStatus(BaseEnum):
+    INIT = enum.auto()
+    RUNNING = enum.auto()
+    SUCCESS = enum.auto()
+    FAILED = enum.auto()
+    STOPPED = enum.auto()
+
+
 EXPORT_MAP = OrderedDict(
     {
         DataType.YOLO: "ULTRALYTICS",

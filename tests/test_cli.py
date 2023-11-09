@@ -43,6 +43,7 @@ def _train(hub_name: str, dataset: Dataset, tmpdir: Path):
     ret = run_cli(cmd)
     assert ret.returncode == 0
     assert (tmpdir / hub_name / "artifacts").exists()
+    assert (tmpdir / hub_name / "working_infos" / "training_info.json").exists()
 
 
 def _delete_artifact(hub_name: str, tmpdir: Path):
@@ -73,6 +74,7 @@ def _train_advance_params(hub_name: str, dataset: Dataset, tmpdir: Path):
     ret = run_cli(cmd)
     assert ret.returncode == 0
     assert (tmpdir / hub_name / "artifacts").exists()
+    assert (tmpdir / hub_name / "working_infos" / "training_info.json").exists()
 
 
 def _inference(hub_name: str, dataset: Dataset, tmpdir: Path):
@@ -87,6 +89,7 @@ def _inference(hub_name: str, dataset: Dataset, tmpdir: Path):
     ret = run_cli(cmd)
     assert ret.returncode == 0
     assert (tmpdir / hub_name / "inferences").exists()
+    assert (tmpdir / hub_name / "working_infos" / "inferencing_info.json").exists()
 
 
 def _evaluate(hub_name: str, dataset: Dataset, tmpdir: Path):
@@ -102,6 +105,7 @@ def _evaluate(hub_name: str, dataset: Dataset, tmpdir: Path):
     ret = run_cli(cmd)
     assert ret.returncode == 0
     assert (tmpdir / hub_name / "evaluate.json").exists()
+    assert (tmpdir / hub_name / "working_infos" / "evaluating_info.json").exists()
 
 
 def _export_onnx(hub_name: str, tmpdir: Path):
@@ -113,6 +117,7 @@ def _export_onnx(hub_name: str, tmpdir: Path):
     ret = run_cli(cmd)
     assert ret.returncode == 0
     assert (tmpdir / hub_name / "weights" / "model.onnx").exists()
+    assert (tmpdir / hub_name / "working_infos" / "exporting_onnx_info.json").exists()
 
 
 def _export_waffle(hub_name: str, tmpdir: Path):

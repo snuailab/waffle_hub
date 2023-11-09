@@ -27,7 +27,7 @@ from waffle_utils.image.io import save_image
 from waffle_utils.utils import type_validator
 from waffle_utils.video.io import create_video_writer
 
-from waffle_hub import BACKEND_MAP, EXPORT_MAP, TaskType
+from waffle_hub import BACKEND_MAP, EXPORT_MAP, TaskType, TrainStatus
 from waffle_hub.dataset import Dataset
 from waffle_hub.hub.model.wrapper import get_parser
 from waffle_hub.schema.configs import (
@@ -46,7 +46,16 @@ from waffle_hub.schema.result import (
     InferenceResult,
     TrainResult,
 )
-from waffle_hub.schema.status import StatusController
+from waffle_hub.schema.working_info import (
+    EvaluatingInfo,
+    EvaluatingInfoController,
+    ExportingInfo,
+    ExportingInfoController,
+    InferencingInfo,
+    InferencingInfoController,
+    TrainingInfo,
+    TrainingInfoController,
+)
 from waffle_hub.utils.data import (
     IMAGE_EXTS,
     VIDEO_EXTS,
@@ -100,12 +109,12 @@ class Hub:
     # export results
     ONNX_FILE = "weights/model.onnx"
 
-    # train status file
-    STATUS_DIR = Path("status")
-    TRAIN_STATUS_FILE = STATUS_DIR / "train_status.json"
-    EVALUATE_STATUS_FILE = STATUS_DIR / "evaluate_status.json"
-    INFERENCE_STATUS_FILE = STATUS_DIR / "inference_status.json"
-    EXPORT_ONNX_STATUS_FILE = STATUS_DIR / "export_onnx_status.json"
+    # working info file
+    WORKING_INFO_DIR = Path("working_infos")
+    TRAINING_INFO_FILE = WORKING_INFO_DIR / "training_info.json"
+    EVALUATING_INFO_FILE = WORKING_INFO_DIR / "evaluating_info.json"
+    INFERENCING_INFO_FILE = WORKING_INFO_DIR / "inferencing_info.json"
+    EXPORTING_ONNX_INFO_FILE = WORKING_INFO_DIR / "exporting_onnx_info.json"
 
     def __init__(
         self,
@@ -617,9 +626,9 @@ class Hub:
         return self.hub_dir / Hub.WEIGHTS_DIR
 
     @cached_property
-    def status_dir(self) -> Path:
-        """Status Directory"""
-        return self.hub_dir / Hub.STATUS_DIR
+    def working_info_dir(self) -> Path:
+        """Working Info Directory"""
+        return self.hub_dir / Hub.WORKING_INFO_DIR
 
     @cached_property
     def inference_dir(self) -> Path:
@@ -677,24 +686,24 @@ class Hub:
         return self.hub_dir / f"{self.name}.waffle"
 
     @cached_property
-    def train_status_file(self) -> Path:
-        """Train Status File"""
-        return self.hub_dir / Hub.TRAIN_STATUS_FILE
+    def training_info_file(self) -> Path:
+        """Training Info Json File"""
+        return self.hub_dir / Hub.TRAINING_INFO_FILE
 
     @cached_property
-    def evaluate_status_file(self) -> Path:
-        """Evaluate Status File"""
-        return self.hub_dir / Hub.EVALUATE_STATUS_FILE
+    def evaluating_info_file(self) -> Path:
+        """Evaluating Info Json File"""
+        return self.hub_dir / Hub.EVALUATING_INFO_FILE
 
     @cached_property
-    def inference_status_file(self) -> Path:
-        """Inference Status File"""
-        return self.hub_dir / Hub.INFERENCE_STATUS_FILE
+    def inferencing_info_file(self) -> Path:
+        """Inferencing Info Json File"""
+        return self.hub_dir / Hub.INFERENCING_INFO_FILE
 
     @cached_property
-    def export_onnx_status_file(self) -> Path:
-        """Export Status File"""
-        return self.hub_dir / Hub.EXPORT_ONNX_STATUS_FILE
+    def exporting_onnx_info_file(self) -> Path:
+        """Exporting Info Json File"""
+        return self.hub_dir / Hub.EXPORTING_ONNX_INFO_FILE
 
     # common functions
     def delete_hub(self):
@@ -713,7 +722,7 @@ class Hub:
         Returns:
             bool: True if all files are exist else False
         """
-        if self.get_train_status()["status"] != "SUCCESS":
+        if not self.get_training_info()["status"] in [TrainStatus.SUCCESS, TrainStatus.STOPPED]:
             raise ValueError("Train first! hub.train(...).")
         return True
 
@@ -843,11 +852,11 @@ class Hub:
             return []
         return io.load_json(self.inference_file)
 
-    def get_train_status(self) -> dict:
-        """Get train status from train status file.
+    def get_training_info(self) -> dict:
+        """Get training info from training info file.
 
         Example:
-            >>> hub.get_train_status()
+            >>> hub.get_training_info()
             {
                 "status": Literal["INIT", "RUNNING", "SUCCESS", "FAILED", "STOPPED"],
                 "error_type": String,
@@ -857,21 +866,21 @@ class Hub:
             }
 
         Raises:
-            FileNotFoundError: if train status file is not exist
+            FileNotFoundError: if training info file is not exist
 
         Returns:
-            dict: train status
+            dict: training info
         """
-        if not self.train_status_file.exists():
-            raise FileNotFoundError("Train status file is not exist. Train first!")
+        if not self.training_info_file.exists():
+            raise FileNotFoundError("Training info file is not exist. Train first!")
 
-        return io.load_json(self.train_status_file)
+        return TrainingInfo.load(self.training_info_file)
 
-    def get_evaluate_status(self) -> dict:
-        """Get evaluate status from evaluate status file.
+    def get_evaluating_info(self) -> dict:
+        """Get evaluating info from evaluating info file.
 
         Example:
-            >>> hub.get_evaluate_status()
+            >>> hub.get_evaluating_info()
             {
                 "status": Literal["INIT", "RUNNING", "SUCCESS", "FAILED", "STOPPED"],
                 "error_type": String,
@@ -881,21 +890,21 @@ class Hub:
             }
 
         Raises:
-            FileNotFoundError: if evaluate status file is not exist
+            FileNotFoundError: if evaluating info file is not exist
 
         Returns:
-            dict: evaluate status
+            dict: evaluating info
         """
-        if not self.evaluate_status_file.exists():
-            raise FileNotFoundError("Evaluate status file is not exist. Evaluate first!")
+        if not self.evaluating_info_file.exists():
+            raise FileNotFoundError("Evaluating info file is not exist. Evaluate first!")
 
-        return io.load_json(self.evaluate_status_file)
+        return EvaluatingInfo.load(self.evaluating_info_file)
 
-    def get_inference_status(self) -> dict:
-        """Get inference status from inference status file.
+    def get_inferencing_info(self) -> dict:
+        """Get inferencing info from inferencing info file.
 
         Example:
-            >>> hub.get_inference_status()
+            >>> hub.get_inferencing_info()
             {
                 "status": Literal["INIT", "RUNNING", "SUCCESS", "FAILED", "STOPPED"],
                 "error_type": String,
@@ -905,21 +914,21 @@ class Hub:
             }
 
         Raises:
-            FileNotFoundError: if inference status file is not exist
+            FileNotFoundError: if inferencing info file is not exist
 
         Returns:
-            dict: inference status
+            dict: inferencing info
         """
-        if not self.inference_status_file.exists():
-            raise FileNotFoundError("Inference status file is not exist. Inference first!")
+        if not self.inferencing_info_file.exists():
+            raise FileNotFoundError("Inferencing info file is not exist. Infer first!")
 
-        return io.load_json(self.inference_status_file)
+        return InferencingInfo.load(self.inferencing_info_file)
 
-    def get_export_onnx_status(self) -> dict:
-        """Get export status from export status file.
+    def get_exporting_onnx_info(self) -> dict:
+        """Get exporting info from exporting info file.
 
         Example:
-            >>> hub.get_export_onnx_status()
+            >>> hub.get_exporting_onnx_info()
             {
                 "status": Literal["INIT", "RUNNING", "SUCCESS", "FAILED", "STOPPED"],
                 "error_type": String,
@@ -929,15 +938,15 @@ class Hub:
             }
 
         Raises:
-            FileNotFoundError: if export status file is not exist
+            FileNotFoundError: if exporting info file is not exist
 
         Returns:
-            dict: export status
+            dict: exporting info
         """
-        if not self.export_onnx_status_file.exists():
-            raise FileNotFoundError("Export onnx status file is not exist. Export_onnx first!")
+        if not self.exporting_onnx_info_file.exists():
+            raise FileNotFoundError("Exporting info file is not exist. Export_onnx first!")
 
-        return io.load_json(self.export_onnx_status_file)
+        return ExportingInfo.load(self.exporting_onnx_info_file)
 
     # Hub Utils
     def get_image_loader(self) -> tuple[torch.Tensor, ImageInfo]:
@@ -1022,7 +1031,7 @@ class Hub:
     def save_train_config(self, cfg: TrainConfig):
         cfg.save_yaml(self.train_config_file)
 
-    def training(self, cfg: TrainConfig, status_controller: StatusController):
+    def training(self, cfg: TrainConfig, info_controller: TrainingInfoController):
         pass
 
     def on_train_end(
@@ -1101,14 +1110,14 @@ class Hub:
             TrainResult: train result
         """
         # status
-        status_controller = StatusController(save_path=self.train_status_file)
+        info_controller = TrainingInfoController(save_path=self.training_info_file)
         metric_logger = MetricLogger(
             name=self.name,
             log_dir=self.train_log_dir,
             func=self.get_metrics,
             interval=10,
             prefix="waffle",
-            status_controller=status_controller,
+            info_controller=info_controller,
         )
         try:
             # parse dataset
@@ -1204,18 +1213,18 @@ class Hub:
                         )
 
             result = TrainResult()
-            status_controller.set_total_step(cfg.epochs)
+            info_controller.set_total_step(cfg.epochs)
 
             # train run
-            status_controller.set_running()
+            info_controller.set_running()
 
             metric_logger.start()
             self.before_train(cfg)
             self.on_train_start(cfg)
             self.save_train_config(cfg)
-            self.training(cfg, status_controller)
+            self.training(cfg, info_controller)
             self.on_train_end(cfg)
-            status_controller.set_success()
+            info_controller.set_success()
             self.evaluate(
                 dataset=dataset,
                 batch_size=cfg.batch_size,
@@ -1227,18 +1236,17 @@ class Hub:
             self.after_train(cfg, result)
             metric_logger.stop()
         except FileExistsError as e:
-            status_controller.set_failed(e)
+            info_controller.set_failed(e)
             if hasattr(metric_logger, "thread"):
                 metric_logger.stop()
             raise e
-        except KeyboardInterrupt as e:
-            status_controller.set_stopped(e)
-            raise e
-        except SystemExit as e:
-            status_controller.set_stopped(e)
+        except (KeyboardInterrupt, SystemExit) as e:
+            info_controller.set_stopped(e)
+            if self.artifact_dir.exists():
+                self.on_evaluate_end(cfg)
             raise e
         except Exception as e:
-            status_controller.set_failed(e)
+            info_controller.set_failed(e)
             if self.artifact_dir.exists():
                 io.remove_directory(self.artifact_dir)
             if hasattr(metric_logger, "thread"):
@@ -1259,7 +1267,9 @@ class Hub:
     def on_evaluate_start(self, cfg: EvaluateConfig):
         pass
 
-    def evaluating(self, cfg: EvaluateConfig, status_controller: StatusController, dataset: Dataset):
+    def evaluating(
+        self, cfg: EvaluateConfig, info_controller: EvaluatingInfoController, dataset: Dataset
+    ):
         device = cfg.device
 
         model = self.get_model().to(device)
@@ -1274,43 +1284,37 @@ class Hub:
 
         result_parser = get_parser(self.task)(**cfg.to_dict(), categories=self.categories)
 
-        try:
-            status_controller.set_total_step(len(dataloader) + 1)
+        info_controller.set_total_step(len(dataloader) + 1)
 
-            preds = []
-            labels = []
-            for i, (images, image_infos, annotations) in tqdm.tqdm(
-                enumerate(dataloader, start=1), total=len(dataloader)
-            ):
-                result_batch = model(images.to(device))
-                result_batch = result_parser(result_batch, image_infos)
+        preds = []
+        labels = []
+        for i, (images, image_infos, annotations) in tqdm.tqdm(
+            enumerate(dataloader, start=1), total=len(dataloader)
+        ):
+            result_batch = model(images.to(device))
+            result_batch = result_parser(result_batch, image_infos)
 
-                preds.extend(result_batch)
-                labels.extend(annotations)
+            preds.extend(result_batch)
+            labels.extend(annotations)
 
-                status_controller.set_current_step(i)
+            info_controller.set_current_step(i)
 
-            metrics = evaluate_function(preds, labels, self.task, len(self.categories))
+        metrics = evaluate_function(preds, labels, self.task, len(self.categories))
 
-            result_metrics = []
-            for tag, value in metrics.to_dict().items():
-                if isinstance(value, list):
-                    values = [
-                        {
-                            "class_name": cat,
-                            "value": cat_value,
-                        }
-                        for cat, cat_value in zip(self.get_category_names(), value)
-                    ]
-                else:
-                    values = value
-                result_metrics.append({"tag": tag, "value": values})
-        except KeyboardInterrupt as e:
-            status_controller.set_stopped(e)
-            raise e
-        except SystemExit as e:
-            status_controller.set_stopped(e)
-            raise e
+        result_metrics = []
+        for tag, value in metrics.to_dict().items():
+            if isinstance(value, list):
+                values = [
+                    {
+                        "class_name": cat,
+                        "value": cat_value,
+                    }
+                    for cat, cat_value in zip(self.get_category_names(), value)
+                ]
+            else:
+                values = value
+            result_metrics.append({"tag": tag, "value": values})
+
         io.save_json(result_metrics, self.evaluate_file)
 
     def on_evaluate_end(self, cfg: EvaluateConfig):
@@ -1379,7 +1383,7 @@ class Hub:
             EvaluateResult: evaluate result
         """
         # status
-        status_controller = StatusController(save_path=self.evaluate_status_file)
+        info_controller = EvaluatingInfoController(save_path=self.evaluating_info_file)
 
         try:
             if "," in device:
@@ -1422,23 +1426,20 @@ class Hub:
             result = EvaluateResult()
 
             # evaluate run
-            status_controller.set_running()
+            info_controller.set_running()
             self.before_evaluate(cfg, dataset)
             self.on_evaluate_start(cfg)
-            self.evaluating(cfg, status_controller, dataset)
+            self.evaluating(cfg, info_controller, dataset)
             self.on_evaluate_end(cfg)
             self.after_evaluate(cfg, result)
-            status_controller.set_success()
+            info_controller.set_success()
+        except (KeyboardInterrupt, SystemExit) as e:
+            info_controller.set_stopped(e)
+            raise e
         except Exception as e:
-            status_controller.set_failed(e)
+            info_controller.set_failed(e)
             if self.evaluate_file.exists():
                 io.remove_file(self.evaluate_file)
-            raise e
-        except KeyboardInterrupt as e:
-            status_controller.set_stopped(e)
-            raise e
-        except SystemExit as e:
-            status_controller.set_stopped(e)
             raise e
 
         return result
@@ -1450,7 +1451,7 @@ class Hub:
     def on_inference_start(self, cfg: InferenceConfig):
         pass
 
-    def inferencing(self, cfg: InferenceConfig, status_controller: StatusController):
+    def inferencing(self, cfg: InferenceConfig, info_controller: InferencingInfoController):
         device = cfg.device
         model = self.get_model().to(device)
         result_parser = get_parser(self.task)(**cfg.to_dict(), categories=self.categories)
@@ -1471,74 +1472,62 @@ class Hub:
         if cfg.draw and cfg.source_type == "video":
             writer = None
 
-        try:
-            results = []
-            status_controller.set_total_step(len(dataloader) + 1)
-            for i, (images, image_infos) in tqdm.tqdm(
-                enumerate(dataloader, start=1), total=len(dataloader)
-            ):
-                result_batch = model(images.to(device))
-                result_batch = result_parser(result_batch, image_infos)
-                for result, image_info in zip(result_batch, image_infos):
+        results = []
+        info_controller.set_total_step(len(dataloader) + 1)
+        for i, (images, image_infos) in tqdm.tqdm(
+            enumerate(dataloader, start=1), total=len(dataloader)
+        ):
+            result_batch = model(images.to(device))
+            result_batch = result_parser(result_batch, image_infos)
+            for result, image_info in zip(result_batch, image_infos):
 
-                    results.append(
-                        {str(image_info.image_rel_path): [res.to_dict() for res in result]}
+                results.append({str(image_info.image_rel_path): [res.to_dict() for res in result]})
+
+                if cfg.draw:
+                    io.make_directory(self.draw_dir)
+                    draw = draw_results(
+                        image_info.ori_image,
+                        result,
+                        names=[x["name"] for x in self.categories],
                     )
 
-                    if cfg.draw:
-                        io.make_directory(self.draw_dir)
+                    if cfg.source_type == "video":
+                        if writer is None:
+                            h, w = draw.shape[:2]
+                            writer = create_video_writer(
+                                str(self.inference_dir / Path(cfg.source).with_suffix(".mp4").name),
+                                dataset.fps,
+                                (w, h),
+                            )
+                        writer.write(draw)
+
+                        draw_path = (
+                            self.draw_dir
+                            / Path(cfg.source).stem
+                            / Path(image_info.image_rel_path).with_suffix(".png")
+                        )
+                    else:
+                        draw_path = self.draw_dir / Path(image_info.image_rel_path).with_suffix(
+                            ".png"
+                        )
+                    save_image(draw_path, draw, create_directory=True)
+
+                if cfg.show:
+                    if not cfg.draw:
                         draw = draw_results(
                             image_info.ori_image,
                             result,
                             names=[x["name"] for x in self.categories],
                         )
+                    cv2.imshow("result", draw)
+                    cv2.waitKey(1)
 
-                        if cfg.source_type == "video":
-                            if writer is None:
-                                h, w = draw.shape[:2]
-                                writer = create_video_writer(
-                                    str(
-                                        self.inference_dir
-                                        / Path(cfg.source).with_suffix(".mp4").name
-                                    ),
-                                    dataset.fps,
-                                    (w, h),
-                                )
-                            writer.write(draw)
+            info_controller.set_current_step(i)
 
-                            draw_path = (
-                                self.draw_dir
-                                / Path(cfg.source).stem
-                                / Path(image_info.image_rel_path).with_suffix(".png")
-                            )
-                        else:
-                            draw_path = self.draw_dir / Path(image_info.image_rel_path).with_suffix(
-                                ".png"
-                            )
-                        save_image(draw_path, draw, create_directory=True)
-
-                    if cfg.show:
-                        if not cfg.draw:
-                            draw = draw_results(
-                                image_info.ori_image,
-                                result,
-                                names=[x["name"] for x in self.categories],
-                            )
-                        cv2.imshow("result", draw)
-                        cv2.waitKey(1)
-
-                status_controller.set_current_step(i)
-        except KeyboardInterrupt as e:
-            status_controller.set_stopped(e)
-            raise e
-        except SystemExit as e:
-            status_controller.set_stopped(e)
-            raise e
-        finally:
-            if cfg.draw and cfg.source_type == "video":
-                writer.release()
-            if cfg.show:
-                cv2.destroyAllWindows()
+        if cfg.draw and cfg.source_type == "video":
+            writer.release()
+        if cfg.show:
+            cv2.destroyAllWindows()
 
         io.save_json(
             results,
@@ -1616,7 +1605,7 @@ class Hub:
             InferenceResult: inference result
         """
         # status controller
-        status_controller = StatusController(save_path=self.inference_status_file)
+        info_controller = InferencingInfoController(save_path=self.inferencing_info_file)
 
         try:
             # inference settings
@@ -1672,24 +1661,22 @@ class Hub:
             result = InferenceResult()
 
             # run inference
-            status_controller.set_running()
+            info_controller.set_running()
             self.before_inference(cfg)
             self.on_inference_start(cfg)
-            self.inferencing(cfg, status_controller)
+            self.inferencing(cfg, info_controller)
             self.on_inference_end(cfg)
             self.after_inference(cfg, result)
-            status_controller.set_success()
+            info_controller.set_success()
+        except (KeyboardInterrupt, SystemExit) as e:
+            info_controller.set_stopped(e)
+            raise e
         except Exception as e:
-            status_controller.set_failed(e)
+            info_controller.set_failed(e)
             if self.inference_dir.exists():
                 io.remove_directory(self.inference_dir)
             raise e
-        except KeyboardInterrupt as e:
-            status_controller.set_stopped(e)
-            raise e
-        except SystemExit as e:
-            status_controller.set_stopped(e)
-            raise e
+
         return result
 
     # Export Hook
@@ -1699,7 +1686,7 @@ class Hub:
     def on_export_onnx_start(self, cfg: ExportOnnxConfig):
         pass
 
-    def exporting_onnx(self, cfg: ExportOnnxConfig, status_controller: StatusController) -> str:
+    def exporting_onnx(self, cfg: ExportOnnxConfig, info_controller: ExportingInfoController) -> str:
         image_size = cfg.image_size
         image_size = [image_size, image_size] if isinstance(image_size, int) else image_size
 
@@ -1723,22 +1710,15 @@ class Hub:
         )
         dummy_input = dummy_input.to(cfg.device)
 
-        try:
-            torch.onnx.export(
-                model,
-                dummy_input,
-                str(self.onnx_file),
-                input_names=input_name,
-                output_names=output_names,
-                opset_version=cfg.opset_version,
-                dynamic_axes={name: {0: "batch_size"} for name in input_name + output_names},
-            )
-        except KeyboardInterrupt as e:
-            status_controller.set_stopped(e)
-            raise e
-        except SystemExit as e:
-            status_controller.set_stopped(e)
-            raise e
+        torch.onnx.export(
+            model,
+            dummy_input,
+            str(self.onnx_file),
+            input_names=input_name,
+            output_names=output_names,
+            opset_version=cfg.opset_version,
+            dynamic_axes={name: {0: "batch_size"} for name in input_name + output_names},
+        )
 
     def on_export_onnx_end(self, cfg: ExportOnnxConfig):
         pass
@@ -1785,7 +1765,7 @@ class Hub:
         self.check_train_sanity()
 
         # status controller
-        status_controller = StatusController(save_path=self.export_onnx_status_file)
+        info_controller = ExportingInfoController(save_path=self.exporting_onnx_info_file)
 
         try:
             # overwrite training config
@@ -1804,23 +1784,20 @@ class Hub:
             result = ExportOnnxResult()
 
             # run export onnx
-            status_controller.set_running()
+            info_controller.set_running()
             self.before_export_onnx(cfg)
             self.on_export_onnx_start(cfg)
-            self.exporting_onnx(cfg, status_controller)
+            self.exporting_onnx(cfg, info_controller)
             self.on_export_onnx_end(cfg)
             self.after_export_onnx(cfg, result)
-            status_controller.set_success()
+            info_controller.set_success()
+        except (KeyboardInterrupt, SystemExit) as e:
+            info_controller.set_stopped(e)
+            raise e
         except Exception as e:
-            status_controller.set_failed(e)
+            info_controller.set_failed(e)
             if self.onnx_file.exists():
                 io.remove_file(self.onnx_file)
-            raise e
-        except KeyboardInterrupt as e:
-            status_controller.set_stopped(e)
-            raise e
-        except SystemExit as e:
-            status_controller.set_stopped(e)
             raise e
 
         return result
@@ -1917,7 +1894,7 @@ class Hub:
         result = ExportWaffleResult()
 
         try:
-            io.zip([self.config_dir, self.weights_dir, self.status_dir], self.waffle_file)
+            io.zip([self.config_dir, self.weights_dir, self.working_info_dir], self.waffle_file)
             result.waffle_file = self.waffle_file
         except Exception as e:
             if self.waffle_file.exists():

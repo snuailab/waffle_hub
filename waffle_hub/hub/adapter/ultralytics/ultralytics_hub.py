@@ -19,8 +19,7 @@ from waffle_hub import DataType, TaskType
 from waffle_hub.hub import Hub
 from waffle_hub.hub.model.wrapper import ModelWrapper
 from waffle_hub.schema.configs import TrainConfig
-from waffle_hub.schema.status import StatusController
-from waffle_hub.utils.process import run_python_file
+from waffle_hub.schema.working_info import TrainingInfoController
 
 from .config import DEFAULT_PARAMS, MODEL_TYPES, TASK_MAP
 
@@ -283,33 +282,26 @@ class UltralyticsHub(Hub):
                 "letter_box False is not supported for Object Detection and Segmentation."
             )
 
-    def training(self, cfg: TrainConfig, status_controller: StatusController):
-        try:
-            params = {
-                "data": str(cfg.dataset_path).replace("\\", "/"),
-                "epochs": cfg.epochs,
-                "batch": cfg.batch_size,
-                "imgsz": cfg.image_size,
-                "lr0": cfg.learning_rate,
-                "lrf": cfg.learning_rate,
-                "rect": False,  # TODO: hard coding for mosaic
-                "device": cfg.device,
-                "workers": cfg.workers,
-                "seed": cfg.seed,
-                "verbose": cfg.verbose,
-                "project": str(self.hub_dir),
-                "name": str(self.ARTIFACT_DIR),
-            }
-            params.update(cfg.advance_params)
+    def training(self, cfg: TrainConfig, info_controller: TrainingInfoController):
+        params = {
+            "data": str(cfg.dataset_path).replace("\\", "/"),
+            "epochs": cfg.epochs,
+            "batch": cfg.batch_size,
+            "imgsz": cfg.image_size,
+            "lr0": cfg.learning_rate,
+            "lrf": cfg.learning_rate,
+            "rect": False,  # TODO: hard coding for mosaic
+            "device": cfg.device,
+            "workers": cfg.workers,
+            "seed": cfg.seed,
+            "verbose": cfg.verbose,
+            "project": str(self.hub_dir),
+            "name": str(self.ARTIFACT_DIR),
+        }
+        params.update(cfg.advance_params)
 
-            model = YOLO(cfg.pretrained_model, task=self.backend_task_name)
-            model.train(**params)
-        except KeyboardInterrupt as e:
-            status_controller.set_stopped(e)
-            raise e
-        except SystemExit as e:
-            status_controller.set_stopped(e)
-            raise e
+        model = YOLO(cfg.pretrained_model, task=self.backend_task_name)
+        model.train(**params)
 
     def on_train_end(self, cfg: TrainConfig):
         io.copy_file(

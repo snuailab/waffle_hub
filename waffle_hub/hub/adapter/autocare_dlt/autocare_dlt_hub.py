@@ -25,7 +25,7 @@ from waffle_hub.hub.adapter.autocare_dlt.configs import (
 )
 from waffle_hub.hub.model.wrapper import ModelWrapper
 from waffle_hub.schema.configs import TrainConfig
-from waffle_hub.schema.status import StatusController
+from waffle_hub.schema.working_info import TrainingInfoController
 
 from .config import DATA_TYPE_MAP, DEFAULT_PARAMS, MODEL_TYPES, WEIGHT_PATH
 
@@ -256,26 +256,19 @@ class AutocareDLTHub(Hub):
 
         cfg.dataset_path = str(cfg.dataset_path.absolute())
 
-    def training(self, cfg: TrainConfig, status_controller: StatusController):
-        try:
-            results = train.run(
-                exp_name="train",
-                model_cfg=str(cfg.model_config),
-                data_cfg=str(cfg.data_config),
-                gpus="-1" if cfg.device == "cpu" else str(cfg.device),
-                output_dir=str(self.artifact_dir),
-                ckpt=cfg.pretrained_model,
-                overwrite=True,
-            )
-            if results is None:
-                raise RuntimeError("Training failed")
-            del results
-        except KeyboardInterrupt as e:
-            status_controller.set_stopped(e)
-            raise e
-        except SystemExit as e:
-            status_controller.set_stopped(e)
-            raise e
+    def training(self, cfg: TrainConfig, info_controller: TrainingInfoController):
+        results = train.run(
+            exp_name="train",
+            model_cfg=str(cfg.model_config),
+            data_cfg=str(cfg.data_config),
+            gpus="-1" if cfg.device == "cpu" else str(cfg.device),
+            output_dir=str(self.artifact_dir),
+            ckpt=cfg.pretrained_model,
+            overwrite=True,
+        )
+        if results is None:
+            raise RuntimeError("Training failed")
+        del results
 
     def on_train_end(self, cfg: TrainConfig):
         io.copy_file(
