@@ -9,6 +9,7 @@ MODEL_TYPES = {
         "TextRecognition": list("sml"),
         "LicencePlateRecognition": list("sml"),
     },
+    TaskType.SEMANTIC_SEGMENTATION: {"Segmenter": ["m"]},
 }
 
 # Backend Specifics
@@ -16,6 +17,7 @@ DATA_TYPE_MAP = {
     TaskType.OBJECT_DETECTION: "COCODetectionDataset",
     TaskType.CLASSIFICATION: "COCOClassificationDataset",
     TaskType.TEXT_RECOGNITION: "COCOTextRecognitionDataset",
+    TaskType.SEMANTIC_SEGMENTATION: "COCOSegmentationDataset",
 }
 
 WEIGHT_PATH = {
@@ -36,14 +38,19 @@ WEIGHT_PATH = {
     TaskType.TEXT_RECOGNITION: {
         "TextRecognition": {
             "s": "temp/autocare_dlt/text_recognizers/small/model.pth",
-            "m": "temp/autocare_dlt/text_recognizers/small/model.pth",
-            "l": "temp/autocare_dlt/text_recognizers/small/model.pth",
+            "m": "temp/autocare_dlt/text_recognizers/medium/model.pth",
+            "l": "temp/autocare_dlt/text_recognizers/large/model.pth",
         },
         "LicencePlateRecognition": {
             "s": "temp/autocare_dlt/text_recognizers/small/model.pth",
-            "m": "temp/autocare_dlt/text_recognizers/small/model.pth",
-            "l": "temp/autocare_dlt/text_recognizers/small/model.pth",
+            "m": "temp/autocare_dlt/text_recognizers/medium/model.pth",
+            "l": "temp/autocare_dlt/text_recognizers/large/model.pth",
         },
+    },
+    TaskType.SEMANTIC_SEGMENTATION: {
+        "Segmenter": {
+            "m": "temp/autocare_dlt/semantic_segmentation/medium/model.pth",
+        }
     },
 }
 
@@ -145,5 +152,16 @@ DEFAULT_PARAMS = {
                 batch_size=64,
             ),
         },
+    },
+    TaskType.SEMANTIC_SEGMENTATION: {
+        "Segmenter": {
+            "m": TrainConfig(
+                epochs=50,
+                image_size=[640, 640],
+                learning_rate=0.01,
+                letter_box=True,
+                batch_size=4,
+            ),
+        }
     },
 }

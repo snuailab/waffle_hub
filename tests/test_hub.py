@@ -371,8 +371,6 @@ def test_non_hold(classification_dataset: Dataset, tmpdir: Path):
     _total(hub, dataset, image_size, tmpdir, hold=False)
 
 
-# TODO: Handling autocate_dlt
-@pytest.mark.skip("Need to modfiy autocate_dlt")
 def test_autocare_dlt_object_detection(object_detection_dataset: Dataset, tmpdir: Path):
     image_size = 32
     dataset = object_detection_dataset
@@ -398,7 +396,6 @@ def test_autocare_dlt_object_detection(object_detection_dataset: Dataset, tmpdir
     _total(hub, dataset, image_size, tmpdir)
 
 
-@pytest.mark.skip("Need to modfiy autocate_dlt")
 def test_autocare_dlt_classification(classification_dataset: Dataset, tmpdir: Path):
     image_size = 32
     dataset = classification_dataset
@@ -424,7 +421,6 @@ def test_autocare_dlt_classification(classification_dataset: Dataset, tmpdir: Pa
     _total(hub, dataset, image_size, tmpdir)
 
 
-@pytest.mark.skip("Need to modfiy autocate_dlt")
 def test_autocare_dlt_text_recognition(text_recognition_dataset: Dataset, tmpdir: Path):
     image_size = 32
     dataset = text_recognition_dataset
@@ -450,7 +446,31 @@ def test_autocare_dlt_text_recognition(text_recognition_dataset: Dataset, tmpdir
     _total(hub, dataset, image_size, tmpdir)
 
 
-@pytest.mark.skip("Need to modfiy autocate_dlt")
+def test_autocare_dlt_semantic_segmentation(semantic_segmentation_dataset: Dataset, tmpdir: Path):
+    image_size = 32
+    dataset = semantic_segmentation_dataset
+
+    # test hub
+    name = "test_segmantic_seg"
+    hub = Hub.new(
+        name=name,
+        backend="autocare_dlt",
+        task=TaskType.SEMANTIC_SEGMENTATION,
+        model_type="Segmenter",
+        model_size="m",
+        categories=semantic_segmentation_dataset.get_category_names(),
+        root_dir=tmpdir,
+    )
+    hub = Hub.load(name=name, root_dir=tmpdir)
+    hub: Hub = Hub.from_model_config(
+        name=name + "_from_model_config",
+        model_config_file=tmpdir / name / Hub.MODEL_CONFIG_FILE,
+        root_dir=tmpdir,
+    )
+
+    _total(hub, dataset, image_size, tmpdir)
+
+
 def test_autocare_dlt_classification_without_category(classification_dataset: Dataset, tmpdir: Path):
     image_size = 32
     dataset = classification_dataset
