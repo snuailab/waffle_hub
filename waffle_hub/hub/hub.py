@@ -852,7 +852,7 @@ class Hub:
             return []
         return io.load_json(self.inference_file)
 
-    def get_training_info(self) -> dict:
+    def get_training_info(self) -> TrainingInfo:
         """Get training info from training info file.
 
         Example:
@@ -869,14 +869,14 @@ class Hub:
             FileNotFoundError: if training info file is not exist
 
         Returns:
-            dict: training info
+            TrainingInfo: training info
         """
         if not self.training_info_file.exists():
             raise FileNotFoundError("Training info file is not exist. Train first!")
 
         return TrainingInfo.load(self.training_info_file)
 
-    def get_evaluating_info(self) -> dict:
+    def get_evaluating_info(self) -> EvaluatingInfo:
         """Get evaluating info from evaluating info file.
 
         Example:
@@ -893,14 +893,14 @@ class Hub:
             FileNotFoundError: if evaluating info file is not exist
 
         Returns:
-            dict: evaluating info
+            EvaluatingInfo: evaluating info
         """
         if not self.evaluating_info_file.exists():
             raise FileNotFoundError("Evaluating info file is not exist. Evaluate first!")
 
         return EvaluatingInfo.load(self.evaluating_info_file)
 
-    def get_inferencing_info(self) -> dict:
+    def get_inferencing_info(self) -> InferencingInfo:
         """Get inferencing info from inferencing info file.
 
         Example:
@@ -917,14 +917,14 @@ class Hub:
             FileNotFoundError: if inferencing info file is not exist
 
         Returns:
-            dict: inferencing info
+            InferencingInfo: inferencing info
         """
         if not self.inferencing_info_file.exists():
             raise FileNotFoundError("Inferencing info file is not exist. Infer first!")
 
         return InferencingInfo.load(self.inferencing_info_file)
 
-    def get_exporting_onnx_info(self) -> dict:
+    def get_exporting_onnx_info(self) -> ExportingInfo:
         """Get exporting info from exporting info file.
 
         Example:
@@ -941,7 +941,7 @@ class Hub:
             FileNotFoundError: if exporting info file is not exist
 
         Returns:
-            dict: exporting info
+            ExportingInfo: exporting info
         """
         if not self.exporting_onnx_info_file.exists():
             raise FileNotFoundError("Exporting info file is not exist. Export_onnx first!")

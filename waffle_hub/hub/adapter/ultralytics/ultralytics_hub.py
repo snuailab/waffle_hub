@@ -20,6 +20,7 @@ from waffle_hub.hub import Hub
 from waffle_hub.hub.model.wrapper import ModelWrapper
 from waffle_hub.schema.configs import TrainConfig
 from waffle_hub.schema.working_info import TrainingInfoController
+from waffle_hub.utils.process import run_python_file
 
 from .config import DEFAULT_PARAMS, MODEL_TYPES, TASK_MAP
 
@@ -300,8 +301,25 @@ class UltralyticsHub(Hub):
         }
         params.update(cfg.advance_params)
 
-        model = YOLO(cfg.pretrained_model, task=self.backend_task_name)
-        model.train(**params)
+        code = f"""if __name__ == "__main__":
+        from ultralytics import YOLO
+        import os
+        os.environ["KMP_DUPLICATE_LIB_OK"] = "TRUE"
+        try:
+            model = YOLO("{cfg.pretrained_model}", task="{self.backend_task_name}")
+            model.train(
+                **{params}
+            )
+        except Exception as e:
+            print(e)
+            raise e
+        """
+
+        script_file = str((self.hub_dir / "train.py").absolute())
+        with open(script_file, "w") as f:
+            f.write(code)
+
+        run_python_file(script_file)
 
     def on_train_end(self, cfg: TrainConfig):
         io.copy_file(
