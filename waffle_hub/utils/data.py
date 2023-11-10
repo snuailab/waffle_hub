@@ -76,13 +76,13 @@ def resize_image(
         w_ratio = W / w
 
         if w_ratio < h_ratio:
-            resize_shape = (int(w * w_ratio), round(h * w_ratio))
+            resize_shape = (round(w * w_ratio), round(h * w_ratio))
             total_pad = H - resize_shape[1]
             top = total_pad // 2
             bottom = total_pad - top
             left, right = 0, 0
         else:
-            resize_shape = (round(w * h_ratio), int(h * h_ratio))
+            resize_shape = (round(w * h_ratio), round(h * h_ratio))
             total_pad = W - resize_shape[0]
             left = total_pad // 2
             right = total_pad - left
