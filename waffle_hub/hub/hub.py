@@ -48,13 +48,9 @@ from waffle_hub.schema.result import (
 )
 from waffle_hub.schema.working_info import (
     EvaluatingInfo,
-    EvaluatingInfoController,
     ExportingInfo,
-    ExportingInfoController,
     InferencingInfo,
-    InferencingInfoController,
     TrainingInfo,
-    TrainingInfoController,
 )
 from waffle_hub.utils.data import (
     IMAGE_EXTS,
@@ -66,6 +62,12 @@ from waffle_hub.utils.draw import draw_results
 from waffle_hub.utils.evaluate import evaluate_function
 from waffle_hub.utils.memory import device_context
 from waffle_hub.utils.metric_logger import MetricLogger
+from waffle_hub.utils.working_info_logger import (
+    EvaluatingInfoLogger,
+    ExportingInfoLogger,
+    InferencingInfoLogger,
+    TrainingInfoLogger,
+)
 
 logger = logging.getLogger(__name__)
 
@@ -1031,7 +1033,7 @@ class Hub:
     def save_train_config(self, cfg: TrainConfig):
         cfg.save_yaml(self.train_config_file)
 
-    def training(self, cfg: TrainConfig, info_controller: TrainingInfoController):
+    def training(self, cfg: TrainConfig, info_logger: TrainingInfoLogger):
         pass
 
     def on_train_end(
@@ -1110,14 +1112,14 @@ class Hub:
             TrainResult: train result
         """
         # status
-        info_controller = TrainingInfoController(save_path=self.training_info_file)
+        info_logger = TrainingInfoLogger(save_path=self.training_info_file)
         metric_logger = MetricLogger(
             name=self.name,
             log_dir=self.train_log_dir,
             func=self.get_metrics,
             interval=10,
             prefix="waffle",
-            info_controller=info_controller,
+            info_logger=info_logger,
         )
         try:
             # parse dataset
@@ -1213,18 +1215,18 @@ class Hub:
                         )
 
             result = TrainResult()
-            info_controller.set_total_step(cfg.epochs)
+            info_logger.set_total_step(cfg.epochs)
 
             # train run
-            info_controller.set_running()
+            info_logger.set_running()
 
             metric_logger.start()
             self.before_train(cfg)
             self.on_train_start(cfg)
             self.save_train_config(cfg)
-            self.training(cfg, info_controller)
+            self.training(cfg, info_logger)
             self.on_train_end(cfg)
-            info_controller.set_success()
+            info_logger.set_success()
             self.evaluate(
                 dataset=dataset,
                 batch_size=cfg.batch_size,
@@ -1236,17 +1238,17 @@ class Hub:
             self.after_train(cfg, result)
             metric_logger.stop()
         except FileExistsError as e:
-            info_controller.set_failed(e)
+            info_logger.set_failed(e)
             if hasattr(metric_logger, "thread"):
                 metric_logger.stop()
             raise e
         except (KeyboardInterrupt, SystemExit) as e:
-            info_controller.set_stopped(e)
+            info_logger.set_stopped(e)
             if self.artifact_dir.exists():
                 self.on_evaluate_end(cfg)
             raise e
         except Exception as e:
-            info_controller.set_failed(e)
+            info_logger.set_failed(e)
             if self.artifact_dir.exists():
                 io.remove_directory(self.artifact_dir)
             if hasattr(metric_logger, "thread"):
@@ -1267,9 +1269,7 @@ class Hub:
     def on_evaluate_start(self, cfg: EvaluateConfig):
         pass
 
-    def evaluating(
-        self, cfg: EvaluateConfig, info_controller: EvaluatingInfoController, dataset: Dataset
-    ):
+    def evaluating(self, cfg: EvaluateConfig, info_logger: EvaluatingInfoLogger, dataset: Dataset):
         device = cfg.device
 
         model = self.get_model().to(device)
@@ -1284,7 +1284,7 @@ class Hub:
 
         result_parser = get_parser(self.task)(**cfg.to_dict(), categories=self.categories)
 
-        info_controller.set_total_step(len(dataloader) + 1)
+        info_logger.set_total_step(len(dataloader) + 1)
 
         preds = []
         labels = []
@@ -1297,7 +1297,7 @@ class Hub:
             preds.extend(result_batch)
             labels.extend(annotations)
 
-            info_controller.set_current_step(i)
+            info_logger.set_current_step(i)
 
         metrics = evaluate_function(
             preds, labels, self.task, len(self.categories), image_size=cfg.image_size
@@ -1385,7 +1385,7 @@ class Hub:
             EvaluateResult: evaluate result
         """
         # status
-        info_controller = EvaluatingInfoController(save_path=self.evaluating_info_file)
+        info_logger = EvaluatingInfoLogger(save_path=self.evaluating_info_file)
 
         try:
             if "," in device:
@@ -1428,18 +1428,18 @@ class Hub:
             result = EvaluateResult()
 
             # evaluate run
-            info_controller.set_running()
+            info_logger.set_running()
             self.before_evaluate(cfg, dataset)
             self.on_evaluate_start(cfg)
-            self.evaluating(cfg, info_controller, dataset)
+            self.evaluating(cfg, info_logger, dataset)
             self.on_evaluate_end(cfg)
             self.after_evaluate(cfg, result)
-            info_controller.set_success()
+            info_logger.set_success()
         except (KeyboardInterrupt, SystemExit) as e:
-            info_controller.set_stopped(e)
+            info_logger.set_stopped(e)
             raise e
         except Exception as e:
-            info_controller.set_failed(e)
+            info_logger.set_failed(e)
             if self.evaluate_file.exists():
                 io.remove_file(self.evaluate_file)
             raise e
@@ -1453,7 +1453,7 @@ class Hub:
     def on_inference_start(self, cfg: InferenceConfig):
         pass
 
-    def inferencing(self, cfg: InferenceConfig, info_controller: InferencingInfoController):
+    def inferencing(self, cfg: InferenceConfig, info_logger: InferencingInfoLogger):
         device = cfg.device
         model = self.get_model().to(device)
         result_parser = get_parser(self.task)(**cfg.to_dict(), categories=self.categories)
@@ -1475,7 +1475,7 @@ class Hub:
             writer = None
 
         results = []
-        info_controller.set_total_step(len(dataloader) + 1)
+        info_logger.set_total_step(len(dataloader) + 1)
         for i, (images, image_infos) in tqdm.tqdm(
             enumerate(dataloader, start=1), total=len(dataloader)
         ):
@@ -1524,7 +1524,7 @@ class Hub:
                     cv2.imshow("result", draw)
                     cv2.waitKey(1)
 
-            info_controller.set_current_step(i)
+            info_logger.set_current_step(i)
 
         if cfg.draw and cfg.source_type == "video":
             writer.release()
@@ -1607,7 +1607,7 @@ class Hub:
             InferenceResult: inference result
         """
         # status controller
-        info_controller = InferencingInfoController(save_path=self.inferencing_info_file)
+        info_logger = InferencingInfoLogger(save_path=self.inferencing_info_file)
 
         try:
             # inference settings
@@ -1663,18 +1663,18 @@ class Hub:
             result = InferenceResult()
 
             # run inference
-            info_controller.set_running()
+            info_logger.set_running()
             self.before_inference(cfg)
             self.on_inference_start(cfg)
-            self.inferencing(cfg, info_controller)
+            self.inferencing(cfg, info_logger)
             self.on_inference_end(cfg)
             self.after_inference(cfg, result)
-            info_controller.set_success()
+            info_logger.set_success()
         except (KeyboardInterrupt, SystemExit) as e:
-            info_controller.set_stopped(e)
+            info_logger.set_stopped(e)
             raise e
         except Exception as e:
-            info_controller.set_failed(e)
+            info_logger.set_failed(e)
             if self.inference_dir.exists():
                 io.remove_directory(self.inference_dir)
             raise e
@@ -1688,7 +1688,7 @@ class Hub:
     def on_export_onnx_start(self, cfg: ExportOnnxConfig):
         pass
 
-    def exporting_onnx(self, cfg: ExportOnnxConfig, info_controller: ExportingInfoController) -> str:
+    def exporting_onnx(self, cfg: ExportOnnxConfig, info_logger: ExportingInfoLogger) -> str:
         image_size = cfg.image_size
         image_size = [image_size, image_size] if isinstance(image_size, int) else image_size
 
@@ -1769,7 +1769,7 @@ class Hub:
         self.check_train_sanity()
 
         # status controller
-        info_controller = ExportingInfoController(save_path=self.exporting_onnx_info_file)
+        info_logger = ExportingInfoLogger(save_path=self.exporting_onnx_info_file)
 
         try:
             # overwrite training config
@@ -1788,18 +1788,18 @@ class Hub:
             result = ExportOnnxResult()
 
             # run export onnx
-            info_controller.set_running()
+            info_logger.set_running()
             self.before_export_onnx(cfg)
             self.on_export_onnx_start(cfg)
-            self.exporting_onnx(cfg, info_controller)
+            self.exporting_onnx(cfg, info_logger)
             self.on_export_onnx_end(cfg)
             self.after_export_onnx(cfg, result)
-            info_controller.set_success()
+            info_logger.set_success()
         except (KeyboardInterrupt, SystemExit) as e:
-            info_controller.set_stopped(e)
+            info_logger.set_stopped(e)
             raise e
         except Exception as e:
-            info_controller.set_failed(e)
+            info_logger.set_failed(e)
             if self.onnx_file.exists():
                 io.remove_file(self.onnx_file)
             raise e

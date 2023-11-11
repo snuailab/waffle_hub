@@ -19,8 +19,8 @@ from waffle_hub import DataType, TaskType
 from waffle_hub.hub import Hub
 from waffle_hub.hub.model.wrapper import ModelWrapper
 from waffle_hub.schema.configs import TrainConfig
-from waffle_hub.schema.working_info import TrainingInfoController
 from waffle_hub.utils.process import run_python_file
+from waffle_hub.utils.working_info_logger import TrainingInfoLogger
 
 from .config import DEFAULT_PARAMS, MODEL_TYPES, TASK_MAP
 
@@ -283,7 +283,7 @@ class UltralyticsHub(Hub):
                 "letter_box False is not supported for Object Detection and Segmentation."
             )
 
-    def training(self, cfg: TrainConfig, info_controller: TrainingInfoController):
+    def training(self, cfg: TrainConfig, info_logger: TrainingInfoLogger):
         params = {
             "data": str(cfg.dataset_path).replace("\\", "/"),
             "epochs": cfg.epochs,

@@ -3,6 +3,7 @@ __version__ = "0.2.16"
 import enum
 import signal
 from collections import OrderedDict
+from typing import TypeVar
 
 
 class CustomEnumMeta(enum.EnumMeta):
