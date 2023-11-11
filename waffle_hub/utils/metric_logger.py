@@ -164,10 +164,9 @@ class MetricLogger:
         self._stop = True
 
         self.thread.join()
+        self._log()  # final log after stop
         for logger in self.loggers:
             logger.close()
-
-        self._log()  # final log after stop
 
     def _loop(self):
         """Log metrics every interval seconds."""
