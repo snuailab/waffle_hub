@@ -37,6 +37,11 @@ class RunningInfoLogger:
         self.working_info.error_msg = None
         self.save()
 
+    def clear_step(self):
+        self.working_info.step = 0
+        self.working_info.total_step = 0
+        self.save()
+
     def set_total_step(self, total_step: int):
         self.working_info.total_step = total_step
         self.working_info.step = 0
@@ -54,6 +59,7 @@ class TrainingInfoLogger(RunningInfoLogger):
 
     def set_init(self):
         self.clear_error()
+        self.clear_step()
         self.set_status(TrainStatus.INIT)
 
     def set_failed(self, e):
@@ -70,7 +76,7 @@ class TrainingInfoLogger(RunningInfoLogger):
 
     def set_stopped(self, e):
         self.set_error(e)
-        self.set_status(TrainStatus.STOPPED, e)
+        self.set_status(TrainStatus.STOPPED)
 
 
 class EvaluatingInfoLogger(RunningInfoLogger):
@@ -80,6 +86,7 @@ class EvaluatingInfoLogger(RunningInfoLogger):
 
     def set_init(self):
         self.clear_error()
+        self.clear_step()
         self.set_status(EvaluateStatus.INIT)
 
     def set_failed(self, e):
@@ -96,7 +103,7 @@ class EvaluatingInfoLogger(RunningInfoLogger):
 
     def set_stopped(self, e):
         self.set_error(e)
-        self.set_status(EvaluateStatus.STOPPED, e)
+        self.set_status(EvaluateStatus.STOPPED)
 
 
 class InferencingInfoLogger(RunningInfoLogger):
@@ -106,6 +113,7 @@ class InferencingInfoLogger(RunningInfoLogger):
 
     def set_init(self):
         self.clear_error()
+        self.clear_step()
         self.set_status(InferenceStatus.INIT)
 
     def set_failed(self, e):
@@ -122,7 +130,7 @@ class InferencingInfoLogger(RunningInfoLogger):
 
     def set_stopped(self, e):
         self.set_error(e)
-        self.set_status(InferenceStatus.STOPPED, e)
+        self.set_status(InferenceStatus.STOPPED)
 
 
 class ExportingInfoLogger(RunningInfoLogger):
@@ -132,6 +140,7 @@ class ExportingInfoLogger(RunningInfoLogger):
 
     def set_init(self):
         self.clear_error()
+        self.clear_step()
         self.set_status(ExportStatus.INIT)
 
     def set_failed(self, e):
@@ -148,4 +157,4 @@ class ExportingInfoLogger(RunningInfoLogger):
 
     def set_stopped(self, e):
         self.set_error(e)
-        self.set_status(ExportStatus.STOPPED, e)
+        self.set_status(ExportStatus.STOPPED)
