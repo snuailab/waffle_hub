@@ -19,8 +19,8 @@ def _train(hub, dataset: Dataset, image_size: int):
     )
 
     training_info = hub.get_training_info()
-    assert training_info["status"] == TrainStatus.SUCCESS
-    assert training_info["step"] == training_info["total_step"]
+    assert training_info.status == TrainStatus.SUCCESS
+    assert training_info.step == training_info.total_step
 
     assert len(result.metrics) >= 1
     assert Path(result.best_ckpt_file).exists()

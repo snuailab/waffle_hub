@@ -38,8 +38,8 @@ def _train(hub, dataset: Dataset, image_size: int, advance_params: dict = None):
     )
 
     training_info = hub.get_training_info()
-    assert training_info["status"] == TrainStatus.SUCCESS
-    assert training_info["step"] == training_info["total_step"]
+    assert training_info.status == TrainStatus.SUCCESS
+    assert training_info.step == training_info.total_step
     assert len(result.metrics) >= 1
     assert len(result.eval_metrics) >= 1
     assert Path(result.best_ckpt_file).exists()
@@ -63,8 +63,8 @@ def _evaluate(hub, dataset: Dataset):
     )
 
     evaluating_info = hub.get_evaluating_info()
-    assert evaluating_info["status"] == EvaluateStatus.SUCCESS
-    assert evaluating_info["step"] == evaluating_info["total_step"]
+    assert evaluating_info.status == EvaluateStatus.SUCCESS
+    assert evaluating_info.step == evaluating_info.total_step
     assert len(result.eval_metrics) >= 1
 
     return result
@@ -80,8 +80,8 @@ def _inference(hub, source: str):
     )
 
     inferencing_info = hub.get_inferencing_info()
-    assert inferencing_info["status"] == InferenceStatus.SUCCESS
-    assert inferencing_info["step"] == inferencing_info["total_step"]
+    assert inferencing_info.status == InferenceStatus.SUCCESS
+    assert inferencing_info.step == inferencing_info.total_step
     assert len(result.predictions) >= 1
     assert Path(result.draw_dir).exists()
 
@@ -95,7 +95,7 @@ def _export_onnx(hub, half: bool = False):
     )
 
     exporting_onnx_info = hub.get_exporting_onnx_info()
-    assert exporting_onnx_info["status"] == ExportStatus.SUCCESS
+    assert exporting_onnx_info.status == ExportStatus.SUCCESS
     assert Path(result.onnx_file).exists()
 
     return result
@@ -264,7 +264,7 @@ def test_ultralytics_object_detection_advance_params(
 
     with pytest.raises(ValueError):
         _total(hub, dataset, image_size, tmpdir, {"box": 4, "dummy_adv_param": 2})
-        assert hub.get_training_info()["status"] == TrainStatus.FAILED
+        assert hub.get_training_info().status == TrainStatus.FAILED
         import_hub = Hub.load(name=import_hub_name, root_dir=tmpdir)
         import_hub.delete_hub()
 

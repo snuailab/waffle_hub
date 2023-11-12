@@ -1234,6 +1234,8 @@ class Hub:
         except (KeyboardInterrupt, SystemExit) as e:
             info_logger.set_stopped(e)
             metric_logger.stop()
+            if self.artifact_dir.exists():
+                self.on_train_end(cfg)
             raise e
         except Exception as e:
             info_logger.set_failed(e)
