@@ -1,6 +1,5 @@
-from dataclasses import dataclass, field
-from pathlib import Path
-from typing import Any, Generic, Type, TypeVar
+from dataclasses import dataclass
+from typing import Generic, TypeVar
 
 from waffle_hub import (
     BaseEnum,

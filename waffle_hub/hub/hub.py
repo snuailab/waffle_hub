@@ -724,7 +724,7 @@ class Hub:
         Returns:
             bool: True if all files are exist else False
         """
-        if not self.get_training_info()["status"] in [TrainStatus.SUCCESS, TrainStatus.STOPPED]:
+        if not self.get_training_info().status in [TrainStatus.SUCCESS, TrainStatus.STOPPED]:
             raise ValueError("Train first! hub.train(...).")
         return True
 
@@ -1046,7 +1046,6 @@ class Hub:
         result.best_ckpt_file = self.best_ckpt_file
         result.last_ckpt_file = self.last_ckpt_file
         result.metrics = self.get_metrics()
-        result.eval_metrics = self.get_evaluate_result()
 
     @device_context
     def train(
@@ -1219,14 +1218,31 @@ class Hub:
 
             # train run
             info_logger.set_running()
-
             metric_logger.start()
             self.before_train(cfg)
             self.on_train_start(cfg)
             self.save_train_config(cfg)
             self.training(cfg, info_logger)
             self.on_train_end(cfg)
+            self.after_train(cfg, result)
             info_logger.set_success()
+            metric_logger.stop()
+        except FileExistsError as e:
+            info_logger.set_failed(e)
+            metric_logger.stop()
+            raise e
+        except (KeyboardInterrupt, SystemExit) as e:
+            info_logger.set_stopped(e)
+            metric_logger.stop()
+            raise e
+        except Exception as e:
+            info_logger.set_failed(e)
+            metric_logger.stop()
+            if self.artifact_dir.exists():
+                io.remove_directory(self.artifact_dir)
+            raise e
+
+        try:
             self.evaluate(
                 dataset=dataset,
                 batch_size=cfg.batch_size,
@@ -1235,24 +1251,10 @@ class Hub:
                 device=cfg.device,
                 workers=cfg.workers,
             )
-            self.after_train(cfg, result)
-            metric_logger.stop()
-        except FileExistsError as e:
-            info_logger.set_failed(e)
-            if hasattr(metric_logger, "thread"):
-                metric_logger.stop()
-            raise e
-        except (KeyboardInterrupt, SystemExit) as e:
-            info_logger.set_stopped(e)
-            if self.artifact_dir.exists():
-                self.on_evaluate_end(cfg)
-            raise e
+            result.eval_metrics = self.get_evaluate_result()
         except Exception as e:
-            info_logger.set_failed(e)
-            if self.artifact_dir.exists():
-                io.remove_directory(self.artifact_dir)
-            if hasattr(metric_logger, "thread"):
-                metric_logger.stop()
+            logger.error("Evaluation failed. Resolve issue and evaluate again.")
+            result.eval_metrics = []
             raise e
 
         return result

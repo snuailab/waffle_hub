@@ -157,17 +157,18 @@ class MetricLogger:
 
         self._stop = False
 
-        self.thread = Thread(target=self._loop, daemon=True)
-        self.thread.start()
+        self._thread = Thread(target=self._loop, daemon=True)
+        self._thread.start()
 
     def stop(self):
         """Stop logging thread."""
-        self._stop = True
-
-        self.thread.join()
-        self._log()  # final log after stop
-        for logger in self.loggers:
-            logger.close()
+        if self._thread is not None:
+            self._stop = True
+            self._thread.join()
+            self._thread = None
+            self._log()  # final log after stop
+            for logger in self.loggers:
+                logger.close()
 
     def _loop(self):
         """Log metrics every interval seconds."""
