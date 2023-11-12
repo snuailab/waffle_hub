@@ -322,17 +322,17 @@ class UltralyticsHub(Hub):
         run_python_file(script_file)
 
     def on_train_end(self, cfg: TrainConfig):
-        io.copy_file(
-            self.artifact_dir / "weights" / "best.pt",
-            self.best_ckpt_file,
-            create_directory=True,
-        )
-        io.copy_file(
-            self.artifact_dir / "weights" / "last.pt",
-            self.last_ckpt_file,
-            create_directory=True,
-        )
-        io.save_json(self.get_metrics(), self.metric_file)
+        best_ckpt_file = self.artifact_dir / "weights" / "best.pt"
+        last_ckpt_file = self.artifact_dir / "weights" / "last.pt"
+
+        if best_ckpt_file.exists():
+            io.copy_file(best_ckpt_file, self.best_ckpt_file, create_directory=True)
+        if last_ckpt_file.exists():
+            io.copy_file(last_ckpt_file, self.last_ckpt_file, create_directory=True)
+
+        metrics = self.get_metrics()
+        if metrics:
+            io.save_json(metrics, self.metric_file, create_directory=True)
 
     # Inference Hook
     def get_model(self):

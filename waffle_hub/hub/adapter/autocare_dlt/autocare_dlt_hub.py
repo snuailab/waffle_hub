@@ -287,20 +287,20 @@ class AutocareDLTHub(Hub):
         del results
 
     def on_train_end(self, cfg: TrainConfig):
-        io.copy_file(
-            self.artifact_dir / "train" / "best_ckpt.pth",
-            self.best_ckpt_file,
-            create_directory=True,
-        )
-        io.copy_file(
-            self.artifact_dir / "train" / "last_epoch_ckpt.pth",
-            self.last_ckpt_file,
-            create_directory=True,
-        )
-        io.copy_file(
-            self.artifact_dir / "model.json", self.model_json_output_path, create_directory=True
-        )
-        io.save_json(self.get_metrics(), self.metric_file)
+        best_ckpt_path = (self.artifact_dir / "train" / "best_ckpt.pth",)
+        last_epoch_ckpt_path = self.artifact_dir / "train" / "last_epoch_ckpt.pth"
+        model_json_path = self.artifact_dir / "model.json"
+
+        if best_ckpt_path.exists():
+            io.copy_file(best_ckpt_path, self.best_ckpt_file, create_directory=True)
+        if last_epoch_ckpt_path.exists():
+            io.copy_file(last_epoch_ckpt_path, self.last_ckpt_file, create_directory=True)
+        if model_json_path.exists():
+            io.copy_file(model_json_path, self.model_json_output_path, create_directory=True)
+
+        metrics = self.get_metrics()
+        if metrics:
+            io.save_json(metrics, self.metric_file, create_directory=True)
 
     # Inference Hook
     def get_model(self):

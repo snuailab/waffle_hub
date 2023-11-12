@@ -58,7 +58,7 @@ class CustomCallback(TrainerCallback):
             epoch = int(metric.get("epoch"))
             for key, value in metric.items():
                 epoch_metric[epoch].append({"tag": key, "value": value})
-        io.save_json(list(epoch_metric.values()), self.metric_file)
+        io.save_json(list(epoch_metric.values()), self.metric_file, create_directory=True)
         return control
 
 
