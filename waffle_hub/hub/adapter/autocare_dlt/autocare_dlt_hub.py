@@ -25,7 +25,7 @@ from waffle_hub.hub.adapter.autocare_dlt.configs import (
 )
 from waffle_hub.hub.model.wrapper import ModelWrapper
 from waffle_hub.schema.configs import TrainConfig
-from waffle_hub.utils.callback import TrainCallback
+from waffle_hub.utils.working_info_logger import TrainingInfoLogger
 
 from .config import DATA_TYPE_MAP, DEFAULT_PARAMS, MODEL_TYPES, WEIGHT_PATH
 
@@ -272,7 +272,7 @@ class AutocareDLTHub(Hub):
 
         cfg.dataset_path = str(cfg.dataset_path.absolute())
 
-    def training(self, cfg: TrainConfig, callback: TrainCallback):
+    def training(self, cfg: TrainConfig, info_logger: TrainingInfoLogger):
         results = train.run(
             exp_name="train",
             model_cfg=str(cfg.model_config),
@@ -287,20 +287,20 @@ class AutocareDLTHub(Hub):
         del results
 
     def on_train_end(self, cfg: TrainConfig):
-        io.copy_file(
-            self.artifact_dir / "train" / "best_ckpt.pth",
-            self.best_ckpt_file,
-            create_directory=True,
-        )
-        io.copy_file(
-            self.artifact_dir / "train" / "last_epoch_ckpt.pth",
-            self.last_ckpt_file,
-            create_directory=True,
-        )
-        io.copy_file(
-            self.artifact_dir / "model.json", self.model_json_output_path, create_directory=True
-        )
-        io.save_json(self.get_metrics(), self.metric_file)
+        best_ckpt_path = self.artifact_dir / "train" / "best_ckpt.pth"
+        last_epoch_ckpt_path = self.artifact_dir / "train" / "last_epoch_ckpt.pth"
+        model_json_path = self.artifact_dir / "model.json"
+
+        if best_ckpt_path.exists():
+            io.copy_file(best_ckpt_path, self.best_ckpt_file, create_directory=True)
+        if last_epoch_ckpt_path.exists():
+            io.copy_file(last_epoch_ckpt_path, self.last_ckpt_file, create_directory=True)
+        if model_json_path.exists():
+            io.copy_file(model_json_path, self.model_json_output_path, create_directory=True)
+
+        metrics = self.get_metrics()
+        if metrics:
+            io.save_json(metrics, self.metric_file, create_directory=True)
 
     # Inference Hook
     def get_model(self):

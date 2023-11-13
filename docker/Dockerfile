@@ -6,10 +6,11 @@ RUN apt update \
 ENV OMP_NUM_THREADS=1
 
 # Install somethings
-RUN wget https://ultralytics.com/assets/Arial.ttf && \
+RUN wget https://ultralytics.com/assets/Arial.Unicode.ttf https://ultralytics.com/assets/Arial.ttf && \
     mkdir -p /root/.config/Ultralytics && \
+    cp Arial.Unicode.ttf /root/.config/Ultralytics && \
     cp Arial.ttf /root/.config/Ultralytics && \
-    rm Arial.ttf
+    rm Arial.Unicode.ttf Arial.ttf
 
 ENV WAFFLE_HUB_ROOT_DIR=/workspace/hubs
 ENV WAFFLE_DATASET_ROOT_DIR=/workspace/datasets

@@ -27,7 +27,7 @@ from waffle_utils.image.io import save_image
 from waffle_utils.utils import type_validator
 from waffle_utils.video.io import create_video_writer
 
-from waffle_hub import BACKEND_MAP, EXPORT_MAP, TaskType
+from waffle_hub import BACKEND_MAP, EXPORT_MAP, TaskType, TrainStatus
 from waffle_hub.dataset import Dataset
 from waffle_hub.hub.model.wrapper import get_parser
 from waffle_hub.schema.configs import (
@@ -46,11 +46,11 @@ from waffle_hub.schema.result import (
     InferenceResult,
     TrainResult,
 )
-from waffle_hub.utils.callback import (
-    EvaluateCallback,
-    ExportCallback,
-    InferenceCallback,
-    TrainCallback,
+from waffle_hub.schema.working_info import (
+    EvaluatingInfo,
+    ExportingInfo,
+    InferencingInfo,
+    TrainingInfo,
 )
 from waffle_hub.utils.data import (
     IMAGE_EXTS,
@@ -62,6 +62,12 @@ from waffle_hub.utils.draw import draw_results
 from waffle_hub.utils.evaluate import evaluate_function
 from waffle_hub.utils.memory import device_context
 from waffle_hub.utils.metric_logger import MetricLogger
+from waffle_hub.utils.working_info_logger import (
+    EvaluatingInfoLogger,
+    ExportingInfoLogger,
+    InferencingInfoLogger,
+    TrainingInfoLogger,
+)
 
 logger = logging.getLogger(__name__)
 
@@ -104,6 +110,13 @@ class Hub:
 
     # export results
     ONNX_FILE = "weights/model.onnx"
+
+    # working info file
+    WORKING_INFO_DIR = Path("working_infos")
+    TRAINING_INFO_FILE = WORKING_INFO_DIR / "training_info.json"
+    EVALUATING_INFO_FILE = WORKING_INFO_DIR / "evaluating_info.json"
+    INFERENCING_INFO_FILE = WORKING_INFO_DIR / "inferencing_info.json"
+    EXPORTING_ONNX_INFO_FILE = WORKING_INFO_DIR / "exporting_onnx_info.json"
 
     def __init__(
         self,
@@ -605,6 +618,21 @@ class Hub:
         return self.hub_dir / Hub.ARTIFACT_DIR
 
     @cached_property
+    def config_dir(self) -> Path:
+        """Config Directory"""
+        return self.hub_dir / Hub.CONFIG_DIR
+
+    @cached_property
+    def weights_dir(self) -> Path:
+        """Weights Directory"""
+        return self.hub_dir / Hub.WEIGHTS_DIR
+
+    @cached_property
+    def working_info_dir(self) -> Path:
+        """Working Info Directory"""
+        return self.hub_dir / Hub.WORKING_INFO_DIR
+
+    @cached_property
     def inference_dir(self) -> Path:
         """Inference Results Directory"""
         return self.hub_dir / Hub.INFERENCE_DIR
@@ -659,6 +687,26 @@ class Hub:
         """Export Waffle file"""
         return self.hub_dir / f"{self.name}.waffle"
 
+    @cached_property
+    def training_info_file(self) -> Path:
+        """Training Info Json File"""
+        return self.hub_dir / Hub.TRAINING_INFO_FILE
+
+    @cached_property
+    def evaluating_info_file(self) -> Path:
+        """Evaluating Info Json File"""
+        return self.hub_dir / Hub.EVALUATING_INFO_FILE
+
+    @cached_property
+    def inferencing_info_file(self) -> Path:
+        """Inferencing Info Json File"""
+        return self.hub_dir / Hub.INFERENCING_INFO_FILE
+
+    @cached_property
+    def exporting_onnx_info_file(self) -> Path:
+        """Exporting Info Json File"""
+        return self.hub_dir / Hub.EXPORTING_ONNX_INFO_FILE
+
     # common functions
     def delete_hub(self):
         """Delete all artifacts of Hub. Hub name can be used again."""
@@ -676,12 +724,8 @@ class Hub:
         Returns:
             bool: True if all files are exist else False
         """
-        if not (
-            self.model_config_file.exists()
-            and self.best_ckpt_file.exists()
-            # and self.last_ckpt_file.exists()
-        ):
-            raise FileNotFoundError("Train first! hub.train(...).")
+        if not self.get_training_info().status in [TrainStatus.SUCCESS, TrainStatus.STOPPED]:
+            raise ValueError("Train first! hub.train(...).")
         return True
 
     def get_train_config(self) -> TrainConfig:
@@ -810,6 +854,102 @@ class Hub:
             return []
         return io.load_json(self.inference_file)
 
+    def get_training_info(self) -> TrainingInfo:
+        """Get training info from training info file.
+
+        Example:
+            >>> hub.get_training_info()
+            {
+                "status": Literal["INIT", "RUNNING", "SUCCESS", "FAILED", "STOPPED"],
+                "error_type": String,
+                "error_msg": String,
+                "step": Integer,
+                "total_Step": Integer,
+            }
+
+        Raises:
+            FileNotFoundError: if training info file is not exist
+
+        Returns:
+            TrainingInfo: training info
+        """
+        if not self.training_info_file.exists():
+            raise FileNotFoundError("Training info file is not exist. Train first!")
+
+        return TrainingInfo.load(self.training_info_file)
+
+    def get_evaluating_info(self) -> EvaluatingInfo:
+        """Get evaluating info from evaluating info file.
+
+        Example:
+            >>> hub.get_evaluating_info()
+            {
+                "status": Literal["INIT", "RUNNING", "SUCCESS", "FAILED", "STOPPED"],
+                "error_type": String,
+                "error_msg": String,
+                "step": Integer,
+                "total_Step": Integer,
+            }
+
+        Raises:
+            FileNotFoundError: if evaluating info file is not exist
+
+        Returns:
+            EvaluatingInfo: evaluating info
+        """
+        if not self.evaluating_info_file.exists():
+            raise FileNotFoundError("Evaluating info file is not exist. Evaluate first!")
+
+        return EvaluatingInfo.load(self.evaluating_info_file)
+
+    def get_inferencing_info(self) -> InferencingInfo:
+        """Get inferencing info from inferencing info file.
+
+        Example:
+            >>> hub.get_inferencing_info()
+            {
+                "status": Literal["INIT", "RUNNING", "SUCCESS", "FAILED", "STOPPED"],
+                "error_type": String,
+                "error_msg": String,
+                "step": Integer,
+                "total_Step": Integer,
+            }
+
+        Raises:
+            FileNotFoundError: if inferencing info file is not exist
+
+        Returns:
+            InferencingInfo: inferencing info
+        """
+        if not self.inferencing_info_file.exists():
+            raise FileNotFoundError("Inferencing info file is not exist. Infer first!")
+
+        return InferencingInfo.load(self.inferencing_info_file)
+
+    def get_exporting_onnx_info(self) -> ExportingInfo:
+        """Get exporting info from exporting info file.
+
+        Example:
+            >>> hub.get_exporting_onnx_info()
+            {
+                "status": Literal["INIT", "RUNNING", "SUCCESS", "FAILED", "STOPPED"],
+                "error_type": String,
+                "error_msg": String,
+                "step": Integer,
+                "total_Step": Integer,
+            }
+
+        Raises:
+            FileNotFoundError: if exporting info file is not exist
+
+        Returns:
+            ExportingInfo: exporting info
+        """
+        if not self.exporting_onnx_info_file.exists():
+            raise FileNotFoundError("Exporting info file is not exist. Export_onnx first!")
+
+        return ExportingInfo.load(self.exporting_onnx_info_file)
+
     # Hub Utils
     def get_image_loader(self) -> tuple[torch.Tensor, ImageInfo]:
         """Get image loader function.
@@ -840,6 +980,7 @@ class Hub:
 
         return inner
 
+    # TODO: register hook
     # Train Hook
     def before_train(self, cfg: TrainConfig):
         # check device
@@ -892,18 +1033,21 @@ class Hub:
     def save_train_config(self, cfg: TrainConfig):
         cfg.save_yaml(self.train_config_file)
 
-    def training(self, cfg: TrainConfig):
+    def training(self, cfg: TrainConfig, info_logger: TrainingInfoLogger):
         pass
 
-    def on_train_end(self, cfg: TrainConfig):
+    def on_train_end(
+        self,
+        cfg: TrainConfig,
+    ):
         pass
 
     def after_train(self, cfg: TrainConfig, result: TrainResult):
         result.best_ckpt_file = self.best_ckpt_file
         result.last_ckpt_file = self.last_ckpt_file
         result.metrics = self.get_metrics()
-        result.eval_metrics = self.get_evaluate_result()
 
+    @device_context
     def train(
         self,
         dataset: Union[Dataset, str],
@@ -919,7 +1063,6 @@ class Hub:
         seed: int = 0,
         advance_params: Union[dict, str] = None,
         verbose: bool = True,
-        hold: bool = True,
     ) -> TrainResult:
         """Start Train
 
@@ -938,7 +1081,6 @@ class Hub:
             seed (int, optional): random seed. Defaults to 0.
             advance_params (Union[dict, str], optional): advance params dictionary or file (yaml, json) path. Defaults to None.
             verbose (bool, optional): verbose. Defaults to True.
-            hold (bool, optional): hold process. Defaults to True.
 
         Raises:
             FileExistsError: if trained artifact exists.
@@ -968,146 +1110,154 @@ class Hub:
         Returns:
             TrainResult: train result
         """
-
-        @device_context("cpu" if device == "cpu" else device)
-        def inner(callback: TrainCallback, result: TrainResult):
-            try:
-                metric_logger = MetricLogger(
-                    name=self.name,
-                    log_dir=self.train_log_dir,
-                    func=self.get_metrics,
-                    interval=10,
-                    prefix="waffle",
-                )
-                metric_logger.start()
-                self.before_train(cfg)
-                self.on_train_start(cfg)
-                self.save_train_config(cfg)
-                self.training(cfg, callback)
-                self.on_train_end(cfg)
-                self.evaluate(
-                    dataset=dataset,
-                    batch_size=cfg.batch_size,
-                    image_size=cfg.image_size,
-                    letter_box=cfg.letter_box,
-                    device=cfg.device,
-                    workers=cfg.workers,
-                )
-                self.after_train(cfg, result)
-                metric_logger.stop()
-                callback.force_finish()
-            except FileExistsError as e:
-                callback.force_finish()
-                callback.set_failed()
-                raise e
-            except Exception as e:
-                if self.artifact_dir.exists():
-                    io.remove_directory(self.artifact_dir)
-                callback.force_finish()
-                callback.set_failed()
-                raise e
-
-        # parse dataset
-        if isinstance(dataset, (str, Path)):
-            if Path(dataset).exists():
-                dataset = Path(dataset)
-                dataset = Dataset.load(
-                    name=dataset.parts[-1], root_dir=dataset.parents[0].absolute()
-                )
-            elif dataset in Dataset.get_dataset_list(dataset_root_dir):
-                dataset = Dataset.load(name=dataset, root_dir=dataset_root_dir)
-            else:
-                raise FileNotFoundError(f"Dataset {dataset} is not exist.")
-
-        ## check task match
-        if dataset.task.upper() != self.task.upper():
-            raise ValueError(
-                f"Dataset task is not matched with hub task. Dataset task: {dataset.task}, Hub task: {self.task}"
-            )
-
-        ## check category match
-        if not self.categories:
-            self.categories = dataset.get_categories()
-            self.save_model_config()
-        elif set(dataset.get_category_names()) != set(self.get_category_names()):
-            raise ValueError(
-                "Dataset categories are not matched with hub categories. \n"
-                + f"Dataset categories: {dataset.get_category_names()}, Hub categories: {self.get_category_names()}"
-            )
-
-        ## convert dataset to backend format if not exist
-        export_dir = dataset.export_dir / EXPORT_MAP[self.backend.upper()]
-        if not export_dir.exists():
-            logger.info(f"[Dataset] Exporting dataset to {self.backend} format...")
-            export_dir = dataset.export(self.backend)
-            logger.info("[Dataset] Exporting done.")
-
-        # parse train config
-        cfg = TrainConfig(
-            dataset_path=export_dir,
-            epochs=epochs,
-            batch_size=batch_size,
-            image_size=image_size,
-            learning_rate=learning_rate,
-            letter_box=letter_box,
-            pretrained_model=pretrained_model,
-            device=device,
-            workers=workers,
-            seed=seed,
-            advance_params=advance_params if advance_params else {},
-            verbose=verbose,
+        # status
+        info_logger = TrainingInfoLogger(save_path=self.training_info_file)
+        metric_logger = MetricLogger(
+            name=self.name,
+            log_dir=self.train_log_dir,
+            func=self.get_metrics,
+            interval=10,
+            prefix="waffle",
+            info_logger=info_logger,
         )
-
-        ## overwrite train config with default config
-        for k, v in cfg.to_dict().items():
-            if v is None:
-                field_value = getattr(
-                    self.DEFAULT_PARAMS[self.task][self.model_type][self.model_size], k
-                )
-                setattr(cfg, k, field_value)
-        cfg.image_size = (
-            cfg.image_size if isinstance(cfg.image_size, list) else [cfg.image_size, cfg.image_size]
-        )
-
-        ## overwrite train advance config
-        if cfg.advance_params:
-            if isinstance(cfg.advance_params, (str, PurePath)):
-                # check if it is yaml or json
-                if Path(cfg.advance_params).exists():
-                    if Path(cfg.advance_params).suffix in [".yaml", ".yml"]:
-                        cfg.advance_params = io.load_yaml(cfg.advance_params)
-                    elif Path(cfg.advance_params).suffix in [".json"]:
-                        cfg.advance_params = io.load_json(cfg.advance_params)
-                    else:
-                        raise ValueError(
-                            f"Advance parameter file should be yaml or json. {cfg.advance_params}"
-                        )
+        try:
+            # parse dataset
+            if isinstance(dataset, (str, Path)):
+                if Path(dataset).exists():
+                    dataset = Path(dataset)
+                    dataset = Dataset.load(
+                        name=dataset.parts[-1], root_dir=dataset.parents[0].absolute()
+                    )
+                elif dataset in Dataset.get_dataset_list(dataset_root_dir):
+                    dataset = Dataset.load(name=dataset, root_dir=dataset_root_dir)
                 else:
-                    raise FileNotFoundError(f"Advance parameter file is not exist.")
-            elif not isinstance(cfg.advance_params, dict):
+                    raise FileNotFoundError(f"Dataset {dataset} is not exist.")
+
+            ## check task match
+            if dataset.task.upper() != self.task.upper():
                 raise ValueError(
-                    f"Advance parameter should be dictionary or file path. {cfg.advance_params}"
+                    f"Dataset task is not matched with hub task. Dataset task: {dataset.task}, Hub task: {self.task}"
                 )
 
-            default_advance_param = self.get_default_advance_train_params()
-            for key in cfg.advance_params.keys():
-                if key not in default_advance_param:
+            ## check category match
+            if not self.categories:
+                self.categories = dataset.get_categories()
+                self.save_model_config()
+            elif set(dataset.get_category_names()) != set(self.get_category_names()):
+                raise ValueError(
+                    "Dataset categories are not matched with hub categories. \n"
+                    + f"Dataset categories: {dataset.get_category_names()}, Hub categories: {self.get_category_names()}"
+                )
+
+            ## convert dataset to backend format if not exist
+            export_dir = dataset.export_dir / EXPORT_MAP[self.backend.upper()]
+            if not export_dir.exists():
+                logger.info(f"[Dataset] Exporting dataset to {self.backend} format...")
+                export_dir = dataset.export(self.backend)
+                logger.info("[Dataset] Exporting done.")
+
+            # parse train config
+            cfg = TrainConfig(
+                dataset_path=export_dir,
+                epochs=epochs,
+                batch_size=batch_size,
+                image_size=image_size,
+                learning_rate=learning_rate,
+                letter_box=letter_box,
+                pretrained_model=pretrained_model,
+                device=device,
+                workers=workers,
+                seed=seed,
+                advance_params=advance_params if advance_params else {},
+                verbose=verbose,
+            )
+
+            ## overwrite train config with default config
+            for k, v in cfg.to_dict().items():
+                if v is None:
+                    field_value = getattr(
+                        self.DEFAULT_PARAMS[self.task][self.model_type][self.model_size], k
+                    )
+                    setattr(cfg, k, field_value)
+            cfg.image_size = (
+                cfg.image_size
+                if isinstance(cfg.image_size, list)
+                else [cfg.image_size, cfg.image_size]
+            )
+
+            ## overwrite train advance config
+            if cfg.advance_params:
+                if isinstance(cfg.advance_params, (str, PurePath)):
+                    # check if it is yaml or json
+                    if Path(cfg.advance_params).exists():
+                        if Path(cfg.advance_params).suffix in [".yaml", ".yml"]:
+                            cfg.advance_params = io.load_yaml(cfg.advance_params)
+                        elif Path(cfg.advance_params).suffix in [".json"]:
+                            cfg.advance_params = io.load_json(cfg.advance_params)
+                        else:
+                            raise ValueError(
+                                f"Advance parameter file should be yaml or json. {cfg.advance_params}"
+                            )
+                    else:
+                        raise FileNotFoundError(f"Advance parameter file is not exist.")
+                elif not isinstance(cfg.advance_params, dict):
                     raise ValueError(
-                        f"Advance parameter {key} is not supported.\n"
-                        + f"Supported parameters: {list(default_advance_param.keys())}"
+                        f"Advance parameter should be dictionary or file path. {cfg.advance_params}"
                     )
 
-        callback = TrainCallback(cfg.epochs + 1, self.get_metrics)
-        result = TrainResult()
-        result.callback = callback
+                default_advance_param = self.get_default_advance_train_params()
+                for key in cfg.advance_params.keys():
+                    if key not in default_advance_param:
+                        raise ValueError(
+                            f"Advance parameter {key} is not supported.\n"
+                            + f"Supported parameters: {list(default_advance_param.keys())}"
+                        )
 
-        # TODO: hold arguemnt will be deprecated
-        if hold:
-            inner(callback, result)
-        else:
-            thread = threading.Thread(target=inner, args=(callback, result), daemon=True)
-            callback.register_thread(thread)
-            callback.start()
+            result = TrainResult()
+            info_logger.set_total_step(cfg.epochs)
+
+            # train run
+            info_logger.set_running()
+            metric_logger.start()
+            self.before_train(cfg)
+            self.on_train_start(cfg)
+            self.save_train_config(cfg)
+            self.training(cfg, info_logger)
+            self.on_train_end(cfg)
+            self.after_train(cfg, result)
+            info_logger.set_success()
+            metric_logger.stop()
+        except FileExistsError as e:
+            info_logger.set_failed(e)
+            metric_logger.stop()
+            raise e
+        except (KeyboardInterrupt, SystemExit) as e:
+            info_logger.set_stopped(e)
+            metric_logger.stop()
+            if self.artifact_dir.exists():
+                self.on_train_end(cfg)
+            raise e
+        except Exception as e:
+            info_logger.set_failed(e)
+            metric_logger.stop()
+            if self.artifact_dir.exists():
+                io.remove_directory(self.artifact_dir)
+            raise e
+
+        try:
+            self.evaluate(
+                dataset=dataset,
+                batch_size=cfg.batch_size,
+                image_size=cfg.image_size,
+                letter_box=cfg.letter_box,
+                device=cfg.device,
+                workers=cfg.workers,
+            )
+            result.eval_metrics = self.get_evaluate_result()
+        except Exception as e:
+            logger.error("Evaluation failed. Resolve issue and evaluate again.")
+            result.eval_metrics = []
+            raise e
 
         return result
 
@@ -1123,7 +1273,7 @@ class Hub:
     def on_evaluate_start(self, cfg: EvaluateConfig):
         pass
 
-    def evaluating(self, cfg: EvaluateConfig, callback: EvaluateCallback, dataset: Dataset) -> str:
+    def evaluating(self, cfg: EvaluateConfig, info_logger: EvaluatingInfoLogger, dataset: Dataset):
         device = cfg.device
 
         model = self.get_model().to(device)
@@ -1138,7 +1288,7 @@ class Hub:
 
         result_parser = get_parser(self.task)(**cfg.to_dict(), categories=self.categories)
 
-        callback._total_steps = len(dataloader) + 1
+        info_logger.set_total_step(len(dataloader) + 1)
 
         preds = []
         labels = []
@@ -1151,7 +1301,7 @@ class Hub:
             preds.extend(result_batch)
             labels.extend(annotations)
 
-            callback.update(i)
+            info_logger.set_current_step(i)
 
         metrics = evaluate_function(
             preds, labels, self.task, len(self.categories), image_size=cfg.image_size
@@ -1170,6 +1320,7 @@ class Hub:
             else:
                 values = value
             result_metrics.append({"tag": tag, "value": values})
+
         io.save_json(result_metrics, self.evaluate_file)
 
     def on_evaluate_end(self, cfg: EvaluateConfig):
@@ -1178,6 +1329,7 @@ class Hub:
     def after_evaluate(self, cfg: EvaluateConfig, result: EvaluateResult):
         result.eval_metrics = self.get_evaluate_result()
 
+    @device_context
     def evaluate(
         self,
         dataset: Union[Dataset, str],
@@ -1192,7 +1344,6 @@ class Hub:
         workers: int = 2,
         device: str = "0",
         draw: bool = False,
-        hold: bool = True,
     ) -> EvaluateResult:
         """Start Evaluate
 
@@ -1208,7 +1359,6 @@ class Hub:
             workers (int, optional): workers. Defaults to 2.
             device (str, optional): device. Defaults to "0".
             draw (bool, optional): draw. Defaults to False.
-            hold (bool, optional): hold. Defaults to True.
 
         Raises:
             FileNotFoundError: if can not detect appropriate dataset.
@@ -1238,70 +1388,65 @@ class Hub:
         Returns:
             EvaluateResult: evaluate result
         """
+        # status
+        info_logger = EvaluatingInfoLogger(save_path=self.evaluating_info_file)
 
-        @device_context("cpu" if device == "cpu" else device)
-        def inner(dataset: Dataset, callback: EvaluateCallback, result: EvaluateResult):
-            try:
-                self.before_evaluate(cfg, dataset)
-                self.on_evaluate_start(cfg)
-                self.evaluating(cfg, callback, dataset)
-                self.on_evaluate_end(cfg)
-                self.after_evaluate(cfg, result)
-                callback.force_finish()
-            except Exception as e:
-                if self.evaluate_file.exists():
-                    io.remove_file(self.evaluate_file)
-                callback.force_finish()
-                callback.set_failed()
-                raise e
+        try:
+            if "," in device:
+                warnings.warn("multi-gpu is not supported in evaluation. use first gpu only.")
+                device = device.split(",")[0]
 
-        if "," in device:
-            warnings.warn("multi-gpu is not supported in evaluation. use first gpu only.")
-            device = device.split(",")[0]
+            if isinstance(dataset, (str, Path)):
+                if Path(dataset).exists():
+                    dataset = Path(dataset)
+                    dataset = Dataset.load(
+                        name=dataset.parts[-1], root_dir=dataset.parents[0].absolute()
+                    )
+                elif dataset in Dataset.get_dataset_list(dataset_root_dir):
+                    dataset = Dataset.load(name=dataset, root_dir=dataset_root_dir)
+                else:
+                    raise FileNotFoundError(f"Dataset {dataset} is not exist.")
 
-        if isinstance(dataset, (str, Path)):
-            if Path(dataset).exists():
-                dataset = Path(dataset)
-                dataset = Dataset.load(
-                    name=dataset.parts[-1], root_dir=dataset.parents[0].absolute()
-                )
-            elif dataset in Dataset.get_dataset_list(dataset_root_dir):
-                dataset = Dataset.load(name=dataset, root_dir=dataset_root_dir)
-            else:
-                raise FileNotFoundError(f"Dataset {dataset} is not exist.")
+            # overwrite training config
+            train_config = self.get_train_config()
+            if image_size is None:
+                image_size = train_config.image_size
+            if letter_box is None:
+                letter_box = train_config.letter_box
 
-        # overwrite training config
-        train_config = self.get_train_config()
-        if image_size is None:
-            image_size = train_config.image_size
-        if letter_box is None:
-            letter_box = train_config.letter_box
+            cfg = EvaluateConfig(
+                dataset_name=dataset.name,
+                set_name=set_name,
+                batch_size=batch_size,
+                image_size=image_size if isinstance(image_size, list) else [image_size, image_size],
+                letter_box=letter_box,
+                confidence_threshold=confidence_threshold,
+                iou_threshold=iou_threshold,
+                half=half,
+                workers=workers,
+                device="cpu" if device == "cpu" else f"cuda:{device}",
+                draw=draw,
+                dataset_root_dir=dataset.root_dir,
+            )
 
-        cfg = EvaluateConfig(
-            dataset_name=dataset.name,
-            set_name=set_name,
-            batch_size=batch_size,
-            image_size=image_size if isinstance(image_size, list) else [image_size, image_size],
-            letter_box=letter_box,
-            confidence_threshold=confidence_threshold,
-            iou_threshold=iou_threshold,
-            half=half,
-            workers=workers,
-            device="cpu" if device == "cpu" else f"cuda:{device}",
-            draw=draw,
-            dataset_root_dir=dataset.root_dir,
-        )
+            result = EvaluateResult()
 
-        callback = EvaluateCallback(100)  # dummy step
-        result = EvaluateResult()
-        result.callback = callback
-
-        if hold:
-            inner(dataset, callback, result)
-        else:
-            thread = threading.Thread(target=inner, args=(dataset, callback, result), daemon=True)
-            callback.register_thread(thread)
-            callback.start()
+            # evaluate run
+            info_logger.set_running()
+            self.before_evaluate(cfg, dataset)
+            self.on_evaluate_start(cfg)
+            self.evaluating(cfg, info_logger, dataset)
+            self.on_evaluate_end(cfg)
+            self.after_evaluate(cfg, result)
+            info_logger.set_success()
+        except (KeyboardInterrupt, SystemExit) as e:
+            info_logger.set_stopped(e)
+            raise e
+        except Exception as e:
+            info_logger.set_failed(e)
+            if self.evaluate_file.exists():
+                io.remove_file(self.evaluate_file)
+            raise e
 
         return result
 
@@ -1312,7 +1457,7 @@ class Hub:
     def on_inference_start(self, cfg: InferenceConfig):
         pass
 
-    def inferencing(self, cfg: InferenceConfig, callback: InferenceCallback) -> str:
+    def inferencing(self, cfg: InferenceConfig, info_logger: InferencingInfoLogger):
         device = cfg.device
         model = self.get_model().to(device)
         result_parser = get_parser(self.task)(**cfg.to_dict(), categories=self.categories)
@@ -1334,7 +1479,7 @@ class Hub:
             writer = None
 
         results = []
-        callback._total_steps = len(dataloader) + 1
+        info_logger.set_total_step(len(dataloader) + 1)
         for i, (images, image_infos) in tqdm.tqdm(
             enumerate(dataloader, start=1), total=len(dataloader)
         ):
@@ -1383,11 +1528,10 @@ class Hub:
                     cv2.imshow("result", draw)
                     cv2.waitKey(1)
 
-            callback.update(i)
+            info_logger.set_current_step(i)
 
         if cfg.draw and cfg.source_type == "video":
             writer.release()
-
         if cfg.show:
             cv2.destroyAllWindows()
 
@@ -1400,11 +1544,12 @@ class Hub:
     def on_inference_end(self, cfg: InferenceConfig):
         pass
 
-    def after_inference(self, cfg: InferenceConfig, result: EvaluateResult):
+    def after_inference(self, cfg: InferenceConfig, result: InferenceResult):
         result.predictions = self.get_inference_result()
         if cfg.draw:
             result.draw_dir = self.draw_dir
 
+    @device_context
     def inference(
         self,
         source: Union[str, Dataset],
@@ -1419,7 +1564,6 @@ class Hub:
         device: str = "0",
         draw: bool = False,
         show: bool = False,
-        hold: bool = True,
     ) -> InferenceResult:
         """Start Inference
 
@@ -1436,8 +1580,6 @@ class Hub:
             device (str, optional): device. "cpu" or "gpu_id". Defaults to "0".
             draw (bool, optional): draw. Defaults to False.
             show (bool, optional): show. Defaults to False.
-            hold (bool, optional): hold. Defaults to True.
-
 
         Raises:
             FileNotFoundError: if can not detect appropriate dataset.
@@ -1468,81 +1610,78 @@ class Hub:
         Returns:
             InferenceResult: inference result
         """
+        # status controller
+        info_logger = InferencingInfoLogger(save_path=self.inferencing_info_file)
 
-        @device_context("cpu" if device == "cpu" else device)
-        def inner(callback: InferenceCallback, result: InferenceResult):
-            try:
-                self.before_inference(cfg)
-                self.on_inference_start(cfg)
-                self.inferencing(cfg, callback)
-                self.on_inference_end(cfg)
-                self.after_inference(cfg, result)
-                callback.force_finish()
-            except Exception as e:
-                if self.inference_dir.exists():
-                    io.remove_directory(self.inference_dir)
-                callback.force_finish()
-                callback.set_failed()
-                raise e
-
-        # image_dir, image_path, video_path, dataset_name, dataset
-        if isinstance(source, (str, Path)):
-            if Path(source).exists():
-                source = Path(source)
-                if source.is_dir():
-                    source = source.absolute()
-                    source_type = "image"
-                elif source.suffix in IMAGE_EXTS:
-                    source = source.absolute()
-                    source_type = "image"
-                elif source.suffix in VIDEO_EXTS:
-                    source = str(source.absolute())
-                    source_type = "video"
+        try:
+            # inference settings
+            # image_dir, image_path, video_path, dataset_name, dataset
+            if isinstance(source, (str, Path)):
+                if Path(source).exists():
+                    source = Path(source)
+                    if source.is_dir():
+                        source = source.absolute()
+                        source_type = "image"
+                    elif source.suffix in IMAGE_EXTS:
+                        source = source.absolute()
+                        source_type = "image"
+                    elif source.suffix in VIDEO_EXTS:
+                        source = str(source.absolute())
+                        source_type = "video"
+                    else:
+                        raise ValueError(
+                            f"Invalid source: {source}\n"
+                            + "Please use image directory or image path or video path."
+                        )
                 else:
-                    raise ValueError(
-                        f"Invalid source: {source}\n"
-                        + "Please use image directory or image path or video path."
-                    )
+                    raise FileNotFoundError(f"Source {source} is not exist.")
             else:
-                raise FileNotFoundError(f"Source {source} is not exist.")
-        else:
-            raise ValueError(
-                f"Invalid source: {source}\n"
-                + "Please use image directory or image path or video path."
+                raise ValueError(
+                    f"Invalid source: {source}\n"
+                    + "Please use image directory or image path or video path."
+                )
+
+            # overwrite training config
+            train_config = self.get_train_config()
+            if image_size is None:
+                image_size = train_config.image_size
+            if letter_box is None:
+                letter_box = train_config.letter_box
+
+            cfg = InferenceConfig(
+                source=source,
+                source_type=source_type,
+                batch_size=batch_size,
+                recursive=recursive,
+                image_size=image_size if isinstance(image_size, list) else [image_size, image_size],
+                letter_box=letter_box,
+                confidence_threshold=confidence_threshold,
+                iou_threshold=iou_threshold,
+                half=half,
+                workers=workers,
+                device="cpu" if device == "cpu" else f"cuda:{device}",
+                draw=draw or show,
+                show=show,
             )
 
-        # overwrite training config
-        train_config = self.get_train_config()
-        if image_size is None:
-            image_size = train_config.image_size
-        if letter_box is None:
-            letter_box = train_config.letter_box
+            result = InferenceResult()
 
-        cfg = InferenceConfig(
-            source=source,
-            source_type=source_type,
-            batch_size=batch_size,
-            recursive=recursive,
-            image_size=image_size if isinstance(image_size, list) else [image_size, image_size],
-            letter_box=letter_box,
-            confidence_threshold=confidence_threshold,
-            iou_threshold=iou_threshold,
-            half=half,
-            workers=workers,
-            device="cpu" if device == "cpu" else f"cuda:{device}",
-            draw=draw or show,
-            show=show,
-        )
-
-        callback = InferenceCallback(100)  # dummy step
-        result = InferenceResult()
-        result.callback = callback
-        if hold:
-            inner(callback, result)
-        else:
-            thread = threading.Thread(target=inner, args=(callback, result), daemon=True)
-            callback.register_thread(thread)
-            callback.start()
+            # run inference
+            info_logger.set_running()
+            self.before_inference(cfg)
+            self.on_inference_start(cfg)
+            self.inferencing(cfg, info_logger)
+            self.on_inference_end(cfg)
+            self.after_inference(cfg, result)
+            info_logger.set_success()
+        except (KeyboardInterrupt, SystemExit) as e:
+            info_logger.set_stopped(e)
+            raise e
+        except Exception as e:
+            info_logger.set_failed(e)
+            if self.inference_dir.exists():
+                io.remove_directory(self.inference_dir)
+            raise e
 
         return result
 
@@ -1553,7 +1692,7 @@ class Hub:
     def on_export_onnx_start(self, cfg: ExportOnnxConfig):
         pass
 
-    def exporting_onnx(self, cfg: ExportOnnxConfig, callback: ExportCallback) -> str:
+    def exporting_onnx(self, cfg: ExportOnnxConfig, info_logger: ExportingInfoLogger) -> str:
         image_size = cfg.image_size
         image_size = [image_size, image_size] if isinstance(image_size, int) else image_size
 
@@ -1595,6 +1734,7 @@ class Hub:
     def after_export_onnx(self, cfg: ExportOnnxConfig, result: ExportOnnxResult):
         result.onnx_file = self.onnx_file
 
+    @device_context
     def export_onnx(
         self,
         image_size: Union[int, list[int]] = None,
@@ -1602,7 +1742,6 @@ class Hub:
         opset_version: int = 11,
         half: bool = False,
         device: str = "0",
-        hold: bool = True,
     ) -> ExportOnnxResult:
         """Export Onnx Model
 
@@ -1612,9 +1751,6 @@ class Hub:
             opset_version (int, optional): onnx opset version. Defaults to 11.
             half (bool, optional): half. Defaults to False.
             device (str, optional): device. "cpu" or "gpu_id". Defaults to "0".
-            hold (bool, optional): hold or not.
-                If True then it holds until task finished.
-                If False then return Callback and run in background. Defaults to True.
 
         Example:
             >>> export_onnx_result = hub.export_onnx(
@@ -1636,45 +1772,41 @@ class Hub:
         """
         self.check_train_sanity()
 
-        @device_context("cpu" if device == "cpu" else device)
-        def inner(callback: ExportCallback, result: ExportOnnxResult):
-            try:
-                self.before_export_onnx(cfg)
-                self.on_export_onnx_start(cfg)
-                self.exporting_onnx(cfg, callback)
-                self.on_export_onnx_end(cfg)
-                self.after_export_onnx(cfg, result)
-                callback.force_finish()
-            except Exception as e:
-                if self.onnx_file.exists():
-                    io.remove_file(self.onnx_file)
-                callback.force_finish()
-                callback.set_failed()
-                raise e
+        # status controller
+        info_logger = ExportingInfoLogger(save_path=self.exporting_onnx_info_file)
 
-        # overwrite training config
-        train_config = self.get_train_config()
-        if image_size is None:
-            image_size = train_config.image_size
+        try:
+            # overwrite training config
+            train_config = self.get_train_config()
+            if image_size is None:
+                image_size = train_config.image_size
 
-        cfg = ExportOnnxConfig(
-            image_size=image_size if isinstance(image_size, list) else [image_size, image_size],
-            batch_size=batch_size,
-            opset_version=opset_version,
-            half=half,
-            device="cpu" if device == "cpu" else f"cuda:{device}",
-        )
+            cfg = ExportOnnxConfig(
+                image_size=image_size if isinstance(image_size, list) else [image_size, image_size],
+                batch_size=batch_size,
+                opset_version=opset_version,
+                half=half,
+                device="cpu" if device == "cpu" else f"cuda:{device}",
+            )
 
-        callback = ExportCallback(1)
-        result = ExportOnnxResult()
-        result.callback = callback
+            result = ExportOnnxResult()
 
-        if hold:
-            inner(callback, result)
-        else:
-            thread = threading.Thread(target=inner, args=(callback, result), daemon=True)
-            callback.register_thread(thread)
-            callback.start()
+            # run export onnx
+            info_logger.set_running()
+            self.before_export_onnx(cfg)
+            self.on_export_onnx_start(cfg)
+            self.exporting_onnx(cfg, info_logger)
+            self.on_export_onnx_end(cfg)
+            self.after_export_onnx(cfg, result)
+            info_logger.set_success()
+        except (KeyboardInterrupt, SystemExit) as e:
+            info_logger.set_stopped(e)
+            raise e
+        except Exception as e:
+            info_logger.set_failed(e)
+            if self.onnx_file.exists():
+                io.remove_file(self.onnx_file)
+            raise e
 
         return result
 
@@ -1756,12 +1888,8 @@ class Hub:
             "gpu_name": torch.cuda.get_device_name(0) if device != "cpu" else None,
         }
 
-    def export_waffle(self, hold: bool = True) -> ExportWaffleResult:
+    def export_waffle(self) -> ExportWaffleResult:
         """Export Waffle Model
-        Args:
-            hold (bool, optional): hold or not.
-                If True then it holds until task finished.
-                If False then return Callback and run in background. Defaults to True.
         Example:
             >>> export_waffle_result = hub.export_waffle()
             >>> export_waffle_result.waffle_file
@@ -1771,29 +1899,14 @@ class Hub:
         """
         self.check_train_sanity()
 
-        def inner(callback: ExportCallback, result: ExportWaffleResult):
-            try:
-                io.zip(
-                    [self.hub_dir / Hub.CONFIG_DIR, self.hub_dir / Hub.WEIGHTS_DIR], self.waffle_file
-                )
-                result.waffle_file = self.waffle_file
-                callback.force_finish()
-            except Exception as e:
-                if self.waffle_file.exists():
-                    io.remove_file(self.waffle_file)
-                callback.force_finish()
-                callback.set_failed()
-                raise e
-
-        callback = ExportCallback(1)
         result = ExportWaffleResult()
-        result.callback = callback
 
-        if hold:
-            inner(callback, result)
-        else:
-            thread = threading.Thread(target=inner, args=(callback, result), daemon=True)
-            callback.register_thread(thread)
-            callback.start()
+        try:
+            io.zip([self.config_dir, self.weights_dir, self.working_info_dir], self.waffle_file)
+            result.waffle_file = self.waffle_file
+        except Exception as e:
+            if self.waffle_file.exists():
+                io.remove_file(self.waffle_file)
+            raise e
 
         return result
