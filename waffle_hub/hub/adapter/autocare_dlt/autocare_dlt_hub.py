@@ -287,7 +287,7 @@ class AutocareDLTHub(Hub):
         del results
 
     def on_train_end(self, cfg: TrainConfig):
-        best_ckpt_path = (self.artifact_dir / "train" / "best_ckpt.pth",)
+        best_ckpt_path = self.artifact_dir / "train" / "best_ckpt.pth"
         last_epoch_ckpt_path = self.artifact_dir / "train" / "last_epoch_ckpt.pth"
         model_json_path = self.artifact_dir / "model.json"
 
