@@ -15,12 +15,12 @@ from ultralytics import YOLO
 from ultralytics.yolo.utils import DEFAULT_CFG as YOLO_DEFAULT_ADVANCE_PARAMS
 from waffle_utils.file import io
 
-from waffle_hub import TaskType, DataType
+from waffle_hub import DataType, TaskType
 from waffle_hub.hub import Hub
 from waffle_hub.hub.model.wrapper import ModelWrapper
 from waffle_hub.schema.configs import TrainConfig
-from waffle_hub.utils.callback import TrainCallback
 from waffle_hub.utils.process import run_python_file
+from waffle_hub.utils.working_info_logger import TrainingInfoLogger
 
 from .config import DEFAULT_PARAMS, MODEL_TYPES, TASK_MAP
 
@@ -283,7 +283,7 @@ class UltralyticsHub(Hub):
                 "letter_box False is not supported for Object Detection and Segmentation."
             )
 
-    def training(self, cfg: TrainConfig, callback: TrainCallback):
+    def training(self, cfg: TrainConfig, info_logger: TrainingInfoLogger):
         params = {
             "data": str(cfg.dataset_path).replace("\\", "/"),
             "epochs": cfg.epochs,
@@ -322,17 +322,17 @@ class UltralyticsHub(Hub):
         run_python_file(script_file)
 
     def on_train_end(self, cfg: TrainConfig):
-        io.copy_file(
-            self.artifact_dir / "weights" / "best.pt",
-            self.best_ckpt_file,
-            create_directory=True,
-        )
-        io.copy_file(
-            self.artifact_dir / "weights" / "last.pt",
-            self.last_ckpt_file,
-            create_directory=True,
-        )
-        io.save_json(self.get_metrics(), self.metric_file)
+        best_ckpt_file = self.artifact_dir / "weights" / "best.pt"
+        last_ckpt_file = self.artifact_dir / "weights" / "last.pt"
+
+        if best_ckpt_file.exists():
+            io.copy_file(best_ckpt_file, self.best_ckpt_file, create_directory=True)
+        if last_ckpt_file.exists():
+            io.copy_file(last_ckpt_file, self.last_ckpt_file, create_directory=True)
+
+        metrics = self.get_metrics()
+        if metrics:
+            io.save_json(metrics, self.metric_file, create_directory=True)
 
     # Inference Hook
     def get_model(self):

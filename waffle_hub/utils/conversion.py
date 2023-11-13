@@ -23,10 +23,35 @@ def convert_mask_to_polygon(mask: np.ndarray) -> list[list]:
 
         p = []
         contour = contour.reshape(-1, 2)
+
+        if len(contour) < 3:
+            continue
+
         for point in contour:
             p.extend(point.tolist())
         polygon.append(p)
     return polygon
+
+
+def convert_polygon_to_mask(polygon: list[list], image_size: list[int]) -> np.ndarray:
+    """
+    Convert polygon to binary mask.
+
+    Parameters:
+    - polygon (list[list]): polygon.
+    - image_size (list): A list (width, height) specifying the size of the output mask.
+
+    Returns:
+    - mask (numpy.ndarray): A binary mask with the polygon filled as white (255) and the background as black (0).
+    """
+
+    mask = np.zeros((image_size[1], image_size[0], 3), dtype=np.uint8)
+
+    for pts in polygon:
+        pts = np.array(pts, dtype=np.int32).reshape(-1, 1, 2)
+        cv2.fillPoly(mask, [pts], (255, 255, 255))
+    mask = cv2.cvtColor(mask, cv2.COLOR_BGR2GRAY)
+    return mask
 
 
 def merge_multi_segment(segments: list[list], image_size: tuple) -> list:

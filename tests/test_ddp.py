@@ -1,13 +1,13 @@
 import time
 from pathlib import Path
 
-from waffle_hub import TaskType
+from waffle_hub import TaskType, TrainStatus
 from waffle_hub.dataset import Dataset
 from waffle_hub.hub import Hub
 from waffle_hub.schema.result import TrainResult
 
 
-def _train(hub, dataset: Dataset, image_size: int, hold: bool = True):
+def _train(hub, dataset: Dataset, image_size: int):
     result: TrainResult = hub.train(
         dataset=dataset,
         epochs=1,
@@ -16,17 +16,12 @@ def _train(hub, dataset: Dataset, image_size: int, hold: bool = True):
         pretrained_model=None,
         device="0,1",
         workers=0,
-        hold=hold,
     )
 
-    if not hold:
-        assert hasattr(result, "callback")
-        while not result.callback.is_finished() and not result.callback.is_failed():
-            time.sleep(1)
-        assert result.callback.is_finished()
-        assert not result.callback.is_failed()
+    training_info = hub.get_training_info()
+    assert training_info.status == TrainStatus.SUCCESS
+    assert training_info.step == training_info.total_step
 
-    print(hub.metric_file, result.metrics)
     assert len(result.metrics) >= 1
     assert Path(result.best_ckpt_file).exists()
     # assert Path(result.last_ckpt_file).exists()
