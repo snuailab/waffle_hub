@@ -852,22 +852,26 @@ class Hub:
             return []
         return io.load_json(self.evaluate_file)
 
-    def get_inference_result(self) -> list[dict]:
+    def get_inference_result(self) -> list[dict[str, list]]:
         """Get inference result from inference file.
 
         Example:
             >>> hub.get_inference_result()
             [
                 {
-                    "id": "00000001",
-                    "category": "person",
-                    "bbox": [0.1, 0.2, 0.3, 0.4],
-                    "score": 0.9,
+                    "file_name": [
+                        "category_id": 1,
+                        "bbox": [0.1, 0.2, 0.3, 0.4],
+                        "score": 0.9,
+                        "area": xxx,
+                        "iscrowd": 0,
+                        ]
                 },
+                ...
             ]
 
         Returns:
-            list[dict]: inference result
+            list[dict[str, list]]: inference result
         """
         if not self.inference_file.exists():
             return []
