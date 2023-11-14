@@ -1,11 +1,18 @@
 from pathlib import Path
 
-from waffle_hub import EvaluateStatus, ExportStatus, InferenceStatus, TrainStatus
+from waffle_hub import (
+    EvaluateStatusDesc,
+    ExportOnnxStatusDesc,
+    ExportWaffleStatusDesc,
+    InferenceStatusDesc,
+    TrainStatusDesc,
+)
 from waffle_hub.schema.running_status import (
     STATUS_TYPE,
     BaseRunningStatus,
     EvaluatingStatus,
-    ExportingStatus,
+    ExportingOnnxStatus,
+    ExportingWaffleStatus,
     InferencingStatus,
     TrainingStatus,
 )
@@ -60,23 +67,23 @@ class TrainingStatusLogger(RunningStatusLogger):
     def set_init(self):
         self.clear_error()
         self.clear_step()
-        self.set_status(TrainStatus.INIT)
+        self.set_status(TrainStatusDesc.INIT)
 
     def set_failed(self, e):
         self.set_error(e)
-        self.set_status(TrainStatus.FAILED)
+        self.set_status(TrainStatusDesc.FAILED)
 
     def set_success(self):
         self.clear_error()
         self.running_status.step = self.running_status.total_step
-        self.set_status(TrainStatus.SUCCESS)
+        self.set_status(TrainStatusDesc.SUCCESS)
 
     def set_running(self):
-        self.set_status(TrainStatus.RUNNING)
+        self.set_status(TrainStatusDesc.RUNNING)
 
     def set_stopped(self, e):
         self.set_error(e)
-        self.set_status(TrainStatus.STOPPED)
+        self.set_status(TrainStatusDesc.STOPPED)
 
 
 class EvaluatingStatusLogger(RunningStatusLogger):
@@ -87,23 +94,23 @@ class EvaluatingStatusLogger(RunningStatusLogger):
     def set_init(self):
         self.clear_error()
         self.clear_step()
-        self.set_status(EvaluateStatus.INIT)
+        self.set_status(EvaluateStatusDesc.INIT)
 
     def set_failed(self, e):
         self.set_error(e)
-        self.set_status(EvaluateStatus.FAILED)
+        self.set_status(EvaluateStatusDesc.FAILED)
 
     def set_success(self):
         self.clear_error()
         self.running_status.step = self.running_status.total_step
-        self.set_status(EvaluateStatus.SUCCESS)
+        self.set_status(EvaluateStatusDesc.SUCCESS)
 
     def set_running(self):
-        self.set_status(EvaluateStatus.RUNNING)
+        self.set_status(EvaluateStatusDesc.RUNNING)
 
     def set_stopped(self, e):
         self.set_error(e)
-        self.set_status(EvaluateStatus.STOPPED)
+        self.set_status(EvaluateStatusDesc.STOPPED)
 
 
 class InferencingStatusLogger(RunningStatusLogger):
@@ -114,47 +121,74 @@ class InferencingStatusLogger(RunningStatusLogger):
     def set_init(self):
         self.clear_error()
         self.clear_step()
-        self.set_status(InferenceStatus.INIT)
+        self.set_status(InferenceStatusDesc.INIT)
 
     def set_failed(self, e):
         self.set_error(e)
-        self.set_status(InferenceStatus.FAILED)
+        self.set_status(InferenceStatusDesc.FAILED)
 
     def set_success(self):
         self.clear_error()
         self.running_status.step = self.running_status.total_step
-        self.set_status(InferenceStatus.SUCCESS)
+        self.set_status(InferenceStatusDesc.SUCCESS)
 
     def set_running(self):
-        self.set_status(InferenceStatus.RUNNING)
+        self.set_status(InferenceStatusDesc.RUNNING)
 
     def set_stopped(self, e):
         self.set_error(e)
-        self.set_status(InferenceStatus.STOPPED)
+        self.set_status(InferenceStatusDesc.STOPPED)
 
 
-class ExportingStatusLogger(RunningStatusLogger):
+class ExportingOnnxStatusLogger(RunningStatusLogger):
     def __init__(self, save_path: Path):
-        super().__init__(ExportingStatus(), save_path)
+        super().__init__(ExportingOnnxStatus(), save_path)
         self.set_init()
 
     def set_init(self):
         self.clear_error()
         self.clear_step()
-        self.set_status(ExportStatus.INIT)
+        self.set_status(ExportOnnxStatusDesc.INIT)
 
     def set_failed(self, e):
         self.set_error(e)
-        self.set_status(ExportStatus.FAILED)
+        self.set_status(ExportOnnxStatusDesc.FAILED)
 
     def set_success(self):
         self.clear_error()
         self.running_status.step = self.running_status.total_step
-        self.set_status(ExportStatus.SUCCESS)
+        self.set_status(ExportOnnxStatusDesc.SUCCESS)
 
     def set_running(self):
-        self.set_status(ExportStatus.RUNNING)
+        self.set_status(ExportOnnxStatusDesc.RUNNING)
 
     def set_stopped(self, e):
         self.set_error(e)
-        self.set_status(ExportStatus.STOPPED)
+        self.set_status(ExportOnnxStatusDesc.STOPPED)
+
+
+class ExportingWaffleStatusLogger(RunningStatusLogger):
+    def __init__(self, save_path: Path):
+        super().__init__(ExportingWaffleStatus(), save_path)
+        self.set_init()
+
+    def set_init(self):
+        self.clear_error()
+        self.clear_step()
+        self.set_status(ExportWaffleStatusDesc.INIT)
+
+    def set_failed(self, e):
+        self.set_error(e)
+        self.set_status(ExportWaffleStatusDesc.FAILED)
+
+    def set_success(self):
+        self.clear_error()
+        self.running_status.step = self.running_status.total_step
+        self.set_status(ExportWaffleStatusDesc.SUCCESS)
+
+    def set_running(self):
+        self.set_status(ExportWaffleStatusDesc.RUNNING)
+
+    def set_stopped(self, e):
+        self.set_error(e)
+        self.set_status(ExportWaffleStatusDesc.STOPPED)

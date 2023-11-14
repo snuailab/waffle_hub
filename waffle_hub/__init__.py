@@ -81,8 +81,8 @@ class SplitMethod(BaseEnum):
     STRATIFIED = enum.auto()
 
 
-# for changeable status
-class TrainStatus(BaseEnum):
+# for changeable status desc
+class TrainStatusDesc(BaseEnum):
     INIT = enum.auto()
     RUNNING = enum.auto()
     SUCCESS = enum.auto()
@@ -90,7 +90,7 @@ class TrainStatus(BaseEnum):
     STOPPED = enum.auto()
 
 
-class EvaluateStatus(BaseEnum):
+class EvaluateStatusDesc(BaseEnum):
     INIT = enum.auto()
     RUNNING = enum.auto()
     SUCCESS = enum.auto()
@@ -98,7 +98,7 @@ class EvaluateStatus(BaseEnum):
     STOPPED = enum.auto()
 
 
-class InferenceStatus(BaseEnum):
+class InferenceStatusDesc(BaseEnum):
     INIT = enum.auto()
     RUNNING = enum.auto()
     SUCCESS = enum.auto()
@@ -106,7 +106,15 @@ class InferenceStatus(BaseEnum):
     STOPPED = enum.auto()
 
 
-class ExportStatus(BaseEnum):
+class ExportOnnxStatusDesc(BaseEnum):
+    INIT = enum.auto()
+    RUNNING = enum.auto()
+    SUCCESS = enum.auto()
+    FAILED = enum.auto()
+    STOPPED = enum.auto()
+
+
+class ExportWaffleStatusDesc(BaseEnum):
     INIT = enum.auto()
     RUNNING = enum.auto()
     SUCCESS = enum.auto()

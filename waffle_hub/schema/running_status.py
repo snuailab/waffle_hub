@@ -3,10 +3,11 @@ from typing import Generic, TypeVar
 
 from waffle_hub import (
     BaseEnum,
-    EvaluateStatus,
-    ExportStatus,
-    InferenceStatus,
-    TrainStatus,
+    EvaluateStatusDesc,
+    ExportOnnxStatusDesc,
+    ExportWaffleStatusDesc,
+    InferenceStatusDesc,
+    TrainStatusDesc,
 )
 from waffle_hub.schema.base_schema import BaseSchema
 
@@ -31,20 +32,25 @@ class BaseRunningStatus(Generic[STATUS_TYPE], BaseSchema):
 
 
 @dataclass
-class TrainingStatus(BaseRunningStatus[TrainStatus]):
+class TrainingStatus(BaseRunningStatus[TrainStatusDesc]):
     pass
 
 
 @dataclass
-class EvaluatingStatus(BaseRunningStatus[EvaluateStatus]):
+class EvaluatingStatus(BaseRunningStatus[EvaluateStatusDesc]):
     pass
 
 
 @dataclass
-class InferencingStatus(BaseRunningStatus[InferenceStatus]):
+class InferencingStatus(BaseRunningStatus[InferenceStatusDesc]):
     pass
 
 
 @dataclass
-class ExportingStatus(BaseRunningStatus[ExportStatus]):
+class ExportingOnnxStatus(BaseRunningStatus[ExportOnnxStatusDesc]):
+    pass
+
+
+@dataclass
+class ExportingWaffleStatus(BaseRunningStatus[ExportWaffleStatusDesc]):
     pass
