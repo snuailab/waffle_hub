@@ -37,9 +37,9 @@ def _train(hub, dataset: Dataset, image_size: int, advance_params: dict = None):
         advance_params=advance_params,
     )
 
-    training_info = hub.get_training_info()
-    assert training_info.status == TrainStatus.SUCCESS
-    assert training_info.step == training_info.total_step
+    training_status = hub.get_training_status()
+    assert training_status.status_desc == TrainStatus.SUCCESS
+    assert training_status.step == training_status.total_step
     assert len(result.metrics) >= 1
     assert len(result.eval_metrics) >= 1
     assert Path(result.best_ckpt_file).exists()
@@ -62,9 +62,9 @@ def _evaluate(hub, dataset: Dataset):
         workers=0,
     )
 
-    evaluating_info = hub.get_evaluating_info()
-    assert evaluating_info.status == EvaluateStatus.SUCCESS
-    assert evaluating_info.step == evaluating_info.total_step
+    evaluating_status = hub.get_evaluating_status()
+    assert evaluating_status.status_desc == EvaluateStatus.SUCCESS
+    assert evaluating_status.step == evaluating_status.total_step
     assert len(result.eval_metrics) >= 1
 
     return result
@@ -79,9 +79,9 @@ def _inference(hub, source: str):
         workers=0,
     )
 
-    inferencing_info = hub.get_inferencing_info()
-    assert inferencing_info.status == InferenceStatus.SUCCESS
-    assert inferencing_info.step == inferencing_info.total_step
+    inferencing_status = hub.get_inferencing_status()
+    assert inferencing_status.status_desc == InferenceStatus.SUCCESS
+    assert inferencing_status.step == inferencing_status.total_step
     assert len(result.predictions) >= 1
     assert Path(result.draw_dir).exists()
 
@@ -94,8 +94,8 @@ def _export_onnx(hub, half: bool = False):
         device="cpu",
     )
 
-    exporting_onnx_info = hub.get_exporting_onnx_info()
-    assert exporting_onnx_info.status == ExportStatus.SUCCESS
+    exporting_onnx_status = hub.get_exporting_onnx_status()
+    assert exporting_onnx_status.status_desc == ExportStatus.SUCCESS
     assert Path(result.onnx_file).exists()
 
     return result
@@ -264,7 +264,7 @@ def test_ultralytics_object_detection_advance_params(
 
     with pytest.raises(ValueError):
         _total(hub, dataset, image_size, tmpdir, {"box": 4, "dummy_adv_param": 2})
-        assert hub.get_training_info().status == TrainStatus.FAILED
+        assert hub.get_training_status().status_desc == TrainStatus.FAILED
         import_hub = Hub.load(name=import_hub_name, root_dir=tmpdir)
         import_hub.delete_hub()
 

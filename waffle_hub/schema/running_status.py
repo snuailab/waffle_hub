@@ -14,15 +14,15 @@ STATUS_TYPE = TypeVar("STATUS_TYPE", bound=BaseEnum)
 
 
 @dataclass
-class BaseWorkingInfo(Generic[STATUS_TYPE], BaseSchema):
-    status: STATUS_TYPE = None
+class BaseRunningStatus(Generic[STATUS_TYPE], BaseSchema):
+    status_desc: STATUS_TYPE = None
     error_type: str = None
     error_msg: str = None
     step: int = None
     total_step: int = None
 
     def __setattr__(self, name, value):
-        if name == "status":
+        if name == "status_desc":
             if not (value is None or value in self.__class__.__orig_bases__[0].__args__[0]):
                 raise ValueError(
                     f"status must be one of {self.__class__.__orig_bases__[0].__args__[0]}"
@@ -31,20 +31,20 @@ class BaseWorkingInfo(Generic[STATUS_TYPE], BaseSchema):
 
 
 @dataclass
-class TrainingInfo(BaseWorkingInfo[TrainStatus]):
+class TrainingStatus(BaseRunningStatus[TrainStatus]):
     pass
 
 
 @dataclass
-class EvaluatingInfo(BaseWorkingInfo[EvaluateStatus]):
+class EvaluatingStatus(BaseRunningStatus[EvaluateStatus]):
     pass
 
 
 @dataclass
-class InferencingInfo(BaseWorkingInfo[InferenceStatus]):
+class InferencingStatus(BaseRunningStatus[InferenceStatus]):
     pass
 
 
 @dataclass
-class ExportingInfo(BaseWorkingInfo[ExportStatus]):
+class ExportingStatus(BaseRunningStatus[ExportStatus]):
     pass
