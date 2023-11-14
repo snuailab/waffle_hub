@@ -25,7 +25,7 @@ from waffle_hub.hub.adapter.autocare_dlt.configs import (
 )
 from waffle_hub.hub.model.wrapper import ModelWrapper
 from waffle_hub.schema.configs import TrainConfig
-from waffle_hub.utils.working_info_logger import TrainingInfoLogger
+from waffle_hub.utils.running_status_logger import TrainingStatusLogger
 
 from .config import DATA_TYPE_MAP, DEFAULT_PARAMS, MODEL_TYPES, WEIGHT_PATH
 
@@ -272,7 +272,7 @@ class AutocareDLTHub(Hub):
 
         cfg.dataset_path = str(cfg.dataset_path.absolute())
 
-    def training(self, cfg: TrainConfig, info_logger: TrainingInfoLogger):
+    def training(self, cfg: TrainConfig, status_logger: TrainingStatusLogger):
         results = train.run(
             exp_name="train",
             model_cfg=str(cfg.model_config),

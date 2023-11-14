@@ -1,7 +1,7 @@
 import time
 from pathlib import Path
 
-from waffle_hub import TaskType, TrainStatus
+from waffle_hub import TaskType, TrainStatusDesc
 from waffle_hub.dataset import Dataset
 from waffle_hub.hub import Hub
 from waffle_hub.schema.result import TrainResult
@@ -18,9 +18,9 @@ def _train(hub, dataset: Dataset, image_size: int):
         workers=0,
     )
 
-    training_info = hub.get_training_info()
-    assert training_info.status == TrainStatus.SUCCESS
-    assert training_info.step == training_info.total_step
+    training_status = hub.get_training_status()
+    assert training_status.status_desc == TrainStatusDesc.SUCCESS
+    assert training_status.step == training_status.total_step
 
     assert len(result.metrics) >= 1
     assert Path(result.best_ckpt_file).exists()
