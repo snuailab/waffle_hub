@@ -128,6 +128,7 @@ def _export_waffle(hub_name: str, tmpdir: Path):
     ret = run_cli(cmd)
     assert ret.returncode == 0
     assert (tmpdir / hub_name / f"{hub_name}.waffle").exists()
+    assert (tmpdir / hub_name / "running_status" / "exporting_waffle_status.json").exists()
 
 
 def _from_waffle_file(hub_name: str, dataset: Dataset, tmpdir: Path):
