@@ -8,7 +8,7 @@ from waffle_hub import (
     TrainStatusDesc,
 )
 from waffle_hub.schema.running_status import (
-    STATUS_TYPE,
+    STATUS_DESC_TYPE,
     BaseRunningStatus,
     EvaluatingStatus,
     ExportingOnnxStatus,
@@ -30,7 +30,7 @@ class RunningStatusLogger:
     def save(self):
         self.running_status.save_json(save_path=self.save_path)
 
-    def set_status(self, status: STATUS_TYPE):
+    def set_status(self, status: STATUS_DESC_TYPE):
         self.running_status.status_desc = status
         self.save()
 

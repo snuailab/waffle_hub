@@ -11,12 +11,12 @@ from waffle_hub import (
 )
 from waffle_hub.schema.base_schema import BaseSchema
 
-STATUS_TYPE = TypeVar("STATUS_TYPE", bound=BaseEnum)
+STATUS_DESC_TYPE = TypeVar("STATUS_DESC_TYPE", bound=BaseEnum)
 
 
 @dataclass
-class BaseRunningStatus(Generic[STATUS_TYPE], BaseSchema):
-    status_desc: STATUS_TYPE = None
+class BaseRunningStatus(Generic[STATUS_DESC_TYPE], BaseSchema):
+    status_desc: STATUS_DESC_TYPE = None
     error_type: str = None
     error_msg: str = None
     step: int = None
