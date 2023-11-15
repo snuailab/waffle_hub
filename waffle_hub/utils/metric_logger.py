@@ -6,7 +6,7 @@ from pathlib import Path
 from threading import Thread
 from typing import Union
 
-from waffle_hub.utils.working_info_logger import RunningInfoLogger
+from waffle_hub.utils.running_status_logger import RunningStatusLogger
 
 __all__ = ["MetricLogger"]
 
@@ -106,7 +106,7 @@ class MetricLogger:
         log_dir: Union[str, Path],
         func: callable,
         interval: float,
-        info_logger: RunningInfoLogger,
+        status_logger: RunningStatusLogger,
         prefix: str = "",
         **kwargs,
     ):
@@ -119,7 +119,7 @@ class MetricLogger:
                 func should return a list of metrics.
                 e.g. func() -> [[{"tag": "value}, ...], ...]
             interval (float): The interval to log metrics. (seconds)
-            info_logger (RunningInfoLogger): The logger class for step.
+            status_logger (RunningStatusLogger): The logger class for step.
             prefix (str, optional): The prefix of the log file. Defaults to "".
             kwargs: The arguments for the metric logger.
         """
@@ -129,7 +129,7 @@ class MetricLogger:
         self.func = func
         self.interval = float(interval)
         self.prefix = str(prefix)
-        self.info_logger = info_logger
+        self.status_logger = status_logger
         self.kwargs = kwargs
 
         self.loggers = [
@@ -191,7 +191,7 @@ class MetricLogger:
         """Log metrics."""
         metrics_per_epoch = self.func()
         current_step = len(metrics_per_epoch)
-        self.info_logger.set_current_step(current_step)
+        self.status_logger.set_current_step(current_step)
         for step in range(self._last_step, current_step):
             # metrics is a list of dict
             # e.g. [{"tag": "value"}, ...]

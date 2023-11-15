@@ -35,7 +35,7 @@ from waffle_hub.hub.adapter.transformers.train_input_helper import (
 )
 from waffle_hub.hub.model.wrapper import ModelWrapper
 from waffle_hub.schema.configs import TrainConfig
-from waffle_hub.utils.working_info_logger import TrainingInfoLogger
+from waffle_hub.utils.running_status_logger import TrainingStatusLogger
 
 from .config import DEFAULT_PARAMS, MODEL_TYPES
 
@@ -205,7 +205,7 @@ class TransformersHub(Hub):
             device=cfg.device,
         )
 
-    def training(self, cfg: TrainConfig, info_logger: TrainingInfoLogger):
+    def training(self, cfg: TrainConfig, status_logger: TrainingStatusLogger):
         trainer = Trainer(
             model=cfg.train_input.model,
             args=cfg.train_input.training_args,
