@@ -86,10 +86,12 @@ def export_coco(self, export_dir: Union[str, Path]) -> str:
     export_dir = Path(export_dir)
 
     train_ids, val_ids, test_ids, _ = self.get_split_ids()
+    background_ids = self.get_background_ids()
 
     if self.task == TaskType.CLASSIFICATION:
         _export_coco(self, export_dir, train_ids, val_ids, test_ids, [])
     elif self.task == TaskType.OBJECT_DETECTION:
+        train_ids += background_ids
         _export_coco(self, export_dir, train_ids, val_ids, test_ids, [])
     elif self.task == TaskType.INSTANCE_SEGMENTATION:
         _export_coco(self, export_dir, train_ids, val_ids, test_ids, [])
