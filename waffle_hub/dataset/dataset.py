@@ -1515,6 +1515,11 @@ class Dataset:
             io.save_json(item.to_dict(), item_path, create_directory=True)
 
     def add_background_images(self, background_image_dir: Union[str, Path]):
+        """Add background images to dataset.
+
+        Args:
+            background_image_dir (Union[str, Path]): background image directory.
+        """
         labeled_image_num = len(self.get_images())
 
         # check background image dir
