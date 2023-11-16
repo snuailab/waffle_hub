@@ -13,7 +13,7 @@ from typing import Union
 
 import PIL.Image
 import tqdm
-from waffle_utils.file import io, network
+from waffle_utils.file import io, network, search
 from waffle_utils.image.io import load_image, save_image
 from waffle_utils.log import datetime_now
 from waffle_utils.utils import type_validator
@@ -48,10 +48,12 @@ class Dataset:
     EXPORT_DIR = Path("exports")
     SET_DIR = Path("sets")
     DRAW_DIR = Path("draws")
+    BACKGROUND_RAW_DIR = RAW_IMAGE_DIR / Path("background")
 
     TRAIN_SET_FILE_NAME = Path("train.json")
     VAL_SET_FILE_NAME = Path("val.json")
     TEST_SET_FILE_NAME = Path("test.json")
+    BACKGROUND_SET_FILE_NAME = Path("background.json")
     UNLABELED_SET_FILE_NAME = Path("unlabeled.json")
 
     MINIMUM_TRAINABLE_IMAGE_NUM_PER_CATEGORY = 3
@@ -292,6 +294,10 @@ class Dataset:
         return self.dataset_dir / Dataset.DRAW_DIR
 
     @cached_property
+    def background_raw_dir(self) -> Path:
+        return self.dataset_dir / Dataset.BACKGROUND_RAW_DIR
+
+    @cached_property
     def train_set_file(self) -> Path:
         return self.set_dir / Dataset.TRAIN_SET_FILE_NAME
 
@@ -302,6 +308,10 @@ class Dataset:
     @cached_property
     def test_set_file(self) -> Path:
         return self.set_dir / Dataset.TEST_SET_FILE_NAME
+
+    @cached_property
+    def background_set_file(self) -> Path:
+        return self.set_dir / Dataset.BACKGROUND_SET_FILE_NAME
 
     @cached_property
     def unlabeled_set_file(self) -> Path:
@@ -1241,17 +1251,21 @@ class Dataset:
             if image_ids
             else list(self.image_dir.glob("*.json"))
         )
+        bg_ids = self.get_background_ids()
         labeled_images = []
+        background_images = []
         unlabeled_images = []
         for image_file in image_files:
             if self.get_annotations(image_file.stem):
                 labeled_images.append(Image.from_json(image_file))
+            elif int(image_file.stem) in bg_ids:
+                background_images.append(Image.from_json(image_file))
             else:
                 unlabeled_images.append(Image.from_json(image_file))
 
         if labeled:
-            logger.info(f"Found {len(labeled_images)} labeled images")
-            return labeled_images
+            logger.info(f"Found {len(labeled_images + background_images)} labeled images")
+            return labeled_images + background_images
         else:
             logger.info(f"Found {len(unlabeled_images)} unlabeled images")
             return unlabeled_images
@@ -1392,6 +1406,8 @@ class Dataset:
                 )  # category_id: {images}
 
         for image_id, annotations in self._image_to_annotations.items():
+            if annotations == []:
+                continue  # for background images
             if self.task == TaskType.TEXT_RECOGNITION:
                 most_common_category = Counter(
                     sum([list(annotation.caption) for annotation in annotations], [])
@@ -1497,6 +1513,36 @@ class Dataset:
                         raise ValueError(f"Category '{char}' is not in dataset")
             item_path = self.prediction_dir / f"{item.image_id}" / f"{item.annotation_id}.json"
             io.save_json(item.to_dict(), item_path, create_directory=True)
+
+    def add_background_images(self, background_image_dir: Union[str, Path]):
+        labeled_image_num = len(self.get_images())
+
+        # check background image dir
+        background_image_dir = Path(background_image_dir)
+        if not background_image_dir.exists():
+            raise FileNotFoundError(f"{background_image_dir} does not exist")
+
+        background_image_files = search.get_image_files(background_image_dir)
+
+        image_id = labeled_image_num + 1
+        set_bg_ids = self.get_background_ids()
+        for bg_image_file in background_image_files:
+            original_file_name = bg_image_file.relative_to(background_image_dir)
+            file_name = self.background_raw_dir / original_file_name
+            height, width = load_image(bg_image_file).shape[:2]
+            self.add_images(
+                Image(
+                    image_id=image_id,
+                    file_name=file_name.relative_to(self.raw_image_dir),
+                    width=width,
+                    height=height,
+                    original_file_name=original_file_name,
+                )
+            )
+            set_bg_ids.append(image_id)
+            io.copy_file(bg_image_file, file_name, create_directory=True)
+            image_id += 1
+        io.save_json(set_bg_ids, self.background_set_file, True)
 
     # functions
     def split(
@@ -1620,6 +1666,19 @@ class Dataset:
         )
 
         return [train_ids, val_ids, test_ids, unlabeled_ids]
+
+    def get_background_ids(self) -> list[int]:
+        """
+        Get background ids
+
+        Returns:
+            list[int]: background ids
+        """
+        if not self.background_set_file.exists():
+            # warnings.warn("There is no background set files.")
+            return []
+
+        return io.load_json(self.background_set_file) if self.background_set_file.exists() else []
 
     def export(self, data_type: Union[str, DataType]) -> str:
         """
