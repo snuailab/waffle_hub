@@ -373,6 +373,9 @@ class Annotation(BaseField):
         if area is None:
             area = 0
             for polygon in segmentation:
+                if len(polygon) < 6:
+                    continue
+
                 area += Polygon([(x, y) for x, y in zip(polygon[::2], polygon[1::2])]).area
 
         return cls(

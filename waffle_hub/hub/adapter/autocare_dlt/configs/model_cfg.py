@@ -152,5 +152,24 @@ def get_model_config(
             "classes": categories,
             "num_classes": len(categories),
         }
+    elif model_type == "Segmenter":
+        if model_size == "m":
+            backbone = "UNet"
+
+        return {
+            "task": model_type,
+            "model": {
+                "in_channels": 1,
+                "backbone": {"name": backbone},
+                "neck": {"name": "Identity"},
+                "head": {"name": "SegmentationHead"},
+            },
+            "loss": {"seg_loss": {"name": "SegLoss", "params": {"class_weights": {}}}},
+            "optim": {"name": "Adam", "lr": learning_rate, "weight_decay": 0.000001},
+            "max_epoch": epochs,
+            "seed": seed,
+            "classes": categories,
+            "num_classes": len(categories),
+        }
     else:
         raise NotImplementedError(f"Model type {model_type} not implemented.")

@@ -26,7 +26,7 @@ from transformers.utils import ModelOutput
 from waffle_utils.file import io
 
 from datasets import load_from_disk
-from waffle_hub import TaskType, DataType
+from waffle_hub import DataType, TaskType
 from waffle_hub.hub import Hub
 from waffle_hub.hub.adapter.transformers.train_input_helper import (
     ClassifierInputHelper,
@@ -35,7 +35,7 @@ from waffle_hub.hub.adapter.transformers.train_input_helper import (
 )
 from waffle_hub.hub.model.wrapper import ModelWrapper
 from waffle_hub.schema.configs import TrainConfig
-from waffle_hub.utils.callback import TrainCallback
+from waffle_hub.utils.running_status_logger import TrainingStatusLogger
 
 from .config import DEFAULT_PARAMS, MODEL_TYPES
 
@@ -58,7 +58,7 @@ class CustomCallback(TrainerCallback):
             epoch = int(metric.get("epoch"))
             for key, value in metric.items():
                 epoch_metric[epoch].append({"tag": key, "value": value})
-        io.save_json(list(epoch_metric.values()), self.metric_file)
+        io.save_json(list(epoch_metric.values()), self.metric_file, create_directory=True)
         return control
 
 
@@ -205,7 +205,7 @@ class TransformersHub(Hub):
             device=cfg.device,
         )
 
-    def training(self, cfg: TrainConfig, callback: TrainCallback):
+    def training(self, cfg: TrainConfig, status_logger: TrainingStatusLogger):
         trainer = Trainer(
             model=cfg.train_input.model,
             args=cfg.train_input.training_args,

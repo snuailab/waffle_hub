@@ -18,14 +18,18 @@ from waffle_hub.schema.evaluate import (
     ClassificationMetric,
     InstanceSegmentationMetric,
     ObjectDetectionMetric,
+    SemanticSegmentationMetric,
     TextRecognitionMetric,
 )
 from waffle_hub.schema.fields import Annotation
+from waffle_hub.utils.conversion import convert_polygon_to_mask
 
 logger = logging.getLogger(__name__)
 
 
-def convert_to_torchmetric_format(total: list[Annotation], task: TaskType, prediction: bool = False):
+def convert_to_torchmetric_format(
+    total: list[Annotation], task: TaskType, prediction: bool = False, *args, **kwargs
+):
 
     datas = []
     for annotations in total:
@@ -68,6 +72,26 @@ def convert_to_torchmetric_format(total: list[Annotation], task: TaskType, predi
         elif task == TaskType.TEXT_RECOGNITION:
             datas.append(annotations[0].caption)
 
+        elif task == TaskType.SEMANTIC_SEGMENTATION:
+            data = {
+                "boxes": [],
+                "masks": [],
+                "labels": [],
+            }
+
+            for annotation in annotations:
+                data["boxes"].append(annotation.bbox)
+                data["masks"].append(
+                    (
+                        convert_polygon_to_mask(
+                            annotation.segmentation, image_size=kwargs["image_size"]
+                        )
+                    ).tolist()
+                )
+                data["labels"].append(annotation.category_id - 1)
+
+            datas.append(data)
+
         else:
             raise NotImplementedError
 
@@ -84,7 +108,7 @@ def convert_to_torchmetric_format(total: list[Annotation], task: TaskType, predi
 
 
 def evaluate_classification(
-    preds: list[Annotation], labels: list[Annotation], num_classes: int
+    preds: list[Annotation], labels: list[Annotation], num_classes: int, *args, **kwargs
 ) -> ClassificationMetric:
     preds = convert_to_torchmetric_format(preds, TaskType.CLASSIFICATION, prediction=True)
     labels = convert_to_torchmetric_format(labels, TaskType.CLASSIFICATION)
@@ -119,7 +143,7 @@ def evaluate_classification(
 
 
 def evaluate_object_detection(
-    preds: list[Annotation], labels: list[Annotation], num_classes: int
+    preds: list[Annotation], labels: list[Annotation], num_classes: int, *args, **kwargs
 ) -> ObjectDetectionMetric:
     preds = convert_to_torchmetric_format(preds, TaskType.OBJECT_DETECTION, prediction=True)
     labels = convert_to_torchmetric_format(labels, TaskType.OBJECT_DETECTION)
@@ -149,8 +173,8 @@ def evaluate_object_detection(
     return result
 
 
-def evaluate_segmentation(
-    preds: list[Annotation], labels: list[Annotation], num_classes: int
+def evaluate_instance_segmentation(
+    preds: list[Annotation], labels: list[Annotation], num_classes: int, *args, **kwargs
 ) -> InstanceSegmentationMetric:
     preds = convert_to_torchmetric_format(preds, TaskType.INSTANCE_SEGMENTATION, prediction=True)
     labels = convert_to_torchmetric_format(labels, TaskType.INSTANCE_SEGMENTATION)
@@ -166,7 +190,7 @@ def evaluate_segmentation(
 
 
 def evalute_text_recognition(
-    preds: list[Annotation], labels: list[Annotation], num_classes: int
+    preds: list[Annotation], labels: list[Annotation], num_classes: int, *args, **kwargs
 ) -> ObjectDetectionMetric:
     preds = convert_to_torchmetric_format(preds, TaskType.TEXT_RECOGNITION, prediction=True)
     labels = convert_to_torchmetric_format(labels, TaskType.TEXT_RECOGNITION)
@@ -178,6 +202,69 @@ def evalute_text_recognition(
     return result
 
 
+def evalute_semantic_segmentation(
+    preds: list[Annotation],
+    labels: list[Annotation],
+    num_classes: int,
+    image_size: list[int],
+    *args,
+    **kwargs
+) -> SemanticSegmentationMetric:
+    preds = convert_to_torchmetric_format(
+        preds, TaskType.SEMANTIC_SEGMENTATION, prediction=True, image_size=image_size
+    )
+    labels = convert_to_torchmetric_format(
+        labels, TaskType.SEMANTIC_SEGMENTATION, image_size=image_size
+    )
+    # TODO: use library
+
+    # mpa
+    mean_pixel_accuracy = 0
+    for pred, label in zip(preds, labels):
+        if pred["masks"].numel() == 0:  # If the object isn't detected
+            continue
+
+        _mpa = 0
+        for label_index, class_id in enumerate(label["labels"]):
+            pred_index = torch.where(pred["labels"] == class_id)[0]
+            if pred_index.numel() == 0:
+                continue
+
+            _mpa += torch.sum(
+                pred["masks"][pred_index] == label["masks"][label_index]
+            ) / torch.numel(label["masks"][label_index])
+        mean_pixel_accuracy += _mpa / len(label["labels"])
+    mean_pixel_accuracy /= len(labels)
+
+    # iou
+    iou = 0
+    for pred, label in zip(preds, labels):
+        if pred["masks"].numel() == 0:  # If the object isn't detected
+            continue
+
+        _iou = 0
+        for label_index, class_id in enumerate(label["labels"]):
+            pred_index = torch.where(pred["labels"] == class_id)[0]
+            if pred_index.numel() == 0:
+                continue
+
+            label_mask = label["masks"][label_index] == 255
+            pred_mask = pred["masks"][pred_index] == 255
+
+            intersection = torch.sum(pred_mask & label_mask)
+            union = torch.sum(pred_mask) + torch.sum(label_mask) - intersection
+
+            if union == 0:
+                continue
+
+            _iou += intersection / union
+        iou += _iou / len(label["labels"])
+    iou /= len(labels)
+
+    result = SemanticSegmentationMetric(float(mean_pixel_accuracy), float(iou))
+    return result
+
+
 def evaluate_function(
     preds: list[Annotation],
     labels: list[Annotation],
@@ -186,15 +273,21 @@ def evaluate_function(
     *args,
     **kwargs
 ) -> Union[
-    ClassificationMetric, ObjectDetectionMetric, InstanceSegmentationMetric, TextRecognitionMetric
+    ClassificationMetric,
+    ObjectDetectionMetric,
+    InstanceSegmentationMetric,
+    TextRecognitionMetric,
+    SemanticSegmentationMetric,
 ]:
     if task == TaskType.CLASSIFICATION:
         return evaluate_classification(preds, labels, num_classes, *args, **kwargs)
     elif task == TaskType.OBJECT_DETECTION:
         return evaluate_object_detection(preds, labels, num_classes, *args, **kwargs)
     elif task == TaskType.INSTANCE_SEGMENTATION:
-        return evaluate_segmentation(preds, labels, num_classes, *args, **kwargs)
+        return evaluate_instance_segmentation(preds, labels, num_classes, *args, **kwargs)
     elif task == TaskType.TEXT_RECOGNITION:
         return evalute_text_recognition(preds, labels, num_classes, *args, **kwargs)
+    elif task == TaskType.SEMANTIC_SEGMENTATION:
+        return evalute_semantic_segmentation(preds, labels, num_classes, *args, **kwargs)
     else:
         raise NotImplementedError

@@ -551,6 +551,14 @@ class Dataset:
                         name=chr(64 + category_id),
                         supercategory="object",
                     )
+                elif task == TaskType.SEMANTIC_SEGMENTATION:
+                    category = Category.object_detection(
+                        category_id=category_id,
+                        name=f"category_{category_id}",
+                        supercategory="object",
+                    )
+                else:
+                    raise NotImplementedError(f"not supported task: {task}")
 
                 ds.add_categories([category])
 
@@ -607,6 +615,25 @@ class Dataset:
                             caption=chr(64 + random.randint(1, category_num)),
                         )
                     ]
+                elif task == TaskType.SEMANTIC_SEGMENTATION:
+                    annotations = [
+                        Annotation.instance_segmentation(
+                            annotation_id=annotation_id + i,
+                            image_id=image_id,
+                            category_id=random.randint(1, category_num),
+                            bbox=[
+                                random.randint(0, 100),
+                                random.randint(0, 100),
+                                random.randint(0, 100),
+                                random.randint(0, 100),
+                            ],
+                            segmentation=[[random.randint(0, 100) for _ in range(10)]],
+                        )
+                        for i in range(random.randint(1, 5))
+                    ]
+                else:
+                    raise NotImplementedError(f"not supported task: {task}")
+
                 ds.add_annotations(annotations)
                 annotation_id += len(annotations)
 
@@ -1071,6 +1098,7 @@ class Dataset:
                 TaskType.CLASSIFICATION,
                 TaskType.OBJECT_DETECTION,
                 TaskType.INSTANCE_SEGMENTATION,
+                TaskType.SEMANTIC_SEGMENTATION,
             ]:
                 url = "https://raw.githubusercontent.com/snuailab/assets/main/waffle/sample_dataset/mnist.zip"
             elif task == TaskType.TEXT_RECOGNITION:

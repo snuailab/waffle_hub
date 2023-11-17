@@ -6,14 +6,16 @@ import pytest
 from waffle_hub.schema.evaluate import (
     ClassificationMetric,
     InstanceSegmentationMetric,
+    SemanticSegmentationMetric,
     ObjectDetectionMetric,
 )
 from waffle_hub.schema.fields import Annotation
 from waffle_hub.utils.data import resize_image
 from waffle_hub.utils.evaluate import (
     evaluate_classification,
+    evaluate_instance_segmentation,
     evaluate_object_detection,
-    evaluate_segmentation,
+    evalute_semantic_segmentation
 )
 
 
@@ -76,6 +78,86 @@ def test_evaluate_object_detection():
 
     assert result.mAP < 1.0
 
+
+def test_evaluate_instance_segmentation():
+    result: InstanceSegmentationMetric = evaluate_instance_segmentation(
+    preds=[
+            [
+                Annotation.instance_segmentation(category_id=1, segmentation=[[0, 0, 1, 0, 1, 1]], score=1.0),
+                Annotation.instance_segmentation(category_id=2, segmentation=[[0, 0, 1, 0, 1, 1]], score=1.0),
+                Annotation.instance_segmentation(category_id=3, segmentation=[[0, 0, 1, 0, 1, 1]], score=1.0),
+            ],
+            [
+                Annotation.instance_segmentation(category_id=1, segmentation=[[0, 0, 1, 0, 1, 1]], score=1.0),
+                Annotation.instance_segmentation(category_id=2, segmentation=[[0, 0, 1, 0, 1, 1]], score=1.0),
+            ],
+            [
+                Annotation.instance_segmentation(category_id=1, segmentation=[[0, 0, 1, 0, 1, 1]], score=1.0),
+            ],
+        ],
+        labels=[
+            [
+                Annotation.instance_segmentation(category_id=1, segmentation=[[0, 0, 1, 0, 1, 1]]),
+                Annotation.instance_segmentation(category_id=2, segmentation=[[0, 0, 1, 0, 1, 1]]),
+                Annotation.instance_segmentation(category_id=3, segmentation=[[0, 0, 1, 0, 1, 1]]),
+            ],
+            [
+                Annotation.instance_segmentation(category_id=1, segmentation=[[0, 0, 1, 0, 1, 1]]),
+                Annotation.instance_segmentation(category_id=2, segmentation=[[0, 0, 1, 0, 1, 1]]),
+                Annotation.instance_segmentation(category_id=3, segmentation=[[0, 0, 1, 0, 1, 1]]),
+            ],
+            [
+                Annotation.instance_segmentation(category_id=1, segmentation=[[0, 0, 1, 0, 1, 1]]),
+                Annotation.instance_segmentation(category_id=2, segmentation=[[0, 0, 1, 0, 1, 1]]),
+                Annotation.instance_segmentation(category_id=3, segmentation=[[0, 0, 1, 0, 1, 1]]),
+            ],
+        ],
+        num_classes=3,
+        image_size=[32,32],
+    )
+
+    assert result.mAP < 1.0 and result.mAP > 0.0
+
+
+def test_evalute_semantic_segmentation():
+    result: SemanticSegmentationMetric = evalute_semantic_segmentation(
+    preds=[
+            [
+                Annotation.semantic_segmentation(category_id=1, segmentation=[[0, 0, 1, 0, 1, 1]], score=1.0),
+                Annotation.semantic_segmentation(category_id=2, segmentation=[[0, 0, 1, 0, 1, 1]], score=1.0),
+                Annotation.semantic_segmentation(category_id=3, segmentation=[[0, 0, 1, 0, 1, 1]], score=1.0),
+            ],
+            [
+                Annotation.semantic_segmentation(category_id=1, segmentation=[[0, 0, 1, 0, 1, 1]], score=1.0),
+                Annotation.semantic_segmentation(category_id=2, segmentation=[[0, 0, 1, 0, 1, 1]], score=1.0),
+            ],
+            [
+                Annotation.semantic_segmentation(category_id=1, segmentation=[[0, 0, 1, 0, 1, 1]], score=1.0),
+            ],
+        ],
+        labels=[
+            [
+                Annotation.semantic_segmentation(category_id=1, segmentation=[[0, 0, 1, 0, 1, 1]]),
+                Annotation.semantic_segmentation(category_id=2, segmentation=[[0, 0, 1, 0, 1, 1]]),
+                Annotation.semantic_segmentation(category_id=3, segmentation=[[0, 0, 1, 0, 1, 1]]),
+            ],
+            [
+                Annotation.semantic_segmentation(category_id=1, segmentation=[[0, 0, 1, 0, 1, 1]]),
+                Annotation.semantic_segmentation(category_id=2, segmentation=[[0, 0, 1, 0, 1, 1]]),
+                Annotation.semantic_segmentation(category_id=3, segmentation=[[0, 0, 1, 0, 1, 1]]),
+            ],
+            [
+                Annotation.semantic_segmentation(category_id=1, segmentation=[[0, 0, 1, 0, 1, 1]]),
+                Annotation.semantic_segmentation(category_id=2, segmentation=[[0, 0, 1, 0, 1, 1]]),
+                Annotation.semantic_segmentation(category_id=3, segmentation=[[0, 0, 1, 0, 1, 1]]),
+            ],
+        ],
+        num_classes=3,
+        image_size=[32,32],
+    )
+
+    assert result.IoU < 1.0 and result.IoU > 0.0
+    assert result.mean_pixel_accuracy < 1.0 and result.mean_pixel_accuracy > 0.0
 
 def test_resize_function():
     letter_box = [False, True]

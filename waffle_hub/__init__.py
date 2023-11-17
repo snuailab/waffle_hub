@@ -1,6 +1,8 @@
-__version__ = "0.2.16"
+__version__ = "0.3.0a1"
 
 import enum
+import signal
+from collections import OrderedDict
 
 from waffle_dough.type.data_type import DataType
 from waffle_hub.type.backend_type import BackendType
@@ -60,7 +62,48 @@ class SplitMethod(BaseEnum):
     STRATIFIED = enum.auto()
 
 
-EXPORT_MAP = CaseInsensitiveDict(
+# for changeable status desc
+class TrainStatusDesc(BaseEnum):
+    INIT = enum.auto()
+    RUNNING = enum.auto()
+    SUCCESS = enum.auto()
+    FAILED = enum.auto()
+    STOPPED = enum.auto()
+
+
+class EvaluateStatusDesc(BaseEnum):
+    INIT = enum.auto()
+    RUNNING = enum.auto()
+    SUCCESS = enum.auto()
+    FAILED = enum.auto()
+    STOPPED = enum.auto()
+
+
+class InferenceStatusDesc(BaseEnum):
+    INIT = enum.auto()
+    RUNNING = enum.auto()
+    SUCCESS = enum.auto()
+    FAILED = enum.auto()
+    STOPPED = enum.auto()
+
+
+class ExportOnnxStatusDesc(BaseEnum):
+    INIT = enum.auto()
+    RUNNING = enum.auto()
+    SUCCESS = enum.auto()
+    FAILED = enum.auto()
+    STOPPED = enum.auto()
+
+
+class ExportWaffleStatusDesc(BaseEnum):
+    INIT = enum.auto()
+    RUNNING = enum.auto()
+    SUCCESS = enum.auto()
+    FAILED = enum.auto()
+    STOPPED = enum.auto()
+
+
+EXPORT_MAP = OrderedDict(
     {
         DataType.YOLO: "ULTRALYTICS",
         DataType.ULTRALYTICS: "ULTRALYTICS",
@@ -86,3 +129,26 @@ BACKEND_MAP = CaseInsensitiveDict(
         },
     }
 )
+
+
+for key in list(EXPORT_MAP.keys()):
+    EXPORT_MAP[str(key).lower()] = EXPORT_MAP[key]
+    EXPORT_MAP[str(key).upper()] = EXPORT_MAP[key]
+
+
+for key in list(BACKEND_MAP.keys()):
+    BACKEND_MAP[str(key).lower()] = BACKEND_MAP[key]
+    BACKEND_MAP[str(key).upper()] = BACKEND_MAP[key]
+
+
+# except handler for SIGINT, SIGTERM, SIGCHILD
+def sigint_handler(signum, frame):
+    raise KeyboardInterrupt
+
+
+def sigterm_handler(signum, frame):
+    raise SystemExit
+
+
+signal.signal(signal.SIGINT, sigint_handler)
+signal.signal(signal.SIGTERM, sigterm_handler)

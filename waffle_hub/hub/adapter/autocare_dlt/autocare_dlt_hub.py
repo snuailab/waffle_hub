@@ -25,7 +25,7 @@ from waffle_hub.hub.adapter.autocare_dlt.configs import (
 )
 from waffle_hub.hub.model.wrapper import ModelWrapper
 from waffle_hub.schema.configs import TrainConfig
-from waffle_hub.utils.callback import TrainCallback
+from waffle_hub.utils.running_status_logger import TrainingStatusLogger
 
 from .config import DATA_TYPE_MAP, DEFAULT_PARAMS, MODEL_TYPES, WEIGHT_PATH
 
@@ -74,6 +74,8 @@ class AutocareDLTHub(Hub):
             categories=categories,
             root_dir=root_dir,
         )
+
+        self.model_json_output_path = self.hub_dir / self.CONFIG_DIR / "model.json"
 
     @classmethod
     def new(
@@ -130,6 +132,13 @@ class AutocareDLTHub(Hub):
             def preprocess(x, *args, **kwargs):
                 return normalize(x)
 
+        elif self.task == TaskType.SEMANTIC_SEGMENTATION:
+            normalize = T.Normalize([0], [1], inplace=True)
+            gray_sacle = T.Grayscale()
+
+            def preprocess(x, *args, **kwargs):
+                return normalize(gray_sacle(x))
+
         else:
             raise NotImplementedError(f"task {self.task} is not supported yet")
 
@@ -157,6 +166,11 @@ class AutocareDLTHub(Hub):
             def inner(x: torch.Tensor, *args, **kwargs):
                 scores, character_class_ids = x.max(dim=-1)
                 return character_class_ids, scores
+
+        elif self.task == TaskType.SEMANTIC_SEGMENTATION:
+
+            def inner(x: torch.Tensor, *args, **kwargs):
+                return x
 
         else:
             raise NotImplementedError(f"task {self.task} is not supported yet")
@@ -212,6 +226,8 @@ class AutocareDLTHub(Hub):
         )
         if self.model_type == "LicencePlateRecognition":
             data_config["data"]["mode"] = "lpr"
+        if self.model_type == "Segmenter":
+            data_config["data"]["gray"] = True
 
         cfg.data_config = self.artifact_dir / "data.json"
         io.save_json(data_config, cfg.data_config, create_directory=True)
@@ -256,7 +272,7 @@ class AutocareDLTHub(Hub):
 
         cfg.dataset_path = str(cfg.dataset_path.absolute())
 
-    def training(self, cfg: TrainConfig, callback: TrainCallback):
+    def training(self, cfg: TrainConfig, status_logger: TrainingStatusLogger):
         results = train.run(
             exp_name="train",
             model_cfg=str(cfg.model_config),
@@ -271,17 +287,20 @@ class AutocareDLTHub(Hub):
         del results
 
     def on_train_end(self, cfg: TrainConfig):
-        io.copy_file(
-            self.artifact_dir / "train" / "best_ckpt.pth",
-            self.best_ckpt_file,
-            create_directory=True,
-        )
-        io.copy_file(
-            self.artifact_dir / "train" / "last_epoch_ckpt.pth",
-            self.last_ckpt_file,
-            create_directory=True,
-        )
-        io.save_json(self.get_metrics(), self.metric_file)
+        best_ckpt_path = self.artifact_dir / "train" / "best_ckpt.pth"
+        last_epoch_ckpt_path = self.artifact_dir / "train" / "last_epoch_ckpt.pth"
+        model_json_path = self.artifact_dir / "model.json"
+
+        if best_ckpt_path.exists():
+            io.copy_file(best_ckpt_path, self.best_ckpt_file, create_directory=True)
+        if last_epoch_ckpt_path.exists():
+            io.copy_file(last_epoch_ckpt_path, self.last_ckpt_file, create_directory=True)
+        if model_json_path.exists():
+            io.copy_file(model_json_path, self.model_json_output_path, create_directory=True)
+
+        metrics = self.get_metrics()
+        if metrics:
+            io.save_json(metrics, self.metric_file, create_directory=True)
 
     # Inference Hook
     def get_model(self):
@@ -297,7 +316,7 @@ class AutocareDLTHub(Hub):
 
         # get model
         categories = [x["name"] for x in self.categories]
-        cfg = io.load_json(self.artifact_dir / "model.json")
+        cfg = io.load_json(self.model_json_output_path)
         cfg["ckpt"] = str(self.best_ckpt_file)
         if self.task == TaskType.TEXT_RECOGNITION:
             cfg["model"]["Prediction"]["num_classes"] = len(categories) + 1

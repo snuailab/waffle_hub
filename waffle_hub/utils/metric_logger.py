@@ -6,6 +6,8 @@ from pathlib import Path
 from threading import Thread
 from typing import Union
 
+from waffle_hub.utils.running_status_logger import RunningStatusLogger
+
 __all__ = ["MetricLogger"]
 
 logger = logging.getLogger(__name__)
@@ -104,6 +106,7 @@ class MetricLogger:
         log_dir: Union[str, Path],
         func: callable,
         interval: float,
+        status_logger: RunningStatusLogger,
         prefix: str = "",
         **kwargs,
     ):
@@ -116,6 +119,7 @@ class MetricLogger:
                 func should return a list of metrics.
                 e.g. func() -> [[{"tag": "value}, ...], ...]
             interval (float): The interval to log metrics. (seconds)
+            status_logger (RunningStatusLogger): The logger class for step.
             prefix (str, optional): The prefix of the log file. Defaults to "".
             kwargs: The arguments for the metric logger.
         """
@@ -125,7 +129,7 @@ class MetricLogger:
         self.func = func
         self.interval = float(interval)
         self.prefix = str(prefix)
-
+        self.status_logger = status_logger
         self.kwargs = kwargs
 
         self.loggers = [
@@ -153,16 +157,19 @@ class MetricLogger:
 
         self._stop = False
 
-        self.thread = Thread(target=self._loop, daemon=True)
-        self.thread.start()
+        self._thread = Thread(target=self._loop, daemon=True)
+        self._thread.start()
 
     def stop(self):
         """Stop logging thread."""
-        self._stop = True
-
-        self.thread.join()
-        for logger in self.loggers:
-            logger.close()
+        if self._thread is not None:
+            self._stop = True
+            self._thread.join()
+            self._thread = None
+            self._log()  # final log after stop
+            for logger in self.loggers:
+                logger.close()
+            self._initiated = False
 
     def _loop(self):
         """Log metrics every interval seconds."""
@@ -184,6 +191,7 @@ class MetricLogger:
         """Log metrics."""
         metrics_per_epoch = self.func()
         current_step = len(metrics_per_epoch)
+        self.status_logger.set_current_step(current_step)
         for step in range(self._last_step, current_step):
             # metrics is a list of dict
             # e.g. [{"tag": "value"}, ...]

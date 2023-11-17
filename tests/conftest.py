@@ -106,8 +106,8 @@ def test_video_path(tmp_path_factory: pytest.TempPathFactory):
 @pytest.fixture
 def instance_segmentation_dataset(coco_path: Path, tmpdir: Path):
     dataset: Dataset = Dataset.from_coco(
-        name="seg",
-        task=str(TaskType.INSTANCE_SEGMENTATION.value),
+        name="ins_seg",
+        task=TaskType.INSTANCE_SEGMENTATION,
         coco_file=coco_path / "coco.json",
         coco_root_dir=coco_path / "images",
         root_dir=tmpdir,
@@ -155,5 +155,19 @@ def text_recognition_dataset(coco_path: Path, tmpdir: Path):
         root_dir=tmpdir,
     )
     dataset.split(0.8)
+
+    return dataset
+
+
+@pytest.fixture
+def semantic_segmentation_dataset(coco_path: Path, tmpdir: Path):
+    dataset: Dataset = Dataset.from_autocare_dlt(
+        name="sem_seg",
+        task=TaskType.SEMANTIC_SEGMENTATION,
+        coco_file=coco_path / "coco.json",
+        coco_root_dir=coco_path / "images",
+        root_dir=tmpdir,
+    )
+    dataset.split(0.2, 0.8)
 
     return dataset
