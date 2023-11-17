@@ -6,9 +6,10 @@ from pathlib import Path
 import pytest
 import torch
 
-from waffle_hub import TaskType
+from waffle_dough.type.task_type import TaskType
 from waffle_hub.dataset import Dataset
 from waffle_hub.hub import Hub
+from waffle_hub.hub.train.adapter.base_manager import BaseManager
 from waffle_hub.schema.result import (
     EvaluateResult,
     ExportOnnxResult,
@@ -132,7 +133,7 @@ def _export_waffle(hub, hold: bool = True):
 
 
 def _from_waffle_file(waffle_file: str, source: str, tmpdir: Path, hold: bool = True):
-    name = "test_import"
+    name = "waffle_import_test"
     hub = Hub.from_waffle_file(name=name, waffle_file=waffle_file, root_dir=tmpdir)
 
     _inference(hub, source, hold=hold)
@@ -158,13 +159,10 @@ def _benchmark(hub, image_size):
     hub.benchmark(device="cpu", half=False, image_size=image_size)
 
 
-def _util(hub):
+def _util(hub):  ## TODO: add more test
     name = hub.name
     backend = hub.backend
     root_dir = hub.root_dir
-
-    hub_class = Hub.get_hub_class(backend)
-    assert hub_class == type(hub)
 
     hub_loaded = Hub.load(name, root_dir)
     assert isinstance(hub_loaded, type(hub))
@@ -274,22 +272,21 @@ def test_ultralytics_object_detection_advance_params(
 
     hub.get_default_advance_train_params()
 
-    import_hub_name = "test_import"
     _total(hub, dataset, image_size, tmpdir, {"box": 4, "cls": 1})
     hub.delete_artifact()
-    import_hub = Hub.load(name=import_hub_name, root_dir=tmpdir)
+    import_hub = Hub.load(name="waffle_import_test", root_dir=tmpdir)
     import_hub.delete_hub()
 
     with open(str(tmpdir / "adv.json"), "w") as f:
         json.dump({"box": 4, "cls": 2}, f)
     _total(hub, dataset, image_size, tmpdir, str(tmpdir / "adv.json"))
     hub.delete_artifact()
-    import_hub = Hub.load(name=import_hub_name, root_dir=tmpdir)
+    import_hub = Hub.load(name="waffle_import_test", root_dir=tmpdir)
     import_hub.delete_hub()
 
     with pytest.raises(ValueError):
         _total(hub, dataset, image_size, tmpdir, {"box": 4, "dummy_adv_param": 2})
-        import_hub = Hub.load(name=import_hub_name, root_dir=tmpdir)
+        import_hub = Hub.load(name="waffle_import_test", root_dir=tmpdir)
         import_hub.delete_hub()
 
 

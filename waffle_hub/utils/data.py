@@ -8,6 +8,7 @@ import torch
 from natsort import natsorted
 from torchvision import transforms as T
 from waffle_utils.file import io
+from waffle_utils.file.search import get_image_files
 from waffle_utils.image.io import load_image
 
 from waffle_hub.dataset import Dataset

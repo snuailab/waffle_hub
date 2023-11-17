@@ -3,7 +3,7 @@ from pathlib import Path
 
 import pytest
 
-from waffle_hub import TaskType
+from waffle_dough.type.task_type import TaskType
 from waffle_hub.dataset import Dataset
 
 

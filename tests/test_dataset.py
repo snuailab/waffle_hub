@@ -5,7 +5,7 @@ import pytest
 from waffle_utils.file.io import load_json, save_json
 from waffle_utils.file.search import get_image_files
 
-from waffle_hub import TaskType
+from waffle_dough.type.task_type import TaskType
 from waffle_hub.dataset import Dataset
 from waffle_hub.schema.fields import Annotation, Category, Image
 from waffle_hub.utils.data import ImageDataset, LabeledDataset
