@@ -1506,6 +1506,7 @@ class Dataset:
         test_ratio: float = 0.0,
         method: Union[str, SplitMethod] = SplitMethod.RANDOM,
         seed: int = 0,
+        strict: bool = True,
     ):
         """
         Split Dataset to train, validation, test, (unlabeled) sets.
@@ -1516,6 +1517,7 @@ class Dataset:
             test_ratio (float, optional): test num ratio (0 ~ 1).
             method (Union[str, SplitMethod], optional): split method. Defaults to SplitMethod.RANDOM.
             seed (int, optional): random seed. Defaults to 0.
+            strict (bool, optional): strict split. Defaults to True.
 
         Raises:
             ValueError: if train_ratio is not between 0.0 and 1.0.
@@ -1528,7 +1530,12 @@ class Dataset:
             [[1, 2, 3, 4, 5, 6, 7, 8], [9], [10], []]  # train, val, test, unlabeled image ids
         """
 
-        self._check_trainable()
+        if strict:
+            self._check_trainable()
+        else:
+            logger.warning(
+                "You are splitting dataset without restriction. It will bypass some dataset integrity checks. It can cause unexpected errors/results."
+            )
 
         if train_ratio <= 0.0 or train_ratio >= 1.0:
             raise ValueError(
@@ -1621,13 +1628,13 @@ class Dataset:
 
         return [train_ids, val_ids, test_ids, unlabeled_ids]
 
-    def export(self, data_type: Union[str, DataType], restrict: bool = True) -> str:
+    def export(self, data_type: Union[str, DataType], strict: bool = True) -> str:
         """
         Export Dataset to Specific data formats
 
         Args:
             data_type (Union[str, DataType]): export data type. one of ["YOLO", "COCO"].
-            restrict (bool, optional): restrict export. Defaults to True.
+            strict (bool, optional): strict export. Defaults to True.
 
         Raises:
             ValueError: if data_type is not one of DataType.
@@ -1644,7 +1651,7 @@ class Dataset:
             str: exported dataset directory
         """
 
-        if restrict:
+        if strict:
             self._check_trainable()
         else:
             logger.warning(

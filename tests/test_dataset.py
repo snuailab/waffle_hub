@@ -278,8 +278,8 @@ def _export(dataset_name, task: TaskType, root_dir):
 
 
 # bypass restirction
-def _export_bypass(dataset_name, data_type, root_dir):
-    # test restrict (bypassing validation)
+def _strict(dataset_name, data_type, root_dir):
+    # test strict (bypassing validation)
     clone = Dataset.clone(
         dataset_name, dataset_name + "_clone", src_root_dir=root_dir, root_dir=root_dir
     )
@@ -292,8 +292,12 @@ def _export_bypass(dataset_name, data_type, root_dir):
     )
     clone.create_index()
     with pytest.raises(ValueError):
-        clone.export(data_type, restrict=True)
-    clone.export(data_type, restrict=False)
+        clone.split(0.8, strict=True)
+    clone.split(0.8, strict=False)
+
+    with pytest.raises(ValueError):
+        clone.export(data_type, strict=True)
+    clone.export(data_type, strict=False)
 
 
 # test dummy
@@ -379,7 +383,7 @@ def _total_coco(dataset_name, task: TaskType, coco_path, root_dir):
     _clone(dataset_name, root_dir)
     _split(dataset_name, root_dir)
     _export(dataset_name, task, root_dir)
-    _export_bypass(dataset_name, DataType.COCO, root_dir)
+    _strict(dataset_name, DataType.COCO, root_dir)
 
 
 @pytest.mark.parametrize(
@@ -410,7 +414,7 @@ def test_yolo_classification(yolo_classification_path: Path, tmpdir: Path):
     _clone(dataset_name, root_dir)
     _split(dataset_name, root_dir)
     _export(dataset_name, TaskType.CLASSIFICATION, root_dir)
-    _export_bypass(dataset_name, DataType.ULTRALYTICS, root_dir)
+    _strict(dataset_name, DataType.ULTRALYTICS, root_dir)
 
 
 def test_yolo_object_detection(yolo_object_detection_path: Path, tmpdir: Path):
@@ -434,7 +438,7 @@ def test_yolo_object_detection(yolo_object_detection_path: Path, tmpdir: Path):
     _clone(dataset_name, root_dir)
     _split(dataset_name, root_dir)
     _export(dataset_name, TaskType.OBJECT_DETECTION, root_dir)
-    _export_bypass(dataset_name, DataType.ULTRALYTICS, root_dir)
+    _strict(dataset_name, DataType.ULTRALYTICS, root_dir)
 
 
 def test_yolo_instance_segmentation(yolo_instance_segmentation_path: Path, tmpdir: Path):
@@ -458,7 +462,7 @@ def test_yolo_instance_segmentation(yolo_instance_segmentation_path: Path, tmpdi
     _clone(dataset_name, root_dir)
     _split(dataset_name, root_dir)
     _export(dataset_name, TaskType.INSTANCE_SEGMENTATION, root_dir)
-    _export_bypass(dataset_name, DataType.ULTRALYTICS, root_dir)
+    _strict(dataset_name, DataType.ULTRALYTICS, root_dir)
 
 
 # test autocare_dlt
@@ -479,7 +483,7 @@ def _total_autocare_dlt(dataset_name, task: TaskType, coco_path, root_dir):
     _clone(dataset_name, root_dir)
     _split(dataset_name, root_dir)
     _export(dataset_name, task, root_dir)
-    _export_bypass(dataset_name, DataType.AUTOCARE_DLT, root_dir)
+    _strict(dataset_name, DataType.AUTOCARE_DLT, root_dir)
 
 
 @pytest.mark.parametrize(
@@ -516,7 +520,7 @@ def _total_transformers(dataset_name, task: TaskType, transformers_path, root_di
     _clone(dataset_name, root_dir)
     _split(dataset_name, root_dir)
     _export(dataset_name, task, root_dir)
-    _export_bypass(dataset_name, DataType.TRANSFORMERS, root_dir)
+    _strict(dataset_name, DataType.TRANSFORMERS, root_dir)
 
 
 def test_transformers(transformers_detection_path, transformers_classification_path, tmpdir):
