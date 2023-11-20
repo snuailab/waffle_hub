@@ -1621,12 +1621,13 @@ class Dataset:
 
         return [train_ids, val_ids, test_ids, unlabeled_ids]
 
-    def export(self, data_type: Union[str, DataType]) -> str:
+    def export(self, data_type: Union[str, DataType], restrict: bool = True) -> str:
         """
         Export Dataset to Specific data formats
 
         Args:
             data_type (Union[str, DataType]): export data type. one of ["YOLO", "COCO"].
+            restrict (bool, optional): restrict export. Defaults to True.
 
         Raises:
             ValueError: if data_type is not one of DataType.
@@ -1643,9 +1644,15 @@ class Dataset:
             str: exported dataset directory
         """
 
-        self._check_trainable()
+        if restrict:
+            self._check_trainable()
+        else:
+            logger.warning(
+                "You are exporting dataset without restriction. It will bypass some dataset integrity checks. It can cause unexpected errors/results."
+            )
 
-        export_dir: Path = self.export_dir / EXPORT_MAP[data_type.upper()]
+        data_type_name = data_type.upper() if isinstance(data_type, str) else data_type.name
+        export_dir: Path = self.export_dir / EXPORT_MAP[data_type_name]
         if data_type in [DataType.YOLO, DataType.ULTRALYTICS]:
             export_function = export_yolo
         elif data_type in [DataType.COCO]:
