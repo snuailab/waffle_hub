@@ -1520,7 +1520,7 @@ class Dataset:
         Args:
             background_image_dir (Union[str, Path]): background image directory.
         """
-        labeled_image_num = len(self.get_images())
+        images_num = len(self.get_images()) + len(self.get_images(labeled=False))
 
         # check background image dir
         background_image_dir = Path(background_image_dir)
@@ -1529,7 +1529,18 @@ class Dataset:
 
         background_image_files = search.get_image_files(background_image_dir)
 
-        image_id = labeled_image_num + 1
+        # check file name duplication
+        dup_file_name = [
+            self.BACKGROUND_RAW_DIR / bg_image_file
+            for bg_image_file in map(
+                lambda x: Path(x).relative_to(background_image_dir), background_image_files
+            )
+            if (self.background_raw_dir / bg_image_file).exists()
+        ]
+        if dup_file_name:
+            raise FileExistsError(f"{dup_file_name} already exists")
+
+        image_id = images_num + 1
         set_bg_ids = self.get_background_ids()
         for bg_image_file in background_image_files:
             original_file_name = bg_image_file.relative_to(background_image_dir)

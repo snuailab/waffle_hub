@@ -271,7 +271,6 @@ def export_yolo(self, export_dir: Union[str, Path]) -> str:
 
     train_ids, val_ids, test_ids, _ = self.get_split_ids()
     background_ids = self.get_background_ids()
-    print(background_ids)
 
     if self.task == TaskType.CLASSIFICATION:
         _export_yolo_classification(self, export_dir, train_ids, val_ids, test_ids, [])

@@ -167,7 +167,7 @@ def export_transformers(self, export_dir: Union[str, Path]) -> str:
         train_ids += background_ids
         _export_transformers_detection(self, export_dir, train_ids, val_ids, test_ids, [])
     else:
-        raise ValueError(f"Unsupported task type: {self.task}")
+        raise NotImplementedError(f"Unsupported task type: {self.task}")
 
     return str(export_dir)
 

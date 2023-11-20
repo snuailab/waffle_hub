@@ -94,6 +94,7 @@ def export_coco(self, export_dir: Union[str, Path]) -> str:
         train_ids += background_ids
         _export_coco(self, export_dir, train_ids, val_ids, test_ids, [])
     elif self.task == TaskType.INSTANCE_SEGMENTATION:
+        train_ids += background_ids
         _export_coco(self, export_dir, train_ids, val_ids, test_ids, [])
     else:
         raise ValueError(f"Unsupported task type: {self.task}")
