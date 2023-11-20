@@ -87,8 +87,12 @@ def export_autocare_dlt(self, export_dir: Union[str, Path]) -> str:
     export_dir = Path(export_dir)
 
     train_ids, val_ids, test_ids, unlabeled_ids = self.get_split_ids()
+    background_ids = self.get_background_ids()
 
     if self.task in TaskType:
+        # TODO: Support to train background in Autocare DLT (It's ambiguous)
+        # if self.task != TaskType.CLASSIFICATION:
+        #     train_ids += background_ids
         _export_autocare_dlt(self, export_dir, train_ids, val_ids, test_ids, [])
     else:
         raise ValueError(f"Unsupported task type: {self.task}")
