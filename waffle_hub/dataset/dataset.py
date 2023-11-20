@@ -1568,6 +1568,7 @@ class Dataset:
         test_ratio: float = 0.0,
         method: Union[str, SplitMethod] = SplitMethod.RANDOM,
         seed: int = 0,
+        strict: bool = True,
     ):
         """
         Split Dataset to train, validation, test, (unlabeled) sets.
@@ -1578,6 +1579,7 @@ class Dataset:
             test_ratio (float, optional): test num ratio (0 ~ 1).
             method (Union[str, SplitMethod], optional): split method. Defaults to SplitMethod.RANDOM.
             seed (int, optional): random seed. Defaults to 0.
+            strict (bool, optional): strict split. Defaults to True.
 
         Raises:
             ValueError: if train_ratio is not between 0.0 and 1.0.
@@ -1590,7 +1592,12 @@ class Dataset:
             [[1, 2, 3, 4, 5, 6, 7, 8], [9], [10], []]  # train, val, test, unlabeled image ids
         """
 
-        self._check_trainable()
+        if strict:
+            self._check_trainable()
+        else:
+            logger.warning(
+                "You are splitting dataset without restriction. It will bypass some dataset integrity checks. It can cause unexpected errors/results."
+            )
 
         if train_ratio <= 0.0 or train_ratio >= 1.0:
             raise ValueError(
@@ -1696,12 +1703,13 @@ class Dataset:
 
         return io.load_json(self.background_set_file) if self.background_set_file.exists() else []
 
-    def export(self, data_type: Union[str, DataType]) -> str:
+    def export(self, data_type: Union[str, DataType], strict: bool = True) -> str:
         """
         Export Dataset to Specific data formats
 
         Args:
             data_type (Union[str, DataType]): export data type. one of ["YOLO", "COCO"].
+            strict (bool, optional): strict export. Defaults to True.
 
         Raises:
             ValueError: if data_type is not one of DataType.
@@ -1718,9 +1726,15 @@ class Dataset:
             str: exported dataset directory
         """
 
-        self._check_trainable()
+        if strict:
+            self._check_trainable()
+        else:
+            logger.warning(
+                "You are exporting dataset without restriction. It will bypass some dataset integrity checks. It can cause unexpected errors/results."
+            )
 
-        export_dir: Path = self.export_dir / EXPORT_MAP[data_type.upper()]
+        data_type_name = data_type.upper() if isinstance(data_type, str) else data_type.name
+        export_dir: Path = self.export_dir / EXPORT_MAP[data_type_name]
         if data_type in [DataType.YOLO, DataType.ULTRALYTICS]:
             export_function = export_yolo
         elif data_type in [DataType.COCO]:

@@ -5,7 +5,7 @@ import pytest
 from waffle_utils.file.io import load_json, save_json
 from waffle_utils.file.search import get_image_files
 
-from waffle_hub import TaskType
+from waffle_hub import DataType, TaskType
 from waffle_hub.dataset import Dataset
 from waffle_hub.schema.fields import Annotation, Category, Image
 from waffle_hub.utils.data import ImageDataset, LabeledDataset
@@ -277,6 +277,29 @@ def _export(dataset_name, task: TaskType, root_dir):
         assert len(dataset.get_images()) == len(import_ds.get_images())
 
 
+# bypass restirction
+def _strict(dataset_name, data_type, root_dir):
+    # test strict (bypassing validation)
+    clone = Dataset.clone(
+        dataset_name, dataset_name + "_clone", src_root_dir=root_dir, root_dir=root_dir
+    )
+    clone.add_categories(
+        Category(
+            category_id=len(clone.get_categories()) + 1,
+            name="dummy_category",
+            supercategory="object",
+        )
+    )
+    clone.create_index()
+    with pytest.raises(ValueError):
+        clone.split(0.8, strict=True)
+    clone.split(0.8, strict=False)
+
+    with pytest.raises(ValueError):
+        clone.export(data_type, strict=True)
+    clone.export(data_type, strict=False)
+
+
 # test dummy
 def _dummy(dataset_name, task: TaskType, image_num, category_num, unlabeled_image_num, root_dir):
     dataset = Dataset.dummy(
@@ -360,6 +383,7 @@ def _total_coco(dataset_name, task: TaskType, coco_path, root_dir):
     _clone(dataset_name, root_dir)
     _split(dataset_name, root_dir)
     _export(dataset_name, task, root_dir)
+    _strict(dataset_name, DataType.COCO, root_dir)
 
 
 @pytest.mark.parametrize(
@@ -390,6 +414,7 @@ def test_yolo_classification(yolo_classification_path: Path, tmpdir: Path):
     _clone(dataset_name, root_dir)
     _split(dataset_name, root_dir)
     _export(dataset_name, TaskType.CLASSIFICATION, root_dir)
+    _strict(dataset_name, DataType.ULTRALYTICS, root_dir)
 
 
 def test_yolo_object_detection(yolo_object_detection_path: Path, tmpdir: Path):
@@ -413,6 +438,7 @@ def test_yolo_object_detection(yolo_object_detection_path: Path, tmpdir: Path):
     _clone(dataset_name, root_dir)
     _split(dataset_name, root_dir)
     _export(dataset_name, TaskType.OBJECT_DETECTION, root_dir)
+    _strict(dataset_name, DataType.ULTRALYTICS, root_dir)
 
 
 def test_yolo_instance_segmentation(yolo_instance_segmentation_path: Path, tmpdir: Path):
@@ -436,6 +462,7 @@ def test_yolo_instance_segmentation(yolo_instance_segmentation_path: Path, tmpdi
     _clone(dataset_name, root_dir)
     _split(dataset_name, root_dir)
     _export(dataset_name, TaskType.INSTANCE_SEGMENTATION, root_dir)
+    _strict(dataset_name, DataType.ULTRALYTICS, root_dir)
 
 
 # test autocare_dlt
@@ -456,6 +483,7 @@ def _total_autocare_dlt(dataset_name, task: TaskType, coco_path, root_dir):
     _clone(dataset_name, root_dir)
     _split(dataset_name, root_dir)
     _export(dataset_name, task, root_dir)
+    _strict(dataset_name, DataType.AUTOCARE_DLT, root_dir)
 
 
 @pytest.mark.parametrize(
@@ -492,6 +520,7 @@ def _total_transformers(dataset_name, task: TaskType, transformers_path, root_di
     _clone(dataset_name, root_dir)
     _split(dataset_name, root_dir)
     _export(dataset_name, task, root_dir)
+    _strict(dataset_name, DataType.TRANSFORMERS, root_dir)
 
 
 def test_transformers(transformers_detection_path, transformers_classification_path, tmpdir):
