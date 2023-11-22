@@ -55,7 +55,7 @@ class PostProcessGrounding(torch.nn.Module):
 
         # build a mapping from label_id to pos_map
         id_map = {i: i + 1 for i in range(len(cat_list))}
-        new_pos_map = torch.zeros((91, 256))
+        new_pos_map = torch.zeros((len(cat_list) + 1, 256))
         for k, v in id_map.items():
             new_pos_map[v] = positive_map[k]
         self.positive_map = new_pos_map
@@ -150,6 +150,7 @@ if __name__ == "__main__":
 
     # text_prompt = args.text_prompt
     text_prompts = io.load_json(args.text_prompt_file)
+    text_prompts = [text_prompt.lower() for text_prompt in text_prompts]
     text_prompt = " . ".join(text_prompts) + " ."
 
     # class mapper
