@@ -1,4 +1,5 @@
 from dataclasses import dataclass
+from pathlib import Path
 from typing import Generic, TypeVar
 
 from waffle_hub import (
@@ -22,6 +23,10 @@ class BaseRunningStatus(Generic[STATUS_DESC_TYPE], BaseSchema):
     step: int = None
     total_step: int = None
 
+    def __init__(self, save_path: Path):
+        super().__init__()
+        self.save_path = save_path
+
     def __setattr__(self, name, value):
         if name == "status_desc":
             if not (value is None or value in self.__class__.__orig_bases__[0].__args__[0]):
@@ -30,27 +35,172 @@ class BaseRunningStatus(Generic[STATUS_DESC_TYPE], BaseSchema):
                 )
         self.__dict__[name] = value
 
+    def save(self):
+        self.save_json(save_path=self.save_path)
+
+    def set_status(self, status: STATUS_DESC_TYPE):
+        self.status_desc = status
+        self.save()
+
+    def set_error(self, e: Exception = None):
+        self.error_type = e.__class__.__name__
+        self.error_msg = e
+        self.save()
+
+    def clear_error(self):
+        self.error_type = None
+        self.error_msg = None
+        self.save()
+
+    def clear_step(self):
+        self.step = 0
+        self.total_step = 0
+        self.save()
+
+    def set_total_step(self, total_step: int):
+        self.total_step = total_step
+        self.step = 0
+        self.save()
+
+    def set_current_step(self, step: int):
+        self.step = step
+        self.save()
+
 
 @dataclass
 class TrainingStatus(BaseRunningStatus[TrainStatusDesc]):
-    pass
+    def __init__(self, save_path: Path):
+        super().__init__(save_path=save_path)
+        self.set_init()
+
+    def set_init(self):
+        self.clear_error()
+        self.clear_step()
+        self.set_status(TrainStatusDesc.INIT)
+
+    def set_failed(self, e):
+        self.set_error(e)
+        self.set_status(TrainStatusDesc.FAILED)
+
+    def set_success(self):
+        self.clear_error()
+        self.step = self.total_step
+        self.set_status(TrainStatusDesc.SUCCESS)
+
+    def set_running(self):
+        self.set_status(TrainStatusDesc.RUNNING)
+
+    def set_stopped(self, e):
+        self.set_error(e)
+        self.set_status(TrainStatusDesc.STOPPED)
 
 
 @dataclass
 class EvaluatingStatus(BaseRunningStatus[EvaluateStatusDesc]):
-    pass
+    def __init__(self, save_path: Path):
+        super().__init__(save_path=save_path)
+        self.set_init()
+
+    def set_init(self):
+        self.clear_error()
+        self.clear_step()
+        self.set_status(EvaluateStatusDesc.INIT)
+
+    def set_failed(self, e):
+        self.set_error(e)
+        self.set_status(EvaluateStatusDesc.FAILED)
+
+    def set_success(self):
+        self.clear_error()
+        self.step = self.total_step
+        self.set_status(EvaluateStatusDesc.SUCCESS)
+
+    def set_running(self):
+        self.set_status(EvaluateStatusDesc.RUNNING)
+
+    def set_stopped(self, e):
+        self.set_error(e)
+        self.set_status(EvaluateStatusDesc.STOPPED)
 
 
 @dataclass
 class InferencingStatus(BaseRunningStatus[InferenceStatusDesc]):
-    pass
+    def __init__(self, save_path: Path):
+        super().__init__(save_path=save_path)
+        self.set_init()
+
+    def set_init(self):
+        self.clear_error()
+        self.clear_step()
+        self.set_status(InferenceStatusDesc.INIT)
+
+    def set_failed(self, e):
+        self.set_error(e)
+        self.set_status(InferenceStatusDesc.FAILED)
+
+    def set_success(self):
+        self.clear_error()
+        self.step = self.total_step
+        self.set_status(InferenceStatusDesc.SUCCESS)
+
+    def set_running(self):
+        self.set_status(InferenceStatusDesc.RUNNING)
+
+    def set_stopped(self, e):
+        self.set_error(e)
+        self.set_status(InferenceStatusDesc.STOPPED)
 
 
 @dataclass
 class ExportingOnnxStatus(BaseRunningStatus[ExportOnnxStatusDesc]):
-    pass
+    def __init__(self, save_path: Path):
+        super().__init__(save_path=save_path)
+        self.set_init()
+
+    def set_init(self):
+        self.clear_error()
+        self.clear_step()
+        self.set_status(ExportOnnxStatusDesc.INIT)
+
+    def set_failed(self, e):
+        self.set_error(e)
+        self.set_status(ExportOnnxStatusDesc.FAILED)
+
+    def set_success(self):
+        self.clear_error()
+        self.step = self.total_step
+        self.set_status(ExportOnnxStatusDesc.SUCCESS)
+
+    def set_running(self):
+        self.set_status(ExportOnnxStatusDesc.RUNNING)
+
+    def set_stopped(self, e):
+        self.set_error(e)
 
 
 @dataclass
 class ExportingWaffleStatus(BaseRunningStatus[ExportWaffleStatusDesc]):
-    pass
+    def __init__(self, save_path: Path):
+        super().__init__(save_path=save_path)
+        self.set_init()
+
+    def set_init(self):
+        self.clear_error()
+        self.clear_step()
+        self.set_status(ExportWaffleStatusDesc.INIT)
+
+    def set_failed(self, e):
+        self.set_error(e)
+        self.set_status(ExportWaffleStatusDesc.FAILED)
+
+    def set_success(self):
+        self.clear_error()
+        self.step = self.total_step
+        self.set_status(ExportWaffleStatusDesc.SUCCESS)
+
+    def set_running(self):
+        self.set_status(ExportWaffleStatusDesc.RUNNING)
+
+    def set_stopped(self, e):
+        self.set_error(e)
+        self.set_status(ExportWaffleStatusDesc.STOPPED)

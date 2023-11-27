@@ -1,9 +1,12 @@
 import threading
+import time
 import warnings
 from pathlib import Path
 from typing import Union
 
+import cpuinfo
 import cv2
+import torch
 import tqdm
 from torch import nn
 from waffle_utils.file import io
@@ -249,6 +252,86 @@ class Inferencer:
             callback.start()
 
         return result
+
+    def benchmark(
+        self,
+        image_size: Union[int, list[int]] = None,
+        batch_size: int = 16,
+        device: str = "0",
+        half: bool = False,
+        trial: int = 100,
+    ) -> dict:
+        """Benchmark Model
+
+        Args:
+            image_size (Union[int, list[int]], optional): Inference image size. If None, same train config (recommended) or defaults to 224.
+            batch_size (int, optional): dynamic batch size. Defaults to 16.
+            device (str, optional): device. "cpu" or "gpu_id". Defaults to "0".
+            half (bool, optional): half. Defaults to False.
+            trial (int, optional): number of trials. Defaults to 100.
+
+        Example:
+            >>> inferencer = Inferencer(...)
+            >>> inferencer.benchmark(
+                    image_size=640,
+                    batch_size=16,
+                    device="0",
+                    half=False,
+                    trial=100,
+                )
+            {
+                "inference_time": 0.123,
+                "fps": 123.123,
+                "image_size": [640, 640],
+                "batch_size": 16,
+                "device": "0",
+                "cpu_name": "Intel(R) Core(TM) i7-8700 CPU @ 3.20GHz",
+                "gpu_name": "GeForce GTX 1080 Ti",
+            }
+
+        Returns:
+            dict: benchmark result
+        """
+
+        if half and (not torch.cuda.is_available() or device == "cpu"):
+            raise RuntimeError("half is not supported in cpu")
+
+        # overwrite training config or default
+        if image_size is None:
+            if self.train_config is not None:
+                image_size = self.train_config.image_size
+            else:
+                image_size = 224  # default image size
+        image_size = [image_size, image_size] if isinstance(image_size, int) else image_size
+
+        device = "cpu" if device == "cpu" else f"cuda:{device}"
+
+        self.model = self.model.to(device) if not half else self.model.half().to(device)
+
+        dummy_input = torch.randn(
+            batch_size, 3, *image_size, dtype=torch.float32 if not half else torch.float16
+        )
+        dummy_input = dummy_input.to(device)
+
+        self.model.eval()
+        with torch.no_grad():
+            start = time.time()
+            for _ in tqdm.tqdm(range(trial)):
+                self.model(dummy_input)
+            end = time.time()
+            inference_time = end - start
+
+        return {
+            "inference_time": inference_time,
+            # image throughput per second
+            "fps": trial * batch_size / inference_time,
+            "image_size": image_size,
+            "batch_size": batch_size,
+            "precision": "fp16" if half else "fp32",
+            "device": device,
+            "cpu_name": cpuinfo.get_cpu_info()["brand_raw"],
+            "gpu_name": torch.cuda.get_device_name(0) if device != "cpu" else None,
+        }
 
     # inference hooks
     def before_inference(self):

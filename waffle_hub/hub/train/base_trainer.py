@@ -87,18 +87,18 @@ class Trainer(ABC):
     def metric_file(self) -> Path:
         return self.root_dir / self.METRIC_FILE
 
-    @classmethod
-    def get_train_config(cls, root_dir: Union[str, Path]) -> TrainConfig:
-        """Get train config from train config yaml file.
+    # @classmethod
+    # def get_train_config(cls, root_dir: Union[str, Path]) -> TrainConfig:
+    #     """Get train config from train config yaml file.
 
-        Returns:
-            TrainConfig: train config of train config yaml file
-        """
-        train_config_file_path = Path(root_dir) / cls.CONFIG_DIR / cls.TRAIN_CONFIG_FILE
-        if not train_config_file_path.exists():
-            warnings.warn(f"Train config file {train_config_file_path} is not exist. Train first!")
-            return None
-        return TrainConfig.load(train_config_file_path)
+    #     Returns:
+    #         TrainConfig: train config of train config yaml file
+    #     """
+    #     train_config_file_path = Path(root_dir) / cls.CONFIG_DIR / cls.TRAIN_CONFIG_FILE
+    #     if not train_config_file_path.exists():
+    #         warnings.warn(f"Train config file {train_config_file_path} is not exist. Train first!")
+    #         return None
+    #     return TrainConfig.load(train_config_file_path)
 
     def save_train_config(
         self,

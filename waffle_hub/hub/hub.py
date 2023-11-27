@@ -27,9 +27,11 @@ from waffle_utils.image.io import save_image
 from waffle_utils.utils import type_validator
 from waffle_utils.video.io import create_video_writer
 
-from waffle_hub import BACKEND_MAP, EXPORT_MAP, TaskType, TrainStatusDesc
+from waffle_dough.type.task_type import TaskType
+from waffle_hub import BACKEND_MAP, EXPORT_MAP, TrainStatusDesc
 from waffle_hub.dataset import Dataset
-from waffle_hub.hub.model.wrapper import get_parser
+from waffle_hub.hub.eval.evaluate import evaluate_function
+from waffle_hub.hub.model.result_parser import get_parser
 from waffle_hub.schema.configs import (
     EvaluateConfig,
     ExportOnnxConfig,
@@ -60,7 +62,6 @@ from waffle_hub.utils.data import (
     get_image_transform,
 )
 from waffle_hub.utils.draw import draw_results
-from waffle_hub.utils.evaluate import evaluate_function
 from waffle_hub.utils.memory import device_context
 from waffle_hub.utils.metric_logger import MetricLogger
 from waffle_hub.utils.running_status_logger import (
