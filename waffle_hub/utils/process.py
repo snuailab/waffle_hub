@@ -1,4 +1,5 @@
 import platform
+import signal
 import subprocess
 import sys
 from pathlib import Path
@@ -34,8 +35,6 @@ def _register_signal_handler():
 
     def sigterm_handler(signum, frame):
         raise SystemExit
-
-    import signal
 
     signal.signal(signal.SIGINT, sigint_handler)
     signal.signal(signal.SIGTERM, sigterm_handler)
