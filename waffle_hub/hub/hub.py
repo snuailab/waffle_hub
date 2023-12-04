@@ -63,6 +63,7 @@ from waffle_hub.utils.draw import draw_results
 from waffle_hub.utils.evaluate import evaluate_function
 from waffle_hub.utils.memory import device_context
 from waffle_hub.utils.metric_logger import MetricLogger
+from waffle_hub.utils.process import _register_signal_handler
 from waffle_hub.utils.running_status_logger import (
     EvaluatingStatusLogger,
     ExportingOnnxStatusLogger,
@@ -890,9 +891,6 @@ class Hub:
                 "total_Step": Integer,
             }
 
-        Raises:
-            FileNotFoundError: if training Status file is not exist
-
         Returns:
             TrainingStatus: training Status
         """
@@ -916,9 +914,6 @@ class Hub:
                 "step": Integer,
                 "total_Step": Integer,
             }
-
-        Raises:
-            FileNotFoundError: if evaluating status file is not exist
 
         Returns:
             EvaluatingStatus: evaluating status
@@ -944,9 +939,6 @@ class Hub:
                 "total_Step": Integer,
             }
 
-        Raises:
-            FileNotFoundError: if inferencing status file is not exist
-
         Returns:
             InferencingStatus: inferencing status
         """
@@ -970,9 +962,6 @@ class Hub:
                 "step": Integer,
                 "total_Step": Integer,
             }
-
-        Raises:
-            FileNotFoundError: if exporting status file is not exist
 
         Returns:
             ExportingStatus: exporting status
@@ -1182,6 +1171,7 @@ class Hub:
             prefix="waffle",
             status_logger=status_logger,
         )
+        _register_signal_handler()
         try:
             # parse dataset
             if isinstance(dataset, (str, Path)):
@@ -1454,7 +1444,7 @@ class Hub:
         """
         # status
         status_logger = EvaluatingStatusLogger(save_path=self.evaluating_status_file)
-
+        _register_signal_handler()
         try:
             if "," in device:
                 warnings.warn("multi-gpu is not supported in evaluation. use first gpu only.")
@@ -1676,7 +1666,7 @@ class Hub:
         """
         # status controller
         status_logger = InferencingStatusLogger(save_path=self.inferencing_status_file)
-
+        _register_signal_handler()
         try:
             # inference settings
             # image_dir, image_path, video_path, dataset_name, dataset
@@ -1838,7 +1828,7 @@ class Hub:
 
         # status controller
         status_logger = ExportingOnnxStatusLogger(save_path=self.exporting_onnx_status_file)
-
+        _register_signal_handler()
         try:
             # overwrite training config
             train_config = self.get_train_config()
@@ -1967,6 +1957,7 @@ class Hub:
 
         result = ExportWaffleResult()
         status_logger = ExportingWaffleStatusLogger(save_path=self.exporting_waffle_status_file)
+        _register_signal_handler()
         try:
             status_logger.set_running()
             io.zip([self.config_dir, self.weights_dir, self.running_status_dir], self.waffle_file)

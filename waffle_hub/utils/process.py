@@ -1,3 +1,4 @@
+import platform
 import subprocess
 import sys
 from pathlib import Path
@@ -23,3 +24,22 @@ def run_python_file(file_path: Union[str, Path]):
         [sys.executable, str(file_path)],
         check=True,
     )
+
+
+def _register_signal_handler():
+    """Register signal handler for graceful shutdown."""
+
+    def sigint_handler(signum, frame):
+        raise KeyboardInterrupt
+
+    def sigterm_handler(signum, frame):
+        raise SystemExit
+
+    import signal
+
+    signal.signal(signal.SIGINT, sigint_handler)
+    signal.signal(signal.SIGTERM, sigterm_handler)
+
+    # for windows
+    if platform.system() == "Windows":
+        signal.signal(signal.SIGBREAK, sigterm_handler)
