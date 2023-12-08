@@ -5,10 +5,6 @@ This is a collection of auto labeling methods.
 
 Auto labeling method based on [GroundingDINO](https://github.com/IDEA-Research/GroundingDINO).
 
-> Note💡 The performance of this method is not guaranteed.
-
-> Warning⚠️ This implementation only support one word text prompt.
-
 ### Prerequisites
 
 ```bash
@@ -20,11 +16,9 @@ pip install -U waffle_hub
 mkdir autolabel_tmp
 ```
 
-=== "Download Small Model"
-
-    ```bash
-    bash download.sh
-    ```
+```bash
+bash download.sh
+```
 
 ### Sample
 
@@ -39,20 +33,11 @@ wget "https://static01.nyt.com/images/2023/01/27/multimedia/youpeople1-mwhp/youp
 ```bash
 python -m waffle_hub.experimental.auto_label.grounding_dino \
     --draw \
-    --config_file src/GroundingDINO_SwinT_OGC.py \
-    --checkpoint_path src/groundingdino_swint_ogc.pth \
     --source sample_images/ \
-    --output_dir outputs/ \
-    --text_prompt person
+    --text_prompt_file "src/prompt.json" \
+    --class_names_file "src/class_names.json
 ```
 
 #### Result
 
-You can see the result in `outputs`.
-
-```bash
-outputs/
-├── coco.json
-└── draw
-    └── youpeople1-mwhp-jumbo.png
-```
+You can see the raw result in `outputs` and new WaffleDataset in your dataset root_dir .
