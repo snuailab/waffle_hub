@@ -1,4 +1,4 @@
-__version__ = "0.3.1a1"
+__version__ = "0.3.0"
 
 import enum
 from collections import OrderedDict
