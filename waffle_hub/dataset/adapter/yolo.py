@@ -181,6 +181,9 @@ def _export_yolo_detection(
             H = image.height
 
             annotations = self.get_annotations(image.image_id)
+            if annotations == []:  # for background image
+                continue
+
             label_txts = []
             for annotation in annotations:
                 x1, y1, w, h = annotation.bbox
@@ -230,6 +233,9 @@ def _export_yolo_segmentation(
             H = image.height
 
             annotations = self.get_annotations(image.image_id)
+            if annotations == []:  # for background image
+                continue
+
             label_txts = []
             for annotation in annotations:
                 x1, y1, w, h = annotation.bbox
@@ -264,12 +270,15 @@ def export_yolo(self, export_dir: Union[str, Path]) -> str:
     export_dir = Path(export_dir)
 
     train_ids, val_ids, test_ids, _ = self.get_split_ids()
+    background_ids = self.get_background_ids()
 
     if self.task == TaskType.CLASSIFICATION:
         _export_yolo_classification(self, export_dir, train_ids, val_ids, test_ids, [])
     elif self.task == TaskType.OBJECT_DETECTION:
+        train_ids += background_ids
         _export_yolo_detection(self, export_dir, train_ids, val_ids, test_ids, [])
     elif self.task == TaskType.INSTANCE_SEGMENTATION:
+        train_ids += background_ids
         _export_yolo_segmentation(self, export_dir, train_ids, val_ids, test_ids, [])
     else:
         raise ValueError(f"Unsupported task type: {self.task}")

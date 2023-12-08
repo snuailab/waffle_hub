@@ -5,10 +5,6 @@ This is a collection of auto labeling methods.
 
 Auto labeling method based on [GroundingDINO](https://github.com/IDEA-Research/GroundingDINO).
 
-> Note💡 The performance of this method is not guaranteed.
-
-> Warning⚠️ This implementation only support one word text prompt.
-
 ### Prerequisites
 
 ```bash
@@ -20,19 +16,9 @@ pip install -U waffle_hub
 mkdir autolabel_tmp
 ```
 
-=== "Download Small Model"
-
-    ```bash
-    wget https://huggingface.co/ShilongLiu/GroundingDINO/resolve/main/groundingdino_swint_ogc.pth -O autolabel_tmp/groundingdino_swint_ogc.pth
-    wget https://huggingface.co/ShilongLiu/GroundingDINO/raw/main/GroundingDINO_SwinT_OGC.cfg.py -O autolabel_tmp/GroundingDINO_SwinT_OGC.py
-    ```
-
-=== "Download Large Model"
-
-    ```bash
-    wget https://huggingface.co/ShilongLiu/GroundingDINO/resolve/main/groundingdino_swinb_cogcoor.pth -O autolabel_tmp/groundingdino_swinb_cogcoor.pth
-    wget https://huggingface.co/ShilongLiu/GroundingDINO/raw/main/GroundingDINO_SwinB_OGC.cfg.py -O autolabel_tmp/GroundingDINO_SwinB.cfg.py
-    ```
+```bash
+bash download.sh
+```
 
 ### Sample
 
@@ -44,37 +30,14 @@ wget "https://static01.nyt.com/images/2023/01/27/multimedia/youpeople1-mwhp/youp
 
 #### Run Model
 
-=== "Small Model"
-
-    ```bash
-    python -m waffle_hub.experimental.auto_label.grounding_dino \
-        --draw \
-        --config_file autolabel_tmp/GroundingDINO_SwinT_OGC.py \
-        --checkpoint_path autolabel_tmp/groundingdino_swint_ogc.pth \
-        --source sample_images/ \
-        --output_dir outputs/ \
-        --text_prompt person
-    ```
-
-=== "Large Model"
-
-    ```bash
-    python -m waffle_hub.experimental.auto_label.grounding_dino \
-        --draw \
-        --config_file autolabel_tmp/GroundingDINO_SwinB.cfg.py \
-        --checkpoint_path autolabel_tmp/groundingdino_swinb_cogcoor.pth \
-        --source sample_images/ \
-        --output_dir outputs/ \
-        --text_prompt person
-    ```
+```bash
+python -m waffle_hub.experimental.auto_label.grounding_dino \
+    --draw \
+    --source sample_images/ \
+    --text_prompt_file "src/prompt.json" \
+    --class_names_file "src/class_names.json
+```
 
 #### Result
 
-You can see the result in `outputs`.
-
-```bash
-outputs/
-├── coco.json
-└── draw
-    └── youpeople1-mwhp-jumbo.png
-```
+You can see the raw result in `outputs` and new WaffleDataset in your dataset root_dir .

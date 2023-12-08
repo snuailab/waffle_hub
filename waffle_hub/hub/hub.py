@@ -63,6 +63,7 @@ from waffle_hub.utils.draw import draw_results
 from waffle_hub.utils.evaluate import evaluate_function
 from waffle_hub.utils.memory import device_context
 from waffle_hub.utils.metric_logger import MetricLogger
+from waffle_hub.utils.process import _register_signal_handler
 from waffle_hub.utils.running_status_logger import (
     EvaluatingStatusLogger,
     ExportingOnnxStatusLogger,
@@ -890,9 +891,6 @@ class Hub:
                 "total_Step": Integer,
             }
 
-        Raises:
-            FileNotFoundError: if training Status file is not exist
-
         Returns:
             TrainingStatus: training Status
         """
@@ -916,9 +914,6 @@ class Hub:
                 "step": Integer,
                 "total_Step": Integer,
             }
-
-        Raises:
-            FileNotFoundError: if evaluating status file is not exist
 
         Returns:
             EvaluatingStatus: evaluating status
@@ -944,9 +939,6 @@ class Hub:
                 "total_Step": Integer,
             }
 
-        Raises:
-            FileNotFoundError: if inferencing status file is not exist
-
         Returns:
             InferencingStatus: inferencing status
         """
@@ -970,9 +962,6 @@ class Hub:
                 "step": Integer,
                 "total_Step": Integer,
             }
-
-        Raises:
-            FileNotFoundError: if exporting status file is not exist
 
         Returns:
             ExportingStatus: exporting status
@@ -1172,17 +1161,22 @@ class Hub:
         Returns:
             TrainResult: train result
         """
-        # status
-        status_logger = TrainingStatusLogger(save_path=self.training_status_file)
-        metric_logger = MetricLogger(
-            name=self.name,
-            log_dir=self.train_log_dir,
-            func=self.get_metrics,
-            interval=10,
-            prefix="waffle",
-            status_logger=status_logger,
-        )
+        _register_signal_handler()
         try:
+            # status
+            status_logger = TrainingStatusLogger(save_path=self.training_status_file)
+        except Exception as e:  # TODO: need to handle this error or add new exception
+            raise e
+
+        try:
+            metric_logger = MetricLogger(
+                name=self.name,
+                log_dir=self.train_log_dir,
+                func=self.get_metrics,
+                interval=10,
+                prefix="waffle",
+                status_logger=status_logger,
+            )
             # parse dataset
             if isinstance(dataset, (str, Path)):
                 if Path(dataset).exists():
@@ -1452,8 +1446,12 @@ class Hub:
         Returns:
             EvaluateResult: evaluate result
         """
-        # status
-        status_logger = EvaluatingStatusLogger(save_path=self.evaluating_status_file)
+        _register_signal_handler()
+        try:
+            # status
+            status_logger = EvaluatingStatusLogger(save_path=self.evaluating_status_file)
+        except Exception as e:  # TODO: need to handle this error or add new exception
+            raise e
 
         try:
             if "," in device:
@@ -1674,8 +1672,12 @@ class Hub:
         Returns:
             InferenceResult: inference result
         """
-        # status controller
-        status_logger = InferencingStatusLogger(save_path=self.inferencing_status_file)
+        _register_signal_handler()
+        try:
+            # status
+            status_logger = InferencingStatusLogger(save_path=self.inferencing_status_file)
+        except Exception as e:  # TODO: need to handle this error or add new exception
+            raise e
 
         try:
             # inference settings
@@ -1834,12 +1836,15 @@ class Hub:
         Returns:
             ExportOnnxResult: export onnx result
         """
-        self.check_train_sanity()
-
-        # status controller
-        status_logger = ExportingOnnxStatusLogger(save_path=self.exporting_onnx_status_file)
+        _register_signal_handler()
+        try:
+            # status
+            status_logger = ExportingOnnxStatusLogger(save_path=self.exporting_onnx_status_file)
+        except Exception as e:  # TODO: need to handle this error or add new exception
+            raise e
 
         try:
+            self.check_train_sanity()
             # overwrite training config
             train_config = self.get_train_config()
             if image_size is None:
@@ -1963,11 +1968,15 @@ class Hub:
         Returns:
             ExportWaffleResult: export waffle result
         """
-        self.check_train_sanity()
-
-        result = ExportWaffleResult()
-        status_logger = ExportingWaffleStatusLogger(save_path=self.exporting_waffle_status_file)
+        _register_signal_handler()
         try:
+            status_logger = ExportingWaffleStatusLogger(save_path=self.exporting_waffle_status_file)
+        except Exception as e:  # TODO: need to handle this error or add new exception
+            raise e
+
+        try:
+            self.check_train_sanity()
+            result = ExportWaffleResult()
             status_logger.set_running()
             io.zip([self.config_dir, self.weights_dir, self.running_status_dir], self.waffle_file)
             result.waffle_file = self.waffle_file
@@ -1976,6 +1985,7 @@ class Hub:
             status_logger.set_stopped(e)
             if self.waffle_file.exists():
                 io.remove_file(self.waffle_file)
+            raise e
         except Exception as e:
             status_logger.set_failed(e)
             if self.waffle_file.exists():
