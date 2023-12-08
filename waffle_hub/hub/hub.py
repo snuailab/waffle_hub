@@ -1165,6 +1165,10 @@ class Hub:
         try:
             # status
             status_logger = TrainingStatusLogger(save_path=self.training_status_file)
+        except Exception as e:  # TODO: need to handle this error or add new exception
+            raise e
+
+        try:
             metric_logger = MetricLogger(
                 name=self.name,
                 log_dir=self.train_log_dir,
@@ -1446,6 +1450,10 @@ class Hub:
         try:
             # status
             status_logger = EvaluatingStatusLogger(save_path=self.evaluating_status_file)
+        except Exception as e:  # TODO: need to handle this error or add new exception
+            raise e
+
+        try:
             if "," in device:
                 warnings.warn("multi-gpu is not supported in evaluation. use first gpu only.")
                 device = device.split(",")[0]
@@ -1668,6 +1676,10 @@ class Hub:
         try:
             # status
             status_logger = InferencingStatusLogger(save_path=self.inferencing_status_file)
+        except Exception as e:  # TODO: need to handle this error or add new exception
+            raise e
+
+        try:
             # inference settings
             # image_dir, image_path, video_path, dataset_name, dataset
             if isinstance(source, (str, Path)):
@@ -1824,11 +1836,15 @@ class Hub:
         Returns:
             ExportOnnxResult: export onnx result
         """
-        self.check_train_sanity()
         _register_signal_handler()
         try:
             # status
             status_logger = ExportingOnnxStatusLogger(save_path=self.exporting_onnx_status_file)
+        except Exception as e:  # TODO: need to handle this error or add new exception
+            raise e
+
+        try:
+            self.check_train_sanity()
             # overwrite training config
             train_config = self.get_train_config()
             if image_size is None:
@@ -1952,10 +1968,14 @@ class Hub:
         Returns:
             ExportWaffleResult: export waffle result
         """
-        self.check_train_sanity()
         _register_signal_handler()
         try:
             status_logger = ExportingWaffleStatusLogger(save_path=self.exporting_waffle_status_file)
+        except Exception as e:  # TODO: need to handle this error or add new exception
+            raise e
+
+        try:
+            self.check_train_sanity()
             result = ExportWaffleResult()
             status_logger.set_running()
             io.zip([self.config_dir, self.weights_dir, self.running_status_dir], self.waffle_file)
@@ -1965,6 +1985,7 @@ class Hub:
             status_logger.set_stopped(e)
             if self.waffle_file.exists():
                 io.remove_file(self.waffle_file)
+            raise e
         except Exception as e:
             status_logger.set_failed(e)
             if self.waffle_file.exists():
