@@ -1,3 +1,4 @@
+import os
 import warnings
 from abc import ABC, abstractmethod
 from collections import OrderedDict
@@ -16,6 +17,9 @@ from waffle_hub.utils.metric_logger import MetricLogger
 
 
 class BaseTrainHooks(ABC):
+    def __init__(self):
+        pass
+
     # hooks
     def before_train(self, cfg: TrainConfig, status: TrainingStatus, result: TrainResult):
         pass
@@ -34,10 +38,16 @@ class BaseTrainHooks(ABC):
 
 
 class DefaultTrainHooks(BaseTrainHooks):
+    def __init__(self, backend: str, artifacts_dir: Path, multi_gpu_train: bool):
+        super().__init__()
+        self.backend = backend
+        self.artifacts_dir = artifacts_dir
+        self.multi_gpu_train = multi_gpu_train
+
     # hooks
     def before_train(self, cfg: TrainConfig, status: TrainingStatus, result: TrainResult):
         # check device
-        device = cfg.device
+        device = self.device
         if device == "cpu":
             # logger.info("CPU training")
             pass
@@ -47,8 +57,8 @@ class DefaultTrainHooks(BaseTrainHooks):
         elif "," in device:
             if not torch.cuda.is_available():
                 raise ValueError("CUDA is not available.")
-            if not cfg.MULTI_GPU_TRAIN:
-                raise ValueError(f"{cfg.backend} does not support MULTI_GPU_TRAIN.")
+            if not self.multi_gpu_train:
+                raise ValueError(f"{self.backend} does not support MULTI_GPU_TRAIN.")
             # if len(device.split(",")) > torch.cuda.device_count():  # TODO: torch.cuda.device_count() occurs unexpected errors
             #     raise ValueError(
             #         f"GPU number is not enough. {device}\n"
@@ -102,7 +112,11 @@ class BaseTrainer:
 
         self.root_dir = Path(root_dir)
         # hooks
-        default_hooks = DefaultTrainHooks()
+        default_hooks = DefaultTrainHooks(
+            backend=self.backend,
+            artifacts_dir=self.artifacts_dir,
+            multi_gpu_train=self.MULTI_GPU_TRAIN,
+        )
         self.hook_classes = OrderedDict({0: default_hooks})
         self.hooks_idx = 1
 
@@ -180,19 +194,18 @@ class BaseTrainer:
         Returns:
             TrainResult: train result
         """
-
-        # check if it is already trained
-        rank = os.getenv("RANK", -1)
-        if self.artifacts_dir.exists() and rank in [
-            -1,
-            0,
-        ]:  # TODO: need to ensure that training is not already running
-            raise FileExistsError(
-                f"{self.artifacts_dir}\n"
-                "Train artifacts already exist. Remove artifact to re-train [delete_artifact]."
-            )
-
         try:
+            # check if it is already trained
+            rank = os.getenv("RANK", -1)
+            if self.artifacts_dir.exists() and rank in [
+                -1,
+                0,
+            ]:  # TODO: need to ensure that training is not already running
+                raise FileExistsError(
+                    f"{self.artifacts_dir}\n"
+                    "Train artifacts already exist. Remove artifact to re-train [delete_artifact]."
+                )
+
             # define status, result
             status = TrainingStatus(save_path=self.training_status_file)
             metric_logger = MetricLogger(
@@ -260,9 +273,7 @@ class BaseTrainer:
                             f"Advance parameter {key} is not supported.\n"
                             + f"Supported parameters: {list(default_advance_param.keys())}"
                         )
-            cfg.multi_gpu_train = self.MULTI_GPU_TRAIN
-            cfg.backend = self.backend
-            cfg.artifacts_dir = self.artifacts_dir
+
             cfg.last_ckpt_file = self.last_ckpt_file
             cfg.best_ckpt_file = self.best_ckpt_file
 
@@ -309,9 +320,17 @@ class BaseTrainer:
         return result
 
     # hooks
-    def run_hooks(self, method: str, cfg: TrainConfig, status: TrainingStatus, result: TrainResult):
+    def run_hooks(self, event: str, cfg: TrainConfig, status: TrainingStatus, result: TrainResult):
         for cls_id, hook_cls in self.hook_classes.items():
-            getattr(hook_cls, method)(cfg, status, result)
+            method = getattr(hook_cls, event, None)
+            if method is None:
+                continue
+            if not callable(method):
+                warnings.warn(
+                    f"Skipping the hook {hook_cls.__class__.__name__}, becuase it is not callable."
+                )
+                continue
+            method(cfg, status, result)
 
     def register_hook(self, hook_cls: BaseTrainHooks):
         if not isinstance(hook_cls, BaseTrainHooks):

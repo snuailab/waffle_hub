@@ -33,7 +33,7 @@ class BaseManager:
     DEFAULT_ADVANCE_PARAMS = None
 
     # directory settting
-    CONFIG_DIR = Path("config")
+    CONFIG_DIR = Path("configs")
 
     # train config file name
     MODEL_CONFIG_FILE = "model.yaml"
