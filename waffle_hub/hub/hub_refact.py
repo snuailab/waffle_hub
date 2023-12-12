@@ -823,7 +823,6 @@ class Hub:
             root_dir=self.hub_dir,
             model=self.manager.get_model(),
             task=self.task,
-            train_config=self.get_train_config(),
         )
         return evaluator.evaluate(
             dataset=dataset,

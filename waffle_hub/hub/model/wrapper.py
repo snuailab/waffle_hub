@@ -1,8 +1,10 @@
 from typing import Union
 
-import cv2
 import numpy as np
 import torch
+
+import waffle_hub
+from waffle_hub.schema.configs import ModelConfig, TrainConfig
 
 
 class ModelWrapper(torch.nn.Module):
@@ -11,6 +13,8 @@ class ModelWrapper(torch.nn.Module):
         model: torch.nn.Module,
         preprocess: callable,
         postprocess: callable,
+        model_config: ModelConfig,
+        train_config: TrainConfig,
     ):
         """
         Model Wrapper.
@@ -47,11 +51,16 @@ class ModelWrapper(torch.nn.Module):
                         [batch, bbox_num],  # class id
                         [batch, mask(H, W)] # warning: mask size and image size are not same
                     ]
+
+            model_config (ModelConfig): model config
+            train_config (TrainConfig): train config
         """
         super().__init__()
         self.model = model
         self.preprocess = preprocess
         self.postprocess = postprocess
+        self.model_config = model_config
+        self.train_config = train_config
 
     def forward(self, x):
         _, _, H, W = x.shape
@@ -205,3 +214,24 @@ class ModelWrapper(torch.nn.Module):
         )
 
         return cam
+
+    def is_valid_dataset(self, dataset: "waffle_hub.dataset.Dataset"):
+        """
+        Check if dataset is valid for this model.
+
+        Args:
+            dataset (waffle_hub.dataset.Dataset): dataset
+
+        Raises:
+            ValueError: if dataset is not valid
+        """
+
+        if self.model_config.task != dataset.task:
+            raise ValueError(
+                f"Model task {self.model_config.task} and dataset task {dataset.task} are not same."
+            )
+
+        if self.model_config.categories != dataset.categories:
+            raise ValueError(
+                f"Model categories {self.model_config.categories} and dataset categories {dataset.categories} are not same."
+            )

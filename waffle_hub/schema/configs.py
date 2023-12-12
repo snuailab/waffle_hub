@@ -5,7 +5,12 @@ from waffle_hub.schema.base_schema import BaseSchema
 
 
 @dataclass
-class ModelConfig(BaseSchema):
+class BaseConfig(BaseSchema):
+    pass
+
+
+@dataclass
+class ModelConfig(BaseConfig):
     name: str = None
     backend: str = None
     version: str = None
@@ -16,7 +21,7 @@ class ModelConfig(BaseSchema):
 
 
 @dataclass
-class TrainConfig(BaseSchema):
+class TrainConfig(BaseConfig):
     dataset_path: str = None
     epochs: int = None
     batch_size: int = None
@@ -32,8 +37,9 @@ class TrainConfig(BaseSchema):
 
 
 @dataclass
-class EvaluateConfig(BaseSchema):
+class EvaluateConfig(BaseConfig):
     dataset_name: str = None
+    dataset_root_dir: str = None
     set_name: str = None
     batch_size: int = None
     image_size: list[int] = None
@@ -44,11 +50,10 @@ class EvaluateConfig(BaseSchema):
     workers: int = None
     device: str = None
     draw: bool = None
-    dataset_root_dir: str = None
 
 
 @dataclass
-class InferenceConfig(BaseSchema):
+class InferenceConfig(BaseConfig):
     source: str = None
     source_type: str = None
     batch_size: int = None
@@ -65,7 +70,7 @@ class InferenceConfig(BaseSchema):
 
 
 @dataclass
-class ExportOnnxConfig(BaseSchema):
+class ExportOnnxConfig(BaseConfig):
     image_size: Union[int, list[int]] = None
     batch_size: int = None
     input_name: list[str] = None

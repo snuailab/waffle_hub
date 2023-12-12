@@ -23,9 +23,9 @@ class BaseRunningStatus(Generic[STATUS_DESC_TYPE], BaseSchema):
     step: int = None
     total_step: int = None
 
-    def __init__(self, save_path: Path):
+    def __init__(self, root_dir: Path, file_name: Path):
         super().__init__()
-        self.save_path = save_path
+        self.save_path = Path(root_dir) / "status" / file_name
 
     def __setattr__(self, name, value):
         if name == "status_desc":
@@ -69,8 +69,8 @@ class BaseRunningStatus(Generic[STATUS_DESC_TYPE], BaseSchema):
 
 @dataclass
 class TrainingStatus(BaseRunningStatus[TrainStatusDesc]):
-    def __init__(self, save_path: Path):
-        super().__init__(save_path=save_path)
+    def __init__(self, root_dir: Path):
+        super().__init__(root_dir=root_dir, file_name="training_status.json")
         self.set_init()
 
     def set_init(self):
@@ -97,8 +97,8 @@ class TrainingStatus(BaseRunningStatus[TrainStatusDesc]):
 
 @dataclass
 class EvaluatingStatus(BaseRunningStatus[EvaluateStatusDesc]):
-    def __init__(self, save_path: Path):
-        super().__init__(save_path=save_path)
+    def __init__(self, root_dir: Path):
+        super().__init__(root_dir=root_dir, file_name="evaluating_status.json")
         self.set_init()
 
     def set_init(self):
@@ -125,8 +125,8 @@ class EvaluatingStatus(BaseRunningStatus[EvaluateStatusDesc]):
 
 @dataclass
 class InferencingStatus(BaseRunningStatus[InferenceStatusDesc]):
-    def __init__(self, save_path: Path):
-        super().__init__(save_path=save_path)
+    def __init__(self, root_dir: Path):
+        super().__init__(root_dir=root_dir, file_name="inferencing_status.json")
         self.set_init()
 
     def set_init(self):
@@ -153,8 +153,8 @@ class InferencingStatus(BaseRunningStatus[InferenceStatusDesc]):
 
 @dataclass
 class ExportingOnnxStatus(BaseRunningStatus[ExportOnnxStatusDesc]):
-    def __init__(self, save_path: Path):
-        super().__init__(save_path=save_path)
+    def __init__(self, root_dir: Path):
+        super().__init__(root_dir=root_dir, file_name="exporting_onnx_status.json")
         self.set_init()
 
     def set_init(self):
@@ -180,8 +180,8 @@ class ExportingOnnxStatus(BaseRunningStatus[ExportOnnxStatusDesc]):
 
 @dataclass
 class ExportingWaffleStatus(BaseRunningStatus[ExportWaffleStatusDesc]):
-    def __init__(self, save_path: Path):
-        super().__init__(save_path=save_path)
+    def __init__(self, root_dir: Path):
+        super().__init__(root_dir=root_dir, file_name="exporting_waffle_status.json")
         self.set_init()
 
     def set_init(self):
