@@ -4,103 +4,57 @@ import enum
 import signal
 from collections import OrderedDict
 
-from waffle_dough.type.data_type import DataType
+from waffle_utils.enum import StrEnum as BaseEnum
+
 from waffle_hub.type.backend_type import BackendType
+from waffle_hub.type.data_type import DataType
 from waffle_hub.utils.utils import CaseInsensitiveDict
 
 
-class CustomEnumMeta(enum.EnumMeta):
-    def __contains__(cls, item):
-        if isinstance(item, str):
-            return item.upper() in cls._member_names_
-        return super().__contains__(item)
-
-    def __upper__(self):
-        return self.name.upper()
-
-
-class BaseEnum(enum.Enum, metaclass=CustomEnumMeta):
-    """Base class for Enum
-
-    Example:
-        >>> class Color(BaseEnum):
-        >>>     RED = 1
-        >>>     GREEN = 2
-        >>>     BLUE = 3
-        >>> Color.RED == "red"
-        True
-        >>> Color.RED == "RED"
-        True
-        >>> "red" in DataType
-        True
-        >>> "RED" in DataType
-        True
-    """
-
-    def __eq__(self, other):
-        if isinstance(other, str):
-            return self.name.upper() == other.upper()
-        return super().__eq__(other)
-
-    def __ne__(self, other):
-        if isinstance(other, str):
-            return self.name.upper() != other.upper()
-        return super().__ne__(other)
-
-    def __hash__(self):
-        return hash(self.name.upper())
-
-    def __str__(self):
-        return self.name.upper()
-
-    def __repr__(self):
-        return self.name.upper()
-
-
 class SplitMethod(BaseEnum):
-    RANDOM = enum.auto()
-    STRATIFIED = enum.auto()
+    RANDOM = "random"
+    STRATIFIED = "stratified"
 
 
 # for changeable status desc
 class TrainStatusDesc(BaseEnum):
-    INIT = enum.auto()
-    RUNNING = enum.auto()
-    SUCCESS = enum.auto()
-    FAILED = enum.auto()
-    STOPPED = enum.auto()
+    INIT = "init"
+    RUNNING = "running"
+    SUCCESS = "success"
+    FAILED = "failed"
+    STOPPED = "stopped"
 
 
 class EvaluateStatusDesc(BaseEnum):
-    INIT = enum.auto()
-    RUNNING = enum.auto()
-    SUCCESS = enum.auto()
-    FAILED = enum.auto()
-    STOPPED = enum.auto()
+    INIT = "init"
+    RUNNING = "running"
+    SUCCESS = "success"
+    FAILED = "failed"
+    STOPPED = "stopped"
 
 
 class InferenceStatusDesc(BaseEnum):
-    INIT = enum.auto()
-    RUNNING = enum.auto()
-    SUCCESS = enum.auto()
-    FAILED = enum.auto()
-    STOPPED = enum.auto()
+    INIT = "init"
+    RUNNING = "running"
+    SUCCESS = "success"
+    FAILED = "failed"
+    STOPPED = "stopped"
 
 
 class ExportOnnxStatusDesc(BaseEnum):
-    INIT = enum.auto()
-    RUNNING = enum.auto()
-    SUCCESS = enum.auto()
-    FAILED = enum.auto()
-    STOPPED = enum.auto()
+    INIT = "init"
+    RUNNING = "running"
+    SUCCESS = "success"
+    FAILED = "failed"
+    STOPPED = "stopped"
 
 
 class ExportWaffleStatusDesc(BaseEnum):
-    INIT = enum.auto()
-    RUNNING = enum.auto()
-    SUCCESS = enum.auto()
-    FAILED = enum.auto()
-    STOPPED = enum.auto()
+    INIT = "init"
+    RUNNING = "running"
+    SUCCESS = "success"
+    FAILED = "failed"
+    STOPPED = "stopped"
 
 
 EXPORT_MAP = OrderedDict(
@@ -116,19 +70,35 @@ EXPORT_MAP = OrderedDict(
 BACKEND_MAP = CaseInsensitiveDict(
     {
         BackendType.ULTRALYTICS: {
-            "adapter_import_path": "waffle_hub.hub.train.adapter.ultralytics.ultralytics",
-            "adapter_class_name": "UltralyticsManager",
+            "import_path": "waffle_hub.hub.adapter.ultralytics",
+            "class_name": "UltralyticsHub",
         },
         BackendType.AUTOCARE_DLT: {
-            "adapter_import_path": "waffle_hub.hub.train.adapter.autocare_dlt.autocare_dlt",
-            "adapter_class_name": "AutocareDltManager",
+            "import_path": "waffle_hub.hub.adapter.autocare_dlt",
+            "class_name": "AutocareDLTHub",
         },
         BackendType.TRANSFORMERS: {
-            "adapter_import_path": "waffle_hub.hub.train.adapter.transformers.transformers",
-            "adapter_class_name": "TransformersManager",
+            "import_path": "waffle_hub.hub.adapter.transformers",
+            "class_name": "TransformersHub",
         },
     }
 )
+# BACKEND_MAP = CaseInsensitiveDict(
+#     {
+#         BackendType.ULTRALYTICS: {
+#             "adapter_import_path": "waffle_hub.hub.train.adapter.ultralytics.ultralytics",
+#             "adapter_class_name": "UltralyticsManager",
+#         },
+#         BackendType.AUTOCARE_DLT: {
+#             "adapter_import_path": "waffle_hub.hub.train.adapter.autocare_dlt.autocare_dlt",
+#             "adapter_class_name": "AutocareDltManager",
+#         },
+#         BackendType.TRANSFORMERS: {
+#             "adapter_import_path": "waffle_hub.hub.train.adapter.transformers.transformers",
+#             "adapter_class_name": "TransformersManager",
+#         },
+#     }
+# )
 
 
 for key in list(EXPORT_MAP.keys()):

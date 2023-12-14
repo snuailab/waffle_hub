@@ -3,8 +3,8 @@ from pathlib import Path
 import pytest
 from waffle_utils.file import io, network
 
-from waffle_dough.type.task_type import TaskType
 from waffle_hub.dataset import Dataset
+from waffle_hub.type.task_type import TaskType
 
 
 @pytest.fixture(scope="session")

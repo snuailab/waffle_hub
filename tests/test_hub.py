@@ -6,7 +6,6 @@ from pathlib import Path
 import pytest
 import torch
 
-from waffle_dough.type.task_type import TaskType
 from waffle_hub import (
     EvaluateStatusDesc,
     ExportOnnxStatusDesc,
@@ -25,6 +24,7 @@ from waffle_hub.schema.result import (
     InferenceResult,
     TrainResult,
 )
+from waffle_hub.type.task_type import TaskType
 
 
 def _train(hub, dataset: Dataset, image_size: int, advance_params: dict = None):

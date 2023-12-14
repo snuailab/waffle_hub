@@ -2,10 +2,10 @@ from pathlib import Path
 
 from tqdm import tqdm
 from waffle_utils.file import io
-from waffle_utils.image.io import load_image
 
-from waffle_dough.type.task_type import TaskType
+from temp_utils.image.io import load_image
 from waffle_hub.schema.fields import Annotation, Category, Image
+from waffle_hub.type.task_type import TaskType
 
 
 def import_object_detection(self, json_file, image_dir=None):

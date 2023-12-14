@@ -1,4 +1,4 @@
-from .base_type import BaseType
+from waffle_utils.enum import StrEnum as BaseType
 
 
 class TaskType(BaseType):

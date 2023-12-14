@@ -1,9 +1,9 @@
 from typing import Union
 
 from shapely import Polygon
-from waffle_utils.utils import type_validator
+from waffle_utils.validator import setter_type_validator
 
-from waffle_dough.type.task_type import TaskType
+from waffle_hub.type.task_type import TaskType
 from waffle_hub.utils.conversion import convert_rle_to_polygon
 
 from .base_field import BaseField
@@ -52,7 +52,7 @@ class Annotation(BaseField):
         return self.__annotation_id
 
     @annotation_id.setter
-    @type_validator(int)
+    @setter_type_validator(int)
     def annotation_id(self, v):
         if v and v < 1:
             raise ValueError("id should be greater than 0.")
@@ -63,7 +63,7 @@ class Annotation(BaseField):
         return self.__image_id
 
     @image_id.setter
-    @type_validator(int)
+    @setter_type_validator(int)
     def image_id(self, v):
         if v and v < 1:
             raise ValueError("id should be greater than 0.")
@@ -74,7 +74,7 @@ class Annotation(BaseField):
         return self.__category_id
 
     @category_id.setter
-    @type_validator(int)
+    @setter_type_validator(int)
     def category_id(self, v):
         if v and v < 1:
             raise ValueError("id should be greater than 0.")
@@ -85,7 +85,7 @@ class Annotation(BaseField):
         return self.__bbox
 
     @bbox.setter
-    @type_validator(list)
+    @setter_type_validator(list)
     def bbox(self, v):
         if v and len(v) != 4:
             raise ValueError("the length of bbox should be 4.")
@@ -109,7 +109,7 @@ class Annotation(BaseField):
         return self.__area
 
     @area.setter
-    @type_validator(float, strict=False)
+    @setter_type_validator(float, strict=False)
     def area(self, v):
         self.__area = v
 
@@ -118,7 +118,7 @@ class Annotation(BaseField):
         return self.__keypoints
 
     @keypoints.setter
-    @type_validator(list)
+    @setter_type_validator(list)
     def keypoints(self, v):
         if v and len(v) % 3 != 0 and len(v) < 2:
             raise ValueError("the length of keypoints should be at least 2 and divisible by 3.")
@@ -129,7 +129,7 @@ class Annotation(BaseField):
         return self.__num_keypoints
 
     @num_keypoints.setter
-    @type_validator(int)
+    @setter_type_validator(int)
     def num_keypoints(self, v):
         self.__num_keypoints = v
 
@@ -138,7 +138,7 @@ class Annotation(BaseField):
         return self.__caption
 
     @caption.setter
-    @type_validator(str)
+    @setter_type_validator(str)
     def caption(self, v):
         self.__caption = v
 
@@ -147,7 +147,7 @@ class Annotation(BaseField):
         return self.__value
 
     @value.setter
-    @type_validator(float)
+    @setter_type_validator(float)
     def value(self, v):
         self.__value = v
 
@@ -156,7 +156,7 @@ class Annotation(BaseField):
         return self.__iscrowd
 
     @iscrowd.setter
-    @type_validator(int)
+    @setter_type_validator(int)
     def iscrowd(self, v):
         self.__iscrowd = v
 
@@ -165,7 +165,7 @@ class Annotation(BaseField):
         return self.__score
 
     @score.setter
-    # @type_validator(float)  # TODO: need to upgrade type_validator
+    # @setter_type_validator(float)  # TODO: need to upgrade setter_type_validator
     def score(self, v):
         self.__score = v
 

@@ -1,11 +1,11 @@
 import time
 from pathlib import Path
 
-from waffle_dough.type.task_type import TaskType
 from waffle_hub import TrainStatusDesc
 from waffle_hub.dataset import Dataset
 from waffle_hub.hub import Hub
 from waffle_hub.schema.result import TrainResult
+from waffle_hub.type.task_type import TaskType
 
 
 def _train(hub, dataset: Dataset, image_size: int):

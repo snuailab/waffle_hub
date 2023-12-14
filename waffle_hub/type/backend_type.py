@@ -1,4 +1,4 @@
-from waffle_dough.type.base_type import BaseType
+from waffle_utils.enum import StrEnum as BaseType
 
 
 class BackendType(BaseType):

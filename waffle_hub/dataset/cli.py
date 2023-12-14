@@ -1,10 +1,14 @@
+import logging
+
 import fire
-from waffle_utils.log import initialize_logger
+from waffle_utils.logger import initialize_logger
 
 from waffle_hub.dataset import Dataset
 from waffle_hub.utils.base_cli import BaseCLI, cli
 
-initialize_logger("dataset.log", root_level="INFO", console_level="INFO", file_level="DEBUG")
+initialize_logger(
+    "hub.log", root_level=logging.INFO, console_level=logging.INFO, file_level=logging.DEBUG
+)
 
 
 class DatasetInstance(BaseCLI):

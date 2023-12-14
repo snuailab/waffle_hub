@@ -1,9 +1,9 @@
-from .base_type import BaseType
+from waffle_utils.enum import StrEnum as BaseType
 
 
 class DataType(BaseType):
     COCO = "coco"
     YOLO = "yolo"
-    ULTRALYTICS = "ultralytics"
+    ULTRALYTICS = "yolo"
     AUTOCARE_DLT = "autocare_dlt"
     TRANSFORMERS = "transformers"

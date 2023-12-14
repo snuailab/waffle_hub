@@ -16,8 +16,8 @@ from datasets import (
     Value,
     load_from_disk,
 )
-from waffle_dough.type.task_type import TaskType
 from waffle_hub.schema.fields import Annotation, Category, Image
+from waffle_hub.type.task_type import TaskType
 
 
 def _export_transformers_classification(
