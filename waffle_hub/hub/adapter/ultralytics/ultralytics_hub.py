@@ -12,7 +12,7 @@ import torch
 import ultralytics
 from torchvision import transforms as T
 from ultralytics import YOLO
-from ultralytics.yolo.utils import DEFAULT_CFG as YOLO_DEFAULT_ADVANCE_PARAMS
+from ultralytics.utils import DEFAULT_CFG as YOLO_DEFAULT_ADVANCE_PARAMS
 from waffle_utils.file import io
 
 from waffle_hub import DataType, TaskType
