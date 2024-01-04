@@ -7,16 +7,15 @@ import pytest
 import torch
 
 from waffle_hub import (
-    EvaluateStatusDesc,
-    ExportOnnxStatusDesc,
-    ExportWaffleStatusDesc,
-    InferenceStatusDesc,
-    TaskType,
-    TrainStatusDesc,
+    EvaluateStatus,
+    ExportOnnxStatus,
+    ExportWaffleStatus,
+    InferenceStatus,
+    TrainStatus,
 )
 from waffle_hub.dataset import Dataset
 from waffle_hub.hub import Hub
-from waffle_hub.hub.train.adapter.base_manager import BaseManager
+from waffle_hub.hub.manager.base_manager import BaseManager
 from waffle_hub.schema.result import (
     EvaluateResult,
     ExportOnnxResult,
@@ -24,7 +23,7 @@ from waffle_hub.schema.result import (
     InferenceResult,
     TrainResult,
 )
-from waffle_hub.type.task_type import TaskType
+from waffle_hub.type import TaskType
 
 
 def _train(hub, dataset: Dataset, image_size: int, advance_params: dict = None):
@@ -40,9 +39,9 @@ def _train(hub, dataset: Dataset, image_size: int, advance_params: dict = None):
         advance_params=advance_params,
     )
 
-    training_status = hub.get_training_status()
-    assert training_status.status_desc == TrainStatusDesc.SUCCESS
-    assert training_status.step == training_status.total_step
+    train_state = hub.get_train_state()
+    assert train_state["status"] == TrainStatus.SUCCESS
+    assert train_state["step"] == train_state["total_step"]
     assert len(result.metrics) >= 1
     assert len(result.eval_metrics) >= 1
     assert Path(result.best_ckpt_file).exists()
@@ -65,9 +64,9 @@ def _evaluate(hub, dataset: Dataset):
         workers=0,
     )
 
-    evaluating_status = hub.get_evaluating_status()
-    assert evaluating_status.status_desc == EvaluateStatusDesc.SUCCESS
-    assert evaluating_status.step == evaluating_status.total_step
+    evaluate_state = hub.get_evaluate_state()
+    assert evaluate_state["status"] == EvaluateStatus.SUCCESS
+    assert evaluate_state["step"] == evaluate_state["total_step"]
     assert len(result.eval_metrics) >= 1
 
     return result
@@ -82,9 +81,9 @@ def _inference(hub, source: str):
         workers=0,
     )
 
-    inferencing_status = hub.get_inferencing_status()
-    assert inferencing_status.status_desc == InferenceStatusDesc.SUCCESS
-    assert inferencing_status.step == inferencing_status.total_step
+    inference_state = hub.get_inference_state()
+    assert inference_state["status"] == InferenceStatus.SUCCESS
+    assert inference_state["step"] == inference_state["total_step"]
     assert len(result.predictions) >= 1
     assert Path(result.draw_dir).exists()
 
@@ -97,8 +96,8 @@ def _export_onnx(hub, half: bool = False):
         device="cpu",
     )
 
-    exporting_onnx_status = hub.get_exporting_onnx_status()
-    assert exporting_onnx_status.status_desc == ExportOnnxStatusDesc.SUCCESS
+    export_onnx_state = hub.get_export_onnx_state()
+    assert export_onnx_state["status"] == ExportOnnxStatus.SUCCESS
     assert Path(result.onnx_file).exists()
 
     return result
@@ -107,15 +106,15 @@ def _export_onnx(hub, half: bool = False):
 def _export_waffle(hub):
     result: ExportWaffleResult = hub.export_waffle()
 
-    exporting_waffle_status = hub.get_exporting_waffle_status()
-    assert exporting_waffle_status.status_desc == ExportWaffleStatusDesc.SUCCESS
+    export_waffle_state = hub.get_export_waffle_state()
+    assert export_waffle_state["status"] == ExportWaffleStatus.SUCCESS
     assert Path(result.waffle_file).exists()
 
     return result
 
 
 def _from_waffle_file(waffle_file: str, source: str, tmpdir: Path):
-    name = "test_import"
+    name = "waffle_import_test"
     hub = Hub.from_waffle_file(name=name, waffle_file=waffle_file, root_dir=tmpdir)
 
     _inference(hub, source)
@@ -252,21 +251,21 @@ def test_ultralytics_object_detection_advance_params(
     hub.get_default_advance_train_params()
 
     _total(hub, dataset, image_size, tmpdir, {"box": 4, "cls": 1})
-    hub.delete_artifact()
+    hub.delete_artifacts()
     import_hub = Hub.load(name="waffle_import_test", root_dir=tmpdir)
     import_hub.delete_hub()
 
     with open(str(tmpdir / "adv.json"), "w") as f:
         json.dump({"box": 4, "cls": 2}, f)
     _total(hub, dataset, image_size, tmpdir, str(tmpdir / "adv.json"))
-    hub.delete_artifact()
+    hub.delete_artifacts()
     import_hub = Hub.load(name="waffle_import_test", root_dir=tmpdir)
     import_hub.delete_hub()
 
     with pytest.raises(ValueError):
         _total(hub, dataset, image_size, tmpdir, {"box": 4, "dummy_adv_param": 2})
-        assert hub.get_training_status().status_desc == TrainStatusDesc.FAILED
-        import_hub = Hub.load(name=import_hub_name, root_dir=tmpdir)
+        assert hub.get_train_state()["status"] == TrainStatus.FAILED
+        import_hub = Hub.load(name="waffle_import_test", root_dir=tmpdir)
         import_hub.delete_hub()
 
 

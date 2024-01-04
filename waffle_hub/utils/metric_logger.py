@@ -6,7 +6,7 @@ from pathlib import Path
 from threading import Thread
 from typing import Union
 
-from waffle_hub.schema.running_status import BaseRunningStatus
+from waffle_hub.schema.state import TrainState
 
 __all__ = ["MetricLogger"]
 
@@ -106,7 +106,8 @@ class MetricLogger:
         log_dir: Union[str, Path],
         func: callable,
         interval: float,
-        status: BaseRunningStatus,
+        state: TrainState,
+        state_save_path: Union[str, Path] = None,
         prefix: str = "",
         **kwargs,
     ):
@@ -119,7 +120,8 @@ class MetricLogger:
                 func should return a list of metrics.
                 e.g. func() -> [[{"tag": "value}, ...], ...]
             interval (float): The interval to log metrics. (seconds)
-            status (BaseRunningStatus): training status.
+            state (TrainState): train state.
+            state_save_path (Union[str, Path]): The path to save the state. If None, state will not be saved.
             prefix (str, optional): The prefix of the log file. Defaults to "".
             kwargs: The arguments for the metric logger.
         """
@@ -129,7 +131,8 @@ class MetricLogger:
         self.func = func
         self.interval = float(interval)
         self.prefix = str(prefix)
-        self.status = status
+        self.state = state
+        self.state_save_path = state_save_path
         self.kwargs = kwargs
 
         self.loggers = [
@@ -191,7 +194,9 @@ class MetricLogger:
         """Log metrics."""
         metrics_per_epoch = self.func()
         current_step = len(metrics_per_epoch)
-        self.status.set_current_step(current_step)
+        self.state.step = current_step
+        if self.state_save_path is not None:
+            self.state.save_json(save_path=self.state_save_path)
         for step in range(self._last_step, current_step):
             # metrics is a list of dict
             # e.g. [{"tag": "value"}, ...]
@@ -207,3 +212,6 @@ class MetricLogger:
                 self.log_metric(tag, value, step)
 
         self._last_step = current_step
+
+    def set_state_save_path(self, state_save_path: Union[str, Path]):
+        self.state_save_path = Path(state_save_path)

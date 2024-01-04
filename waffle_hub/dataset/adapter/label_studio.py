@@ -5,7 +5,7 @@ from waffle_utils.file import io
 
 from temp_utils.image.io import load_image
 from waffle_hub.schema.fields import Annotation, Category, Image
-from waffle_hub.type.task_type import TaskType
+from waffle_hub.type import TaskType
 
 
 def import_object_detection(self, json_file, image_dir=None):

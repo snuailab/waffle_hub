@@ -31,8 +31,7 @@ from waffle_hub.dataset.adapter import (
     import_yolo,
 )
 from waffle_hub.schema import Annotation, Category, DatasetInfo, Image
-from waffle_hub.type.data_type import DataType
-from waffle_hub.type.task_type import TaskType
+from waffle_hub.type import DataType, TaskType
 from waffle_hub.utils.draw import draw_results
 
 logger = logging.getLogger(__name__)

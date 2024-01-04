@@ -7,7 +7,7 @@ from waffle_utils.file.search import get_image_files
 
 from waffle_hub.dataset import Dataset
 from waffle_hub.schema.fields import Annotation, Category, Image
-from waffle_hub.type.task_type import TaskType
+from waffle_hub.type import TaskType
 from waffle_hub.utils.data import ImageDataset, LabeledDataset
 
 
@@ -242,7 +242,7 @@ def _export(dataset_name, task: TaskType, root_dir):
         )
         assert len(dataset.get_images()) == len(import_ds.get_images())
     if task in [TaskType.OBJECT_DETECTION, TaskType.INSTANCE_SEGMENTATION, TaskType.CLASSIFICATION]:
-        export_dir = Path(dataset.export("yolo"))
+        export_dir = Path(dataset.export("ultralytics"))
         import_ds = Dataset.from_yolo(
             name=f"{task}_import_yolo",
             task=task,

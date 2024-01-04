@@ -8,7 +8,7 @@ from waffle_utils.file.network import get_file_from_url
 
 from temp_utils.image.io import load_image
 from waffle_hub.schema.fields import Annotation
-from waffle_hub.type.task_type import TaskType
+from waffle_hub.type import TaskType
 
 FONT_URL = "https://raw.githubusercontent.com/snuailab/assets/main/waffle/fonts/gulim.ttc"
 FONT_NAME = "gulim.ttc"

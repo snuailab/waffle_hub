@@ -9,9 +9,9 @@ from groundingdino.models import build_model
 from groundingdino.util.slconfig import SLConfig
 from groundingdino.util.utils import clean_state_dict, get_phrases_from_posmap
 from waffle_utils.file import io
-from waffle_utils.image.io import save_image
 from waffle_utils.log import initialize_logger
 
+from temp_utils.image.io import save_image
 from waffle_hub.dataset import Dataset
 
 initialize_logger("logs/auto_label.log")

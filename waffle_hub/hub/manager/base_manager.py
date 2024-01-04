@@ -1,24 +1,29 @@
+import os
 import warnings
-from abc import abstractmethod
-from pathlib import Path
+from abc import ABC, abstractmethod
+from pathlib import Path, PurePath
 from typing import Union
 
+import torch
+from waffle_utils.callback import BaseCallback
 from waffle_utils.file import io
-from waffle_utils.utils import type_validator
+from waffle_utils.validator import setter_type_validator
 
-from waffle_dough.type.task_type import TaskType
-from waffle_hub import EXPORT_MAP
+from waffle_hub import EXPORT_MAP, TrainStatus
 from waffle_hub.dataset import Dataset
-from waffle_hub.hub.model.base_model import Model
+from waffle_hub.hub.eval.evaluator import Evaluator
+from waffle_hub.hub.manager.hook import BaseTrainHook
 from waffle_hub.hub.model.wrapper import ModelWrapper
-from waffle_hub.hub.train.base_trainer import Trainer
 from waffle_hub.schema.configs import ModelConfig, TrainConfig
 from waffle_hub.schema.fields.category import Category
+from waffle_hub.schema.result import TrainResult
+from waffle_hub.schema.state import TrainState
+from waffle_hub.type import TaskType
 
 
-class BaseManager:
+class BaseManager(BaseTrainHook, ABC):
     """
-    Base Manager (Train, Model)
+    Base Manager
     """
 
     # abstract property
@@ -34,10 +39,18 @@ class BaseManager:
 
     # directory settting
     CONFIG_DIR = Path("configs")
+    ARTIFACTS_DIR = Path("artifacts")
+    TRAIN_LOG_DIR = Path("logs")
+    WEIGHTS_DIR = Path("weights")
 
     # train config file name
     MODEL_CONFIG_FILE = "model.yaml"
     TRAIN_CONFIG_FILE = "train.yaml"
+
+    # train results file name
+    LAST_CKPT_FILE = "last_ckpt.pt"
+    BEST_CKPT_FILE = "best_ckpt.pt"  # TODO: best metric?
+    METRIC_FILE = "metrics.json"
 
     def __init__(
         self,
@@ -46,42 +59,50 @@ class BaseManager:
         task: Union[str, TaskType],
         model_type: str,
         model_size: str,
-        categories: list[Union[str, int, float, dict, Category]],
+        categories: list[Union[str, int, float, dict, Category]] = None,
+        callbacks: list[BaseCallback] = None,
         load: bool = False,
+        train_state: TrainState = None,
     ):
-        # abstract property (Model)
+        # abstract property
         if self.BACKEND_NAME is None:
             raise AttributeError("BACKEND_NAME must be specified.")
 
         if self.BACKEND_VERSION is None:
-            raise AttributeError("VERSION must be specified.")
+            raise AttributeError("BACKEND_VERSION must be specified.")
 
         if self.MODEL_TYPES is None:
             raise AttributeError("MODEL_TYPES must be specified.")
 
-        # abstract property (Trainer)
-        if self.MULTI_GPU_TRAIN is None:
-            raise AttributeError("MULTI_GPU_TRAIN must be specified.")
-
         if self.DEFAULT_PARAMS is None:
             raise AttributeError("DEFAULT_PARAMS must be specified.")
 
-        self.root_dir = root_dir
+        if self.MULTI_GPU_TRAIN is None:
+            raise AttributeError("MULTI_GPU_TRAIN must be specified.")
+
+        super().__init__(callbacks=callbacks)
+        self.root_dir = Path(root_dir)
         self.name = name
         self.task = task
         self.model_type = model_type
         self.model_size = model_size
         self.categories = categories
-
         self.backend = self.BACKEND_NAME
 
-        if self.model_config_file.exists() and not load:
-            raise FileExistsError("Model already exists. Try to 'load_manager' function.")
+        if load:
+            self.state = (
+                train_state if train_state is not None else TrainState(status=TrainStatus.INIT)
+            )
+        else:
+            if self.model_config_file.exists():
+                raise FileExistsError("Manager already exists. Try to 'load' function.")
+            self.state = TrainState(status=TrainStatus.INIT)
+
+        self.result = TrainResult()
 
         self.save_model_config(
             model_config_file=self.model_config_file,
         )
-        self.trainer = self._init_trainer()
 
     # properties
     @property
@@ -90,12 +111,13 @@ class BaseManager:
         return self.__task
 
     @task.setter
+    @setter_type_validator(Union[str, TaskType])
     def task(self, v):
         if v not in list(self.MODEL_TYPES.keys()):
             raise ValueError(
-                f"Task {v} is not supported. Choose one of {list(self.MODEL_TYPES.keys())}"
+                f"Task {v} is not supported. Choose one of {[task.value for task in list(self.MODEL_TYPES.keys())]}"
             )
-        self.__task = str(v.value) if isinstance(v, TaskType) else str(v)
+        self.__task = str(v.value) if isinstance(v, TaskType) else str(v).lower()
 
     @property
     def model_type(self) -> str:
@@ -103,7 +125,7 @@ class BaseManager:
         return self.__model_type
 
     @model_type.setter
-    @type_validator(str)
+    @setter_type_validator(str)
     def model_type(self, v):
         if v not in self.MODEL_TYPES[self.task]:
             raise ValueError(
@@ -117,7 +139,7 @@ class BaseManager:
         return self.__model_size
 
     @model_size.setter
-    @type_validator(str)
+    @setter_type_validator(str)
     def model_size(self, v):
         if v not in self.MODEL_TYPES[self.task][self.model_type]:
             raise ValueError(
@@ -131,7 +153,7 @@ class BaseManager:
         return self.__version
 
     @version.setter
-    @type_validator(str)
+    @setter_type_validator(str)
     def version(self, v):
         self.__version = v
 
@@ -140,7 +162,7 @@ class BaseManager:
         return self.__categories
 
     @categories.setter
-    @type_validator(list)
+    @setter_type_validator(list)
     def categories(self, v):
         if v is None or len(v) == 0:
             warnings.warn(
@@ -176,6 +198,7 @@ class BaseManager:
 
         self.__categories = v
 
+    # path properties
     @property
     def config_dir(self) -> Path:
         """Config Directory"""
@@ -191,23 +214,179 @@ class BaseManager:
         """Train Config yaml File"""
         return self.config_dir / self.TRAIN_CONFIG_FILE
 
-    # Model abstract method
-    @abstractmethod
-    def get_model(self) -> ModelWrapper:
-        """Get model for inference or evaluation
-        Returns:
-            ModelWrapper: best model wrapper
+    @property
+    def artifacts_dir(self) -> Path:
+        """Artifacts Directory. This is raw output of each backend."""
+        return self.root_dir / self.ARTIFACTS_DIR
+
+    @property
+    def train_log_dir(self) -> Path:
+        """Train Log Directory."""
+        return self.root_dir / self.TRAIN_LOG_DIR
+
+    @property
+    def weights_dir(self) -> Path:
+        """Weights Directory."""
+        return self.root_dir / self.WEIGHTS_DIR
+
+    @property
+    def last_ckpt_file(self) -> Path:
+        return self.weights_dir / self.LAST_CKPT_FILE
+
+    @property
+    def best_ckpt_file(self) -> Path:
+        return self.weights_dir / self.BEST_CKPT_FILE
+
+    @property
+    def metric_file(self) -> Path:
+        return self.root_dir / self.METRIC_FILE
+
+    # manager common methods
+    def set_model_name(self, name: str):
+        """Set model name
+        if model name is not same with model config name, it will cause unexpected errors
+
+        Args:
+            name (str): model name
         """
-        raise NotImplementedError
+        self.name = name
+        ModelConfig(
+            name=self.name,
+            backend=self.BACKEND_NAME,
+            version=self.BACKEND_VERSION,
+            task=self.task,
+            model_type=self.model_type,
+            model_size=self.model_size,
+            categories=list(map(lambda x: x.to_dict(), self.categories)),
+        ).save_yaml(self.model_config_file)
 
-    @abstractmethod
-    def _get_preprocess(self, *args, **kwargs):
-        raise NotImplementedError
+    def get_categories(self) -> list[Category]:
+        return self.categories
 
-    @abstractmethod
-    def _get_postprocess(self, *args, **kwargs):
-        raise NotImplementedError
+    def get_category_names(self) -> list[str]:
+        return [category.name for category in self.categories]
 
+    @classmethod
+    def is_exists(cls, root_dir: str) -> bool:
+        """
+        Manager is exists (model config file is exists)
+
+        Args:
+            root_dir (str): Root directory
+
+        Returns:
+            bool: True or False
+        """
+        model_config_file = Path(root_dir) / cls.CONFIG_DIR / cls.MODEL_CONFIG_FILE
+        return model_config_file.exists()
+
+    @classmethod
+    def from_model_config_file(
+        cls,
+        root_dir: str,
+        name: str,
+        model_config_file_path: Union[str, Path],
+        callbacks: list[BaseCallback] = None,
+    ):
+        """
+        Create Manager from model config file
+
+        Args:
+            root_dir (str): Root directory
+            name (str): Model name
+            model_config_file_path (Union[str, Path]): Model config file path
+            callbacks (list[BaseCallback], optional): Callbacks. Defaults to None.
+
+        Returns:
+            BaseManager: Manager
+        """
+        if not model_config_file_path.exists():
+            raise FileNotFoundError(f"Model config file {model_config_file_path} is not exist.")
+
+        model_config = ModelConfig.load(model_config_file_path)
+
+        if model_config["backend"] != cls.BACKEND_NAME:
+            raise ValueError(
+                f"Model backend is not matched with hub backend. Model backend: {model_config['backend']}, Hub backend: {cls.BACKEND_NAME}"
+            )
+
+        return cls(
+            root_dir=root_dir,
+            name=name,
+            task=model_config["task"],
+            model_type=model_config["model_type"],
+            model_size=model_config["model_size"],
+            categories=model_config["categories"],
+            callbacks=callbacks,
+        )
+
+    @classmethod
+    def load(
+        cls, root_dir: str, train_state: TrainState = None, callbacks: list[BaseCallback] = None
+    ):
+        """
+        Load Manager from model config file in root directory
+
+        Args:
+            root_dir (str): Root directory
+            train_state (TrainState, optional): Train state. Defaults to None.
+            callbacks (list[BaseCallback], optional): Callbacks. Defaults to None.
+
+        Returns:
+            BaseManager: Manager
+        """
+        model_config_file_path = Path(root_dir) / cls.CONFIG_DIR / cls.MODEL_CONFIG_FILE
+        if not model_config_file_path.exists():
+            raise FileNotFoundError(
+                f"Model config file {model_config_file_path} is not exist. Init first."
+            )
+
+        model_config = ModelConfig.load(model_config_file_path)
+
+        if model_config["backend"] != cls.BACKEND_NAME:
+            raise ValueError(
+                f"Model backend is not matched with hub backend. Model backend: {model_config['backend']}, Hub backend: {cls.BACKEND_NAME}"
+            )
+
+        return cls(
+            root_dir=root_dir,
+            name=model_config["name"],
+            task=model_config["task"],
+            model_type=model_config["model_type"],
+            model_size=model_config["model_size"],
+            categories=model_config["categories"],
+            callbacks=callbacks,
+            load=True,
+            train_state=train_state,
+        )
+
+    def delete_manager(self):
+        """
+        Delete manager.
+        """
+        if self.root_dir.exists():
+            io.remove_directory(self.root_dir, recursive=True)
+        del self
+        return None
+
+    def delete_artifacts(self):
+        """
+        Delete manager.
+        """
+        # TODO: utils 1.0 연동 시 get 함수 사용
+        if self.train_config_file.exists():
+            io.remove_file(self.train_config_file)
+        if self.artifacts_dir.exists():
+            io.remove_directory(self.artifacts_dir, recursive=True)
+        if self.weights_dir.exists():
+            io.remove_directory(self.weights_dir, recursive=True)
+        if self.train_log_dir.exists():
+            io.remove_directory(self.train_log_dir, recursive=True)
+        if self.metric_file.exists():
+            io.remove_file(self.metric_file)
+        return None
+
+    # Configs methods
     @classmethod
     def get_model_config(cls, root_dir: Union[str, Path]) -> ModelConfig:
         """Get model config from model config yaml file
@@ -252,7 +431,7 @@ class BaseManager:
         ModelConfig(
             name=self.name,
             backend=self.BACKEND_NAME,
-            version=self.VERSION,
+            version=self.BACKEND_VERSION,
             task=self.task,
             model_type=self.model_type,
             model_size=self.model_size,
@@ -271,35 +450,24 @@ class BaseManager:
         """
         cfg.save_yaml(train_config_path)
 
-    def set_model_name(self, name: str):
-        """Set model name
-        if model name is not same with model config name, it will cause unexpected errors
-
-        Args:
-            name (str): model name
-        """
-        self.name = name
-        ModelConfig(
-            name=self.name,
-            backend=self.BACKEND_NAME,
-            version=self.VERSION,
-            task=self.task,
-            model_type=self.model_type,
-            model_size=self.model_size,
-            categories=list(map(lambda x: x.to_dict(), self.categories)),
-        ).save_yaml(self.model_config_file)
-
-    def get_categories(self) -> list[Category]:
-        return self.categories
-
-    def get_category_names(self) -> list[str]:
-        return [category.name for category in self.categories]
-
-    # Trainer abstract method
+    # Model abstract method
     @abstractmethod
-    def _init_trainer(self):
+    def get_model(self) -> ModelWrapper:
+        """Get model for inference or evaluation
+        Returns:
+            ModelWrapper: best model wrapper
+        """
         raise NotImplementedError
 
+    @abstractmethod
+    def _get_preprocess(self, *args, **kwargs):
+        raise NotImplementedError
+
+    @abstractmethod
+    def _get_postprocess(self, *args, **kwargs):
+        raise NotImplementedError
+
+    # Train abstract method
     @abstractmethod
     def get_metrics(self):
         raise NotImplementedError
@@ -310,91 +478,9 @@ class BaseManager:
         Returns:
             bool: True if all files are exist else False
         """
-
-    @classmethod
-    def is_exists(cls, root_dir: str) -> bool:
-        """
-        Manager is exists (model config file is exists)
-
-        Args:
-            root_dir (str): Root directory
-
-        Returns:
-            bool: True or False
-        """
-        model_config_file = Path(root_dir) / cls.CONFIG_DIR / cls.MODEL_CONFIG_FILE
-        return model_config_file.exists()
-
-    @classmethod
-    def from_model_config_file(
-        cls, root_dir: str, name: str, model_config_file_path: Union[str, Path]
-    ):
-        """
-        Create Manager from model config file
-
-        Args:
-            root_dir (str): Root directory
-            name (str): Model name
-            model_config_file_path (Union[str, Path]): Model config file path
-
-        raises:
-            ValueError: If model backend is not matched with hub backend
-
-        Returns:
-            BaseManager: Manager
-        """
-        if not model_config_file_path.exists():
-            raise FileNotFoundError(f"Model config file {model_config_file_path} is not exist.")
-
-        model_config = ModelConfig.load(model_config_file_path)
-
-        if model_config["backend"] != cls.BACKEND_NAME:
-            raise ValueError(
-                f"Model backend is not matched with hub backend. Model backend: {model_config['backend']}, Hub backend: {cls.BACKEND_NAME}"
-            )
-
-        return cls(
-            root_dir=root_dir,
-            name=name,
-            task=model_config["task"],
-            model_type=model_config["model_type"],
-            model_size=model_config["model_size"],
-            categories=model_config["categories"],
-        )
-
-    @classmethod
-    def load(cls, root_dir: str):
-        """
-        Load Manager from model config file in root directory
-
-        Args:
-            root_dir (str): Root directory
-
-        Returns:
-            BaseManager: Manager
-        """
-        model_config_file_path = Path(root_dir) / cls.CONFIG_DIR / cls.MODEL_CONFIG_FILE
-        if not model_config_file_path.exists():
-            raise FileNotFoundError(
-                f"Model config file {model_config_file_path} is not exist. Init first."
-            )
-
-        model_config = ModelConfig.load(model_config_file_path)
-
-        if model_config["backend"] != cls.BACKEND_NAME:
-            raise ValueError(
-                f"Model backend is not matched with hub backend. Model backend: {model_config['backend']}, Hub backend: {cls.BACKEND_NAME}"
-            )
-
-        return cls(
-            root_dir=root_dir,
-            name=model_config["name"],
-            task=model_config["task"],
-            model_type=model_config["model_type"],
-            model_size=model_config["model_size"],
-            categories=model_config["categories"],
-            load=True,
-        )
+        if not self.best_ckpt_file.exists():  # last_ckpt_file.exists() or ??
+            raise ValueError("Train first! hub.train(...).")
+        return True
 
     # need override
     def get_default_advance_train_params(
@@ -416,26 +502,152 @@ class BaseManager:
         """
         raise NotImplementedError(f"{cls.BACKEND_NAME} does not support advance_params argument.")
 
-    # common function
-    def delete_manager(self):
-        """
-        Delete manager.
-        """
-        # TODO: utils 1.0 연동 시 get 함수 사용
-        if self.config_dir.exists():
-            io.remove_directory(self.config_dir)
-        if self.artifacts_dir.exists():
-            io.remove_directory(self.artifacts_dir)
-        if self.weights_dir.exists():
-            io.remove_directory(self.weights_dir)
-        if self.train_log_dir.exists():
-            io.remove_directory(self.train_log_dir)
-        del self
-        return None
+    def train(
+        self,
+        dataset: Union[Dataset, str, Path],
+        dataset_root_dir: str = None,
+        epochs: int = None,
+        batch_size: int = None,
+        image_size: Union[int, list[int]] = None,
+        learning_rate: float = None,
+        letter_box: bool = None,
+        pretrained_model: str = None,
+        device: str = "0",
+        workers: int = 2,
+        seed: int = 0,
+        advance_params: Union[dict, str] = None,
+        verbose: bool = True,
+    ) -> TrainResult:
+        """Start Train
 
-    def parse_dataset(
+        Args:
+            dataset (Union[Dataset, str, Path]): Waffle Dataset object or path or name.
+            dataset_root_dir (str, optional): Waffle Dataset root directory. Defaults to None.
+            epochs (int, optional): number of epochs. None to use default. Defaults to None.
+            batch_size (int, optional): batch size. None to use default. Defaults to None.
+            image_size (Union[int, list[int]], optional): image size. None to use default. Defaults to None.
+            learning_rate (float, optional): learning rate. None to use default. Defaults to None.
+            letter_box (bool, optional): letter box. None to use default. Defaults to None.
+            pretrained_model (str, optional): pretrained model. None to use default. Defaults to None.
+            device (str, optional):
+                "cpu" or "gpu_id" or comma seperated "gpu_ids". Defaults to "0".
+            workers (int, optional): number of workers. Defaults to 2.
+            seed (int, optional): random seed. Defaults to 0.
+            advance_params (Union[dict, str], optional): advance params dictionary or file (yaml, json) path. Defaults to None.
+            verbose (bool, optional): verbose. Defaults to True.
+
+        Returns:
+            TrainResult: train result
+        """
+        try:
+            # check if it is already trained
+            self.run_default_hook("setup")
+            self.run_callback_hooks("setup", self)
+
+            # check if it is already trained # TODO: resume
+            rank = os.getenv("RANK", -1)
+            if self.artifacts_dir.exists() and rank in [
+                -1,
+                0,
+            ]:  # TODO: need to ensure that training is not already running
+                raise FileExistsError(
+                    f"{self.artifacts_dir}\n"
+                    "Train artifacts already exist. Remove artifact to re-train [delete_artifact]."
+                )
+
+            # parse dataset
+            export_path, dataset_path = self._parse_dataset(dataset, dataset_root_dir)
+
+            self.cfg = self._parse_train_config(
+                dataset_path=export_path,
+                epochs=epochs,
+                batch_size=batch_size,
+                image_size=image_size,
+                learning_rate=learning_rate,
+                letter_box=letter_box,
+                pretrained_model=pretrained_model,
+                device=device,
+                workers=workers,
+                seed=seed,
+                advance_params=advance_params,
+                verbose=verbose,
+            )
+
+            # save train config
+            self.save_train_config(self.cfg, self.train_config_file)
+
+            # check device
+            device = self.cfg.device
+            if device == "cpu":
+                # logger.info("CPU training")
+                pass
+            elif device.isdigit():
+                if not torch.cuda.is_available():
+                    raise ValueError("CUDA is not available.")
+            elif "," in device:
+                if not torch.cuda.is_available():
+                    raise ValueError("CUDA is not available.")
+                if not self.MULTI_GPU_TRAIN:
+                    raise ValueError(f"{self.backend} does not support MULTI_GPU_TRAIN.")
+                if len(device.split(",")) > torch.cuda.device_count():
+                    raise ValueError(
+                        f"GPU number is not enough. {device}\n"
+                        + f"Given device: {device}\n"
+                        + f"Available device count: {torch.cuda.device_count()}"
+                    )
+                # TODO: occurs unexpected errors
+                # if not all([int(x) < torch.cuda.device_count() for x in device.split(",")]):
+                #     raise IndexError(
+                #         f"GPU index is out of range. device id should be smaller than {torch.cuda.device_count()}\n"
+                #     )
+                # logger.info(f"Multi GPU training: {device}")
+            else:
+                raise ValueError(f"Invalid device: {device}\n" + "Please use 'cpu', '0', '0,1,2,3'")
+
+            self.run_default_hook("before_train")
+            self.run_callback_hooks("before_train", self)
+
+            self._train()
+
+            self._evaluate(dataset_path)
+
+            self.run_default_hook("after_train")
+            self.run_callback_hooks("after_train", self)
+
+        except FileExistsError as e:
+            raise e
+        except (KeyboardInterrupt, SystemExit) as e:
+            self.run_default_hook("on_exception_stopped", e)
+            self.run_callback_hooks("on_exception_stopped", self, e)
+            if self.artifacts_dir.exists():
+                self.run_default_hook("on_train_end")
+                self.run_callback_hooks("on_train_end", self)
+            raise e
+        except Exception as e:
+            self.run_default_hook("on_exception_failed", e)
+            self.run_callback_hooks("on_exception_failed", self, e)
+            if self.artifacts_dir.exists():
+                io.remove_directory(self.artifacts_dir, recursive=True)
+            raise e
+        finally:
+            self.run_default_hook("teardown")
+            self.run_callback_hooks("teardown", self)
+
+        return self.result
+
+    def _train(self):
+        self.run_default_hook("on_train_start")
+        self.run_callback_hooks("on_train_start", self)
+
+        self.run_default_hook("training")
+        self.run_callback_hooks("training", self)
+
+        self.run_default_hook("on_train_end")
+        self.run_callback_hooks("on_train_end", self)
+
+    def _parse_dataset(
         self, dataset: Union[Dataset, str, Path], dataset_root_dir: str = None
-    ) -> (Path, str):
+    ) -> (Path, Path):
         """parse dataset
 
         Args:
@@ -483,11 +695,10 @@ class BaseManager:
 
         return export_dir, dataset.dataset_dir
 
-    def train(
+    def _parse_train_config(
         self,
-        dataset: Union[Dataset, str, Path],
-        dataset_root_dir: str = None,
-        epochs: int = None,
+        dataset_path: Path,
+        epochs: int,
         batch_size: int = None,
         image_size: Union[int, list[int]] = None,
         learning_rate: float = None,
@@ -498,26 +709,79 @@ class BaseManager:
         seed: int = 0,
         advance_params: Union[dict, str] = None,
         verbose: bool = True,
-    ) -> TrainResult:
-        """Start Train
+    ) -> TrainConfig:
+        # parse train config
+        cfg = TrainConfig(
+            dataset_path=dataset_path,
+            epochs=epochs,
+            batch_size=batch_size,
+            image_size=image_size,
+            learning_rate=learning_rate,
+            letter_box=letter_box,
+            pretrained_model=pretrained_model,
+            device=device,
+            workers=workers,
+            seed=seed,
+            advance_params=advance_params if advance_params else {},
+            verbose=verbose,
+        )
 
-        Args:
-            dataset (Union[Dataset, str, Path]): Waffle Dataset object or path or name.
-            dataset_root_dir (str, optional): Waffle Dataset root directory. Defaults to None.
-            epochs (int, optional): number of epochs. None to use default. Defaults to None.
-            batch_size (int, optional): batch size. None to use default. Defaults to None.
-            image_size (Union[int, list[int]], optional): image size. None to use default. Defaults to None.
-            learning_rate (float, optional): learning rate. None to use default. Defaults to None.
-            letter_box (bool, optional): letter box. None to use default. Defaults to None.
-            pretrained_model (str, optional): pretrained model. None to use default. Defaults to None.
-            device (str, optional):
-                "cpu" or "gpu_id" or comma seperated "gpu_ids". Defaults to "0".
-            workers (int, optional): number of workers. Defaults to 2.
-            seed (int, optional): random seed. Defaults to 0.
-            advance_params (Union[dict, str], optional): advance params dictionary or file (yaml, json) path. Defaults to None.
-            verbose (bool, optional): verbose. Defaults to True.
+        ## overwrite train config with default config
+        for k, v in cfg.to_dict().items():
+            if v is None:
+                field_value = getattr(
+                    self.DEFAULT_PARAMS[self.task][self.model_type][self.model_size], k
+                )
+                setattr(cfg, k, field_value)
+        cfg.image_size = (
+            cfg.image_size if isinstance(cfg.image_size, list) else [cfg.image_size, cfg.image_size]
+        )
 
-        Returns:
-            TrainResult: train result
-        """
-        return self.trainer.train()
+        ## overwrite train advance config
+        if cfg.advance_params:
+            if isinstance(cfg.advance_params, (str, PurePath)):
+                # check if it is yaml or json
+                if Path(cfg.advance_params).exists():
+                    if Path(cfg.advance_params).suffix in [".yaml", ".yml"]:
+                        cfg.advance_params = io.load_yaml(cfg.advance_params)
+                    elif Path(cfg.advance_params).suffix in [".json"]:
+                        cfg.advance_params = io.load_json(cfg.advance_params)
+                    else:
+                        raise ValueError(
+                            f"Advance parameter file should be yaml or json. {cfg.advance_params}"
+                        )
+                else:
+                    raise FileNotFoundError(f"Advance parameter file is not exist.")
+            elif not isinstance(cfg.advance_params, dict):
+                raise ValueError(
+                    f"Advance parameter should be dictionary or file path. {cfg.advance_params}"
+                )
+
+            default_advance_param = self.get_default_advance_train_params()
+            for key in cfg.advance_params.keys():
+                if key not in default_advance_param:
+                    raise ValueError(
+                        f"Advance parameter {key} is not supported.\n"
+                        + f"Supported parameters: {list(default_advance_param.keys())}"
+                    )
+        return cfg
+
+    def _evaluate(self, dataset_path: Path):
+        # evaluate
+        self.evaluator = Evaluator(root_dir=self.root_dir, model=self.get_model())
+
+        self.run_default_hook("on_evaluate_start")
+        self.run_callback_hooks("on_evaluate_start", self)
+
+        result = self.evaluator.evaluate(
+            dataset=dataset_path,
+            batch_size=self.cfg.batch_size,
+            image_size=self.cfg.image_size,
+            letter_box=self.cfg.letter_box,
+            device=self.cfg.device,
+            workers=self.cfg.workers,
+        )
+        self.result.eval_metrics = result.eval_metrics
+
+        self.run_default_hook("on_evaluate_end")
+        self.run_callback_hooks("on_evaluate_end", self)

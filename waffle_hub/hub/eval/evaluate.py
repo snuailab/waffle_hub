@@ -13,7 +13,6 @@ from torchmetrics.classification import (
 )
 from torchmetrics.detection import mean_ap
 
-from waffle_dough.type.task_type import TaskType
 from waffle_hub.schema.evaluate import (
     BaseMetric,
     ClassificationMetric,
@@ -23,6 +22,7 @@ from waffle_hub.schema.evaluate import (
     TextRecognitionMetric,
 )
 from waffle_hub.schema.fields import Annotation
+from waffle_hub.type import TaskType
 from waffle_hub.utils.conversion import convert_polygon_to_mask
 
 logger = logging.getLogger(__name__)

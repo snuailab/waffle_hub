@@ -1,5 +1,5 @@
-from waffle_hub import TaskType
 from waffle_hub.schema.configs import TrainConfig
+from waffle_hub.type import TaskType
 
 # Common
 MODEL_TYPES = {

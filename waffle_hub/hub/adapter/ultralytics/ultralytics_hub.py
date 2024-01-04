@@ -12,13 +12,15 @@ import torch
 import ultralytics
 from torchvision import transforms as T
 from ultralytics import YOLO
-from ultralytics.yolo.utils import DEFAULT_CFG as YOLO_DEFAULT_ADVANCE_PARAMS
+from ultralytics.utils import DEFAULT_CFG as YOLO_DEFAULT_ADVANCE_PARAMS
 from waffle_utils.file import io
 
-from waffle_hub import DataType, TaskType
 from waffle_hub.hub import Hub
 from waffle_hub.hub.model.wrapper import ModelWrapper
 from waffle_hub.schema.configs import TrainConfig
+
+# from waffle_hub import DataType, TaskType
+from waffle_hub.type import BackendType, DataType, TaskType
 from waffle_hub.utils.process import run_python_file
 from waffle_hub.utils.running_status_logger import TrainingStatusLogger
 
@@ -28,7 +30,7 @@ logger = logging.getLogger(__name__)
 
 
 class UltralyticsHub(Hub):
-    BACKEND_NAME = DataType.ULTRALYTICS
+    BACKEND_NAME = str(BackendType.ULTRALYTICS.value)
     MODEL_TYPES = MODEL_TYPES
     MULTI_GPU_TRAIN = True
     DEFAULT_PARAMS = DEFAULT_PARAMS
@@ -62,7 +64,7 @@ class UltralyticsHub(Hub):
 
         super().__init__(
             name=name,
-            backend=UltralyticsHub.BACKEND_NAME,
+            backend=str(UltralyticsHub.BACKEND_NAME),
             version=ultralytics.__version__,
             task=task,
             model_type=model_type,

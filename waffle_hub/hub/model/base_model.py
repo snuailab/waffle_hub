@@ -6,10 +6,10 @@ from typing import Union
 from torch import nn
 from waffle_utils.utils import type_validator
 
-from waffle_dough.type.task_type import TaskType
 from waffle_hub.hub.model.wrapper import ModelWrapper
 from waffle_hub.schema.configs import ModelConfig
 from waffle_hub.schema.fields.category import Category
+from waffle_hub.type import TaskType
 
 
 class Model(ABC):

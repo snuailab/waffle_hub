@@ -2,7 +2,7 @@ from abc import ABC, abstractmethod
 
 from waffle_utils.file import io
 
-from waffle_hub.type.task_type import TaskType
+from waffle_hub.type import TaskType
 
 
 class BaseField(ABC):

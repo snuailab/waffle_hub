@@ -10,35 +10,32 @@ Hub is a multi-backend compatible interface for model training, evaluation, infe
 import importlib
 import logging
 import os
-import threading
-import time
 import warnings
-from functools import cached_property
-from pathlib import Path, PurePath
+from pathlib import Path
 from typing import Union
 
-import cpuinfo
-import cv2
 import numpy as np
 import torch
 import tqdm
 from waffle_utils.file import io
-from waffle_utils.image.io import save_image
-from waffle_utils.utils import type_validator
-from waffle_utils.video.io import create_video_writer
+from waffle_utils.validator import setter_type_validator
 
-from waffle_dough.type.task_type import TaskType
-from waffle_hub import BACKEND_MAP, EXPORT_MAP, TrainStatusDesc
+from waffle_hub import BACKEND_MAP, ExportWaffleStatus
 from waffle_hub.dataset import Dataset
-from waffle_hub.hub.eval.evaluate import evaluate_function
-from waffle_hub.hub.model.result_parser import get_parser
-from waffle_hub.schema.configs import (
-    EvaluateConfig,
-    ExportOnnxConfig,
-    InferenceConfig,
-    ModelConfig,
-    TrainConfig,
+from waffle_hub.hub.eval.callbacks import EvaluateStateWriterCallback
+from waffle_hub.hub.eval.evaluator import Evaluator
+from waffle_hub.hub.infer.callbacks import (
+    InferenceDrawCallback,
+    InferenceShowCallback,
+    InferenceStateWriterCallback,
 )
+from waffle_hub.hub.infer.inferencer import Inferencer
+from waffle_hub.hub.manager.base_manager import BaseManager
+from waffle_hub.hub.manager.callbacks import TrainStateWriterCallback
+from waffle_hub.hub.model.wrapper import ModelWrapper
+from waffle_hub.hub.onnx.callbacks import ExportOnnxStateWriterCallback
+from waffle_hub.hub.onnx.exporter import OnnxExporter
+from waffle_hub.schema.configs import ModelConfig, TrainConfig
 from waffle_hub.schema.data import ImageInfo
 from waffle_hub.schema.fields import Category
 from waffle_hub.schema.result import (
@@ -48,102 +45,41 @@ from waffle_hub.schema.result import (
     InferenceResult,
     TrainResult,
 )
-from waffle_hub.schema.running_status import (
-    EvaluatingStatus,
-    ExportingOnnxStatus,
-    ExportingWaffleStatus,
-    InferencingStatus,
-    TrainingStatus,
-)
-from waffle_hub.utils.data import (
-    IMAGE_EXTS,
-    VIDEO_EXTS,
-    get_dataset_class,
-    get_image_transform,
-)
-from waffle_hub.utils.draw import draw_results
-from waffle_hub.utils.memory import device_context
-from waffle_hub.utils.metric_logger import MetricLogger
-from waffle_hub.utils.running_status_logger import (
-    EvaluatingStatusLogger,
-    ExportingOnnxStatusLogger,
-    ExportingWaffleStatusLogger,
-    InferencingStatusLogger,
-    TrainingStatusLogger,
-)
+from waffle_hub.schema.state import ExportWaffleState, TrainState
+from waffle_hub.type import BackendType, TaskType
+from waffle_hub.utils.data import get_image_transform
 
 logger = logging.getLogger(__name__)
 
 
 class Hub:
-    # Hub Spec. must have
-    BACKEND_NAME = None  ##--
-    MODEL_TYPES = None  ##--
-    MULTI_GPU_TRAIN = None  ##--
-    DEFAULT_PARAMS = None  ##--
-
     # directory settings
     DEFAULT_HUB_ROOT_DIR = Path("./hubs")
 
-    ARTIFACT_DIR = Path("artifacts")  ##--
+    # train files ##--
+    TRAIN_CONFIG_FILE = BaseManager.CONFIG_DIR / BaseManager.TRAIN_CONFIG_FILE
+    MODEL_CONFIG_FILE = BaseManager.CONFIG_DIR / BaseManager.MODEL_CONFIG_FILE
 
-    INFERENCE_DIR = Path("inferences")
-    EXPORT_DIR = Path("exports")
-
-    DRAW_DIR = Path("draws")
-
-    TRAIN_LOG_DIR = Path("logs")  ##--
-
-    # config files
-    CONFIG_DIR = Path("configs")  ##--
-    MODEL_CONFIG_FILE = CONFIG_DIR / "model.yaml"  ##--
-    TRAIN_CONFIG_FILE = CONFIG_DIR / "train.yaml"  ##--
-
-    # train results
-    WEIGHTS_DIR = Path("weights")  ##--
-    LAST_CKPT_FILE = WEIGHTS_DIR / "last_ckpt.pt"  ##--
-    BEST_CKPT_FILE = WEIGHTS_DIR / "best_ckpt.pt"  # TODO: best metric? ##--
-    METRIC_FILE = "metrics.json"  ##--
-
-    # evaluate results
-    EVALUATE_FILE = "evaluate.json"
-
-    # inference results
-    INFERENCE_FILE = "inferences.json"
-
-    # export results
-    ONNX_FILE = "weights/model.onnx"
-
-    # running status file
-    RUNNING_STATUS_DIR = Path("running_status")
-    TRAINING_STATUS_FILE = RUNNING_STATUS_DIR / "training_status.json"
-    EVALUATING_STATUS_FILE = RUNNING_STATUS_DIR / "evaluating_status.json"
-    INFERENCING_STATUS_FILE = RUNNING_STATUS_DIR / "inferencing_status.json"
-    EXPORTING_ONNX_STATUS_FILE = RUNNING_STATUS_DIR / "exporting_onnx_status.json"
-    EXPORTING_WAFFLE_STATUS_FILE = RUNNING_STATUS_DIR / "exporting_waffle_status.json"
+    # State files
+    STATE_DIR = Path("states")
+    TRAIN_STATE_FILE = STATE_DIR / "train_state.json"
+    EVALUATE_STATE_FILE = STATE_DIR / "evaluate_state.json"
+    EXPORT_ONNX_STATE_FILE = STATE_DIR / "export_onnx_state.json"
+    EXPORT_WAFFLE_STATE_FILE = STATE_DIR / "export_waffle_state.json"
+    INFERENCE_STATE_FILE = STATE_DIR / "inference_state.json"
 
     def __init__(
         self,
         name: str,
         backend: str = None,
-        version: str = None,
         task: Union[str, TaskType] = None,
         model_type: str = None,
         model_size: str = None,
         categories: list[Union[str, int, float, dict, Category]] = None,
         root_dir: str = None,
+        *args,
+        **kwargs,
     ):
-        if self.BACKEND_NAME is None:
-            raise AttributeError("BACKEND_NAME must be specified.")
-
-        if self.MODEL_TYPES is None:
-            raise AttributeError("MODEL_TYPES must be specified.")
-
-        if self.MULTI_GPU_TRAIN is None:
-            raise AttributeError("MULTI_GPU_TRAIN must be specified.")
-
-        if self.DEFAULT_PARAMS is None:
-            raise AttributeError("DEFAULT_PARAMS must be specified.")
 
         self.root_dir: Path = root_dir
 
@@ -153,18 +89,41 @@ class Hub:
         self.model_size: str = model_size
         self.categories: list[Category] = categories
 
-        self.backend: str = backend
-        self.version: str = version
+        default_train_callbacks = [
+            TrainStateWriterCallback(self.train_state_file, self.evaluate_state_file)
+        ]
 
-        self.save_model_config()
+        train_state = self.get_train_state()
+        self.manager = (
+            self.get_manager_class(backend).load(
+                root_dir=self.hub_dir,
+                train_state=TrainState.from_dict(train_state) if train_state is not None else None,
+                callbacks=default_train_callbacks,
+            )
+            if BaseManager.is_exists(root_dir=self.hub_dir)
+            else self.get_manager_class(backend)(
+                root_dir=self.hub_dir,
+                name=self.name,
+                task=self.task,
+                model_type=self.model_type,
+                model_size=self.model_size,
+                categories=self.categories,
+                callbacks=default_train_callbacks,
+            )
+        )
+        if self.manager.name != self.name:
+            self.manager.set_model_name(self.name)
+
+        self.backend: str = self.manager.backend
+        self.backend_version: str = self.manager.BACKEND_VERSION
 
     def __repr__(self):
         return self.get_model_config().__repr__()
 
     @classmethod
-    def get_hub_class(cls, backend: str = None) -> "Hub":
+    def get_manager_class(cls, backend: str = None) -> "BaseManager":
         """
-        Get hub class
+        Get training manager class
 
         Args:
             backend (str): Backend name
@@ -173,15 +132,15 @@ class Hub:
             ModuleNotFoundError: If backend is not supported
 
         Returns:
-            Hub: Backend hub Class
+            BaseManager: Backend training manager Class
         """
-        if backend not in BACKEND_MAP:
+        if backend not in list(BACKEND_MAP.keys()):
             raise ModuleNotFoundError(f"Backend {backend} is not supported")
 
         backend_info = BACKEND_MAP[backend]
-        module = importlib.import_module(backend_info["import_path"])
-        hub_class = getattr(module, backend_info["class_name"])
-        return hub_class
+        module = importlib.import_module(backend_info["adapter_import_path"])
+        adapter_class = getattr(module, backend_info["adapter_class_name"])
+        return adapter_class
 
     @classmethod
     def get_available_backends(cls) -> list[str]:
@@ -194,7 +153,7 @@ class Hub:
         return list(BACKEND_MAP.keys())
 
     @classmethod
-    def get_available_tasks(cls, backend: str = None) -> list[str]:
+    def get_available_tasks(cls, backend: str) -> list[str]:
         """
         Get available tasks
 
@@ -208,11 +167,11 @@ class Hub:
             list[str]: Available tasks
         """
         backend = backend if backend else cls.BACKEND_NAME
-        hub = cls.get_hub_class(backend)
-        return list(hub.MODEL_TYPES.keys())
+        manager = cls.get_manager_class(backend)
+        return list(manager.MODEL_TYPES.keys())
 
     @classmethod
-    def get_available_model_types(cls, backend: str = None, task: str = None) -> list[str]:
+    def get_available_model_types(cls, backend: str, task: str) -> list[str]:
         """
         Get available model types
 
@@ -226,16 +185,15 @@ class Hub:
         Returns:
             list[str]: Available model types
         """
-        backend = backend if backend else cls.BACKEND_NAME
-        hub = cls.get_hub_class(backend)
-        if task not in hub.MODEL_TYPES:
+
+        manager = cls.get_manager_class(backend)
+        if task not in list(manager.MODEL_TYPES.keys()):
             raise ValueError(f"{task} is not supported with {backend}")
-        return list(hub.MODEL_TYPES[task].keys())
+        task = TaskType.from_str(task).value
+        return list(manager.MODEL_TYPES[task].keys())
 
     @classmethod
-    def get_available_model_sizes(
-        cls, backend: str = None, task: str = None, model_type: str = None
-    ) -> list[str]:
+    def get_available_model_sizes(cls, backend: str, task: str, model_type: str) -> list[str]:
         """
         Get available model sizes
 
@@ -250,18 +208,18 @@ class Hub:
         Returns:
             list[str]: Available model sizes
         """
-        backend = backend if backend else cls.BACKEND_NAME
-        hub = cls.get_hub_class(backend)
-        if task not in hub.MODEL_TYPES:
+        manager = cls.get_manager_class(backend)
+        if task not in list(manager.MODEL_TYPES.keys()):
             raise ValueError(f"{task} is not supported with {backend}")
-        if model_type not in hub.MODEL_TYPES[task]:
+        task = TaskType.from_str(task).value
+        if model_type not in manager.MODEL_TYPES[task]:
             raise ValueError(f"{model_type} is not supported with {backend}")
-        model_sizes = hub.MODEL_TYPES[task][model_type]
+        model_sizes = manager.MODEL_TYPES[task][model_type]
         return model_sizes if isinstance(model_sizes, list) else list(model_sizes.keys())
 
     @classmethod
     def get_default_train_params(
-        cls, backend: str = None, task: str = None, model_type: str = None, model_size: str = None
+        cls, backend: str, task: str, model_type: str, model_size: str
     ) -> dict:
         """
         Get default train params
@@ -278,15 +236,15 @@ class Hub:
         Returns:
             dict: Default train params
         """
-        backend = backend if backend else cls.BACKEND_NAME
-        hub = cls.get_hub_class(backend)
-        if task not in hub.MODEL_TYPES:
+        manager = cls.get_manager_class(backend)
+        if task not in list(manager.MODEL_TYPES.keys()):
             raise ValueError(f"{task} is not supported with {backend}")
-        if model_type not in hub.MODEL_TYPES[task]:
+        task = TaskType.from_str(task).value
+        if model_type not in manager.MODEL_TYPES[task]:
             raise ValueError(f"{model_type} is not supported with {backend}")
-        if model_size not in hub.MODEL_TYPES[task][model_type]:
+        if model_size not in manager.MODEL_TYPES[task][model_type]:
             raise ValueError(f"{model_size} is not supported with {backend}")
-        return hub.DEFAULT_PARAMS[task][model_type][model_size]
+        return manager.DEFAULT_PARAMS[task][model_type][model_size]
 
     @classmethod
     def new(
@@ -305,10 +263,10 @@ class Hub:
 
         Args:
             name (str): Hub name
-            backend (str, optional): Backend name. See Hub.BACKENDS. Defaults to None.
-            task (str, optional): Task Name. See Hub.TASKS. Defaults to None.
-            model_type (str, optional): Model Type. See Hub.MODEL_TYPES. Defaults to None.
-            model_size (str, optional): Model Size. See Hub.MODEL_SIZES. Defaults to None.
+            backend (str, optional): Backend name. See Hub.get_available_backends. Defaults to None.
+            task (str, optional): Task Name. See Hub.get_available_tasks. Defaults to None.
+            model_type (str, optional): Model Type. See Hub.get_available_model_types. Defaults to None.
+            model_size (str, optional): Model Size. See Hub.get_available_model_sizes. Defaults to None.
             categories (Union[list[dict], list], optional): class dictionary or list. [{"supercategory": "name"}, ] or ["name",]. Defaults to None.
             root_dir (str, optional): Root directory of hub repository. Defaults to None.
 
@@ -322,7 +280,7 @@ class Hub:
 
         try:
             backend = backend if backend else cls.get_available_backends()[0]
-            task = str(task).upper() if task else cls.get_available_tasks(backend)[0]
+            task = TaskType.from_str(task).value if task else cls.get_available_tasks(backend)[0]
             model_type = (
                 model_type if model_type else cls.get_available_model_types(backend, task)[0]
             )
@@ -332,8 +290,9 @@ class Hub:
                 else cls.get_available_model_sizes(backend, task, model_type)[0]
             )
 
-            return cls.get_hub_class(backend)(
+            return cls(
                 name=name,
+                backend=backend,
                 task=task,
                 model_type=model_type,
                 model_size=model_size,
@@ -342,7 +301,7 @@ class Hub:
             )
         except Exception as e:
             if (root_dir / name).exists():
-                io.remove_directory(root_dir / name)
+                io.remove_directory(root_dir / name, recursive=True)
             raise e
 
     @classmethod
@@ -360,11 +319,11 @@ class Hub:
             Hub: Hub instance
         """
         root_dir = Hub.parse_root_dir(root_dir)
-        model_config_file = root_dir / name / Hub.MODEL_CONFIG_FILE
+        model_config_file = root_dir / name / BaseManager.CONFIG_DIR / BaseManager.MODEL_CONFIG_FILE
         if not model_config_file.exists():
             raise FileNotFoundError(f"Model[{name}] does not exists. {model_config_file}")
         model_config = ModelConfig.load(model_config_file)
-        return cls.get_hub_class(model_config.backend)(
+        return cls(
             **{
                 **model_config.to_dict(),
                 "root_dir": root_dir,
@@ -398,7 +357,7 @@ class Hub:
             )
         except Exception as e:
             if (root_dir / name).exists():
-                io.remove_directory(root_dir / name)
+                io.remove_directory(root_dir / name, recursive=True)
             raise e
 
     @classmethod
@@ -420,7 +379,7 @@ class Hub:
         hub_name_list = []
         for hub_dir in root_dir.iterdir():
             if hub_dir.is_dir():
-                model_config_file = hub_dir / Hub.MODEL_CONFIG_FILE
+                model_config_file = hub_dir / BaseManager.CONFIG_DIR / BaseManager.MODEL_CONFIG_FILE
                 if model_config_file.exists():
                     hub_name_list.append(hub_dir.name)
         return hub_name_list
@@ -452,22 +411,25 @@ class Hub:
 
         try:
             io.unzip(waffle_file, root_dir / name, create_directory=True)
-            model_config_file = root_dir / name / Hub.MODEL_CONFIG_FILE
+            model_config_file = (
+                root_dir / name / BaseManager.CONFIG_DIR / BaseManager.MODEL_CONFIG_FILE
+            )
             if not model_config_file.exists():
-                raise FileNotFoundError(f"Model[{name}] does not exists. {model_config_file}")
-            model_config = ModelConfig.load(model_config_file)
-            model_config.name = name
-            model_config.save_yaml(model_config_file)
-            return cls.get_hub_class(model_config.backend)(
+                raise FileNotFoundError(
+                    f"{model_config_file} does not exists. Please check waffle file."
+                )
+            model_config = io.load_yaml(model_config_file)
+            return cls(
                 **{
-                    **model_config.to_dict(),
+                    **model_config,
+                    "name": name,
                     "root_dir": root_dir,
                 }
             )
 
         except Exception as e:
             if (root_dir / name).exists():
-                io.remove_directory(root_dir / name)
+                io.remove_directory(root_dir / name, recursive=True)
             raise e
 
     # properties
@@ -477,7 +439,7 @@ class Hub:
         return self.__name
 
     @name.setter
-    @type_validator(str)
+    @setter_type_validator(str)
     def name(self, v):
         self.__name = v
 
@@ -487,7 +449,7 @@ class Hub:
         return self.__root_dir
 
     @root_dir.setter
-    @type_validator(Path, strict=False)
+    @setter_type_validator(Path, strict=False)
     def root_dir(self, v):
         self.__root_dir = Hub.parse_root_dir(v)
         logger.info(f"Hub root directory: {self.root_dir}")
@@ -507,157 +469,133 @@ class Hub:
         return self.__backend
 
     @backend.setter
-    @type_validator(str, strict=False)
+    @setter_type_validator(str, strict=False)
     def backend(self, v):
-        v = str(v).upper()
-        if v not in BACKEND_MAP:
+        if v not in list(BACKEND_MAP.keys()):
             raise ValueError(
                 f"Backend {v} is not supported. Choose one of {list(BACKEND_MAP.keys())}"
             )
-        self.__backend = v
+        self.__backend = str(v.value) if isinstance(v, BackendType) else str(v)
 
-    @cached_property
+    # path properties
+    @property
     def hub_dir(self) -> Path:
         """Hub(Model) Directory"""
         return self.root_dir / self.name
 
-    @cached_property  ##--
-    def model_config_file(self) -> Path:  ## model
-        """Model Config yaml File"""
-        return self.hub_dir / Hub.MODEL_CONFIG_FILE
+    @property
+    def state_dir(self) -> Path:
+        """State Directory"""
+        return self.hub_dir / self.STATE_DIR
 
-    @cached_property  ##--
-    def artifact_dir(self) -> Path:
-        """Artifact Directory. This is raw output of each backend."""
-        return self.hub_dir / Hub.ARTIFACT_DIR
-
-    @cached_property
-    def config_dir(self) -> Path:
-        """Config Directory"""
-        return self.hub_dir / Hub.CONFIG_DIR
-
-    @cached_property
-    def weights_dir(self) -> Path:
-        """Weights Directory"""
-        return self.hub_dir / Hub.WEIGHTS_DIR
-
-    @cached_property
-    def running_status_dir(self) -> Path:
-        """Running status Directory"""
-        return self.hub_dir / Hub.RUNNING_STATUS_DIR
-
-    @cached_property
-    def inference_dir(self) -> Path:
-        """Inference Results Directory"""
-        return self.hub_dir / Hub.INFERENCE_DIR
-
-    @cached_property
-    def inference_file(self) -> Path:
-        """Inference Results File"""
-        return self.inference_dir / Hub.INFERENCE_FILE
-
-    @cached_property
-    def draw_dir(self) -> Path:
-        """Draw Results Directory"""
-        return self.inference_dir / Hub.DRAW_DIR
-
-    @cached_property  ##--
-    def train_log_dir(self) -> Path:
-        """Train Logs Directory"""
-        return self.hub_dir / Hub.TRAIN_LOG_DIR
-
-    @cached_property  ##--
-    def train_config_file(self) -> Path:
-        """Train Config yaml File"""
-        return self.hub_dir / Hub.TRAIN_CONFIG_FILE
-
-    @cached_property  ##--
-    def best_ckpt_file(self) -> Path:
-        """Best Checkpoint File"""
-        return self.hub_dir / Hub.BEST_CKPT_FILE
-
-    @cached_property
-    def onnx_file(self) -> Path:
-        """Best Checkpoint File"""
-        return self.hub_dir / Hub.ONNX_FILE
-
-    @cached_property  ##--
-    def last_ckpt_file(self) -> Path:
-        """Last Checkpoint File"""
-        return self.hub_dir / Hub.LAST_CKPT_FILE
-
-    @cached_property  ##--
-    def metric_file(self) -> Path:
-        """Metric Csv File"""
-        return self.hub_dir / Hub.METRIC_FILE
-
-    @cached_property
-    def evaluate_file(self) -> Path:
-        """Evaluate Json File"""
-        return self.hub_dir / Hub.EVALUATE_FILE
-
-    @cached_property
+    @property
     def waffle_file(self) -> Path:
         """Export Waffle file"""
         return self.hub_dir / f"{self.name}.waffle"
 
-    @cached_property
-    def training_status_file(self) -> Path:
-        """Training status Json File"""
-        return self.hub_dir / Hub.TRAINING_STATUS_FILE
+    # state
+    @property
+    def train_state_file(self) -> Path:
+        """Train State Json File"""
+        return self.hub_dir / self.TRAIN_STATE_FILE
 
-    @cached_property
-    def evaluating_status_file(self) -> Path:
-        """Evaluating status Json File"""
-        return self.hub_dir / Hub.EVALUATING_STATUS_FILE
+    @property
+    def evaluate_state_file(self) -> Path:
+        """Evaluate State Json File"""
+        return self.hub_dir / self.EVALUATE_STATE_FILE
 
-    @cached_property
-    def inferencing_status_file(self) -> Path:
-        """Inferencing status Json File"""
-        return self.hub_dir / Hub.INFERENCING_STATUS_FILE
+    @property
+    def export_onnx_state_file(self) -> Path:
+        """Export ONNX State Json File"""
+        return self.hub_dir / self.EXPORT_ONNX_STATE_FILE
 
-    @cached_property
-    def exporting_onnx_status_file(self) -> Path:
-        """Exporting onnx status Json File"""
-        return self.hub_dir / Hub.EXPORTING_ONNX_STATUS_FILE
+    @property
+    def export_waffle_state_file(self) -> Path:
+        """Export Waffle State Json File"""
+        return self.hub_dir / self.EXPORT_WAFFLE_STATE_FILE
 
-    @cached_property
-    def exporting_waffle_status_file(self) -> Path:
-        """Exporting waffle status Json File"""
-        return self.hub_dir / Hub.EXPORTING_WAFFLE_STATUS_FILE
+    @property
+    def inference_state_file(self) -> Path:
+        """Inference State Json File"""
+        return self.hub_dir / self.INFERENCE_STATE_FILE
 
-    # common functions
-    def delete_hub(self):
-        """Delete all artifacts of Hub. Hub name can be used again."""
-        io.remove_directory(self.hub_dir)
-        del self
-        return None
+    ## model
+    @property
+    def config_dir(self) -> Path:
+        """Config Directory (model config, train config)"""
+        return self.manager.config_dir
 
-    def delete_artifact(self):
-        """Delete Artifact Directory. It can be trained again."""
-        io.remove_directory(self.artifact_dir)
+    @property
+    def model_config_file(self) -> Path:
+        """Model Config yaml File"""
+        return self.manager.model_config_file
 
-    def check_train_sanity(self) -> bool:
-        """Check if all essential files are exist.
+    ## trainer
+    @property
+    def weights_dir(self) -> Path:
+        return self.manager.weights_dir
+
+    @property
+    def artifacts_dir(self) -> Path:
+        """Artifact Directory. This is raw output of each backend."""
+        return self.manager.artifacts_dir
+
+    @property
+    def train_config_file(self) -> Path:
+        """Train Config yaml File"""
+        return self.manager.train_config_file
+
+    @property
+    def best_ckpt_file(self) -> Path:
+        """Best Checkpoint File"""
+        return self.manager.best_ckpt_file
+
+    @property
+    def last_ckpt_file(self) -> Path:
+        """Last Checkpoint File"""
+        return self.manager.last_ckpt_file
+
+    @property
+    def metrics_file(self) -> Path:
+        """Metrics File"""
+        return self.manager.metric_file
+
+    ## evaluator
+    @property
+    def evaluate_file(self) -> Path:
+        """Evaluate Json File"""
+        return self.hub_dir / Evaluator.EVALUATE_FILE
+
+    ## inferencer
+    @property
+    def inference_dir(self) -> Path:
+        """Inference Results Directory"""
+        return self.hub_dir / Inferencer.INFERENCE_DIR
+
+    @property
+    def inference_file(self) -> Path:
+        """Inference Results File"""
+        return self.hub_dir / Inferencer.INFERENCE_FILE
+
+    @property
+    def draw_dir(self) -> Path:
+        """Draw Results Directory"""
+        return self.hub_dir / Inferencer.DRAW_DIR
+
+    ## exporter
+    @property
+    def onnx_file(self) -> Path:
+        """Best Checkpoint ONNX File"""
+        return self.hub_dir / OnnxExporter.ONNX_FILE
+
+    # getters
+    def get_model_config(self) -> ModelConfig:
+        """Get model config from model config file.
 
         Returns:
-            bool: True if all files are exist else False
+            ModelConfig: model config
         """
-        # TODO : waffle version check. this is quick fix.
-        status = self.get_training_status()
-        if status is None:
-            warnings.warn(
-                "This model is trained with waffle-hub < 0.2.15. Warning to unexpected behavior."
-            )
-            if not (self.model_config_file.exists() and self.best_ckpt_file.exists()):
-                raise ValueError("Train first! hub.train(...).")
-        else:
-            if (
-                not self.get_training_status().status_desc
-                in [TrainStatusDesc.SUCCESS, TrainStatusDesc.STOPPED]
-            ) or (not (self.last_ckpt_file.exists() and self.best_ckpt_file.exists())):
-                raise ValueError("Train first! hub.train(...).")
-        return True
+        return self.manager.get_model_config(root_dir=self.hub_dir)
 
     def get_train_config(self) -> TrainConfig:
         """Get train config from train config file.
@@ -665,55 +603,77 @@ class Hub:
         Returns:
             TrainConfig: train config
         """
-        if not self.train_config_file.exists():
-            warnings.warn("Train config file is not exist. Train first!")
-            return None
-        return TrainConfig.load(self.train_config_file)
 
-    def get_model_config(self) -> ModelConfig:
-        """Get model config from model config file.
+        return self.manager.get_train_config(root_dir=self.hub_dir)
 
-        Returns:
-            ModelConfig: model config
-        """
-        return ModelConfig.load(self.model_config_file)
+    def get_categories(self) -> list[Category]:
+        return self.manager.categories
 
-    def save_model_config(self):
-        """Save ModelConfig."""
-        ModelConfig(
-            name=self.name,
-            backend=self.backend,
-            version=self.version,
-            task=self.task,
-            model_type=self.model_type,
-            model_size=self.model_size,
-            categories=list(map(lambda x: x.to_dict(), self.categories)),
-        ).save_yaml(self.model_config_file)
+    def get_category_names(self) -> list[str]:
+        return [category.name for category in self.manager.categories]
 
     def get_default_advance_train_params(
         self, task: str = None, model_type: str = None, model_size: str = None
     ) -> dict:
-        """
-        Get default train advance params
+        return self.manager.get_default_advance_train_params(task, model_type, model_size)
 
-        Args:
-            task (str): Task name
-            model_type (str): Model type
-            model_size (str): Model size
-
-        Raises:
-            ModuleNotFoundError: If backend is not supported
+    # get state
+    def get_train_state(self) -> dict:
+        """Get train state from train state file.
 
         Returns:
-            dict: Default train advance params
+            dict: train state
         """
-        raise NotImplementedError(f"{self.backend} does not support advance_params argument.")
+        if self.train_state_file.exists():
+            return io.load_json(self.train_state_file)
+        else:
+            # TODO: Warning
+            return None
 
-    def get_categories(self) -> list[Category]:
-        return self.categories
+    def get_evaluate_state(self) -> dict:
+        """Get evaluate state from evaluate state file.
 
-    def get_category_names(self) -> list[str]:
-        return [category.name for category in self.categories]
+        Returns:
+            dict: evaluate state
+        """
+        if self.evaluate_state_file.exists():
+            return io.load_json(self.evaluate_state_file)
+        else:
+            # TODO: Warning
+            return None
+
+    def get_export_onnx_state(self) -> dict:
+        """Get export onnx state from export onnx state file.
+
+        Returns:
+            dict: export onnx state
+        """
+        if self.export_onnx_state_file.exists():
+            return io.load_json(self.export_onnx_state_file)
+        else:
+            return None
+
+    def get_export_waffle_state(self) -> dict:
+        """Get export waffle state from export waffle state file.
+
+        Returns:
+            dict: export waffle state
+        """
+        if self.export_waffle_state_file.exists():
+            return io.load_json(self.export_waffle_state_file)
+        else:
+            return None
+
+    def get_inference_state(self) -> dict:
+        """Get inference state from inference state file.
+
+        Returns:
+            dict: inference state
+        """
+        if self.inference_state_file.exists():
+            return io.load_json(self.inference_state_file)
+        else:
+            return None
 
     # get results
     def get_metrics(self) -> list[list[dict]]:
@@ -737,11 +697,14 @@ class Hub:
         Returns:
             list[dict]: metrics per epoch
         """
-        if not self.metric_file.exists():
-            warnings.warn("Metric file is not exist. Train first!")
-            return []
+        return self.manager.get_metrics()
+        # if not self.metric_file.exists(): ##--
+        #     raise FileNotFoundError("Metric file is not exist. Train first!")
 
-        return io.load_json(self.metric_file)
+        # if not self.evaluate_file.exists():
+        #     raise FileNotFoundError("Evaluate file is not exist. Train first!")
+
+        # return io.load_json(self.metric_file)
 
     def get_evaluate_result(self) -> list[dict]:
         """Get evaluate result from evaluate file.
@@ -756,172 +719,53 @@ class Hub:
             ]
 
         Returns:
-            dict: evaluate result
+            list[dict]: evaluate result
         """
-        if not self.evaluate_file.exists():
-            warnings.warn("Evaluate file is not exist. Evaluate first!")
-            return []
-        return io.load_json(self.evaluate_file)
+        return Evaluator.get_evaluate_result(root_dir=self.hub_dir)
 
-    def get_inference_result(self) -> list[dict[str, list]]:
+    def get_inference_result(self) -> list[dict]:
         """Get inference result from inference file.
 
         Example:
             >>> hub.get_inference_result()
             [
                 {
-                    "file_name": [
-                        "category_id": 1,
-                        "bbox": [0.1, 0.2, 0.3, 0.4],
-                        "score": 0.9,
-                        "area": xxx,
-                        "iscrowd": 0,
-                        ]
+                    "id": "00000001",
+                    "category": "person",
+                    "bbox": [0.1, 0.2, 0.3, 0.4],
+                    "score": 0.9,
                 },
-                ...
             ]
 
         Returns:
-            list[dict[str, list]]: inference result
+            list[dict]: inference result
         """
-        if not self.inference_file.exists():
-            return []
-        return io.load_json(self.inference_file)
+        return Inferencer.get_inference_result(root_dir=self.hub_dir)
 
-    def get_training_status(self) -> TrainingStatus:
-        """Get training Status from training Status file.
+    # common functions
+    def delete_hub(self):
+        """Delete Hub. Hub name can be used again."""
+        self.manager.delete_manager()
+        del self
+        return None
 
-        Example:
-            >>> hub.get_training_Status()
-            {
-                "status_desc": Literal["INIT", "RUNNING", "SUCCESS", "FAILED", "STOPPED"],
-                "error_type": String,
-                "error_msg": String,
-                "step": Integer,
-                "total_Step": Integer,
-            }
+    def delete_artifacts(self):
+        """Delete Artifacts Directory. It can be trained again."""
+        self.manager.delete_artifacts()
+        if self.train_state_file.exists():
+            io.remove_file(self.train_state_file)
 
-        Raises:
-            FileNotFoundError: if training Status file is not exist
+    def check_train_sanity(self) -> bool:
+        """Check if all essential files are exist.
 
         Returns:
-            TrainingStatus: training Status
+            bool: True if all files are exist else False
         """
-        if not self.training_status_file.exists():
-            warnings.warn(
-                "Training status file is not exist. Train first! or Check waffle-hub > 0.2.15."
-            )
-            return None
+        return self.manager.check_train_sanity()
 
-        return TrainingStatus.load(self.training_status_file)
-
-    def get_evaluating_status(self) -> EvaluatingStatus:
-        """Get evaluating status from evaluating status file.
-
-        Example:
-            >>> hub.get_evaluating_status()
-            {
-                "status_desc": Literal["INIT", "RUNNING", "SUCCESS", "FAILED", "STOPPED"],
-                "error_type": String,
-                "error_msg": String,
-                "step": Integer,
-                "total_Step": Integer,
-            }
-
-        Raises:
-            FileNotFoundError: if evaluating status file is not exist
-
-        Returns:
-            EvaluatingStatus: evaluating status
-        """
-        if not self.evaluating_status_file.exists():
-            warnings.warn(
-                "Evaluating status file is not exist. Evaluate first! or Check waffle-hub > 0.2.15."
-            )
-            return None
-
-        return EvaluatingStatus.load(self.evaluating_status_file)
-
-    def get_inferencing_status(self) -> InferencingStatus:
-        """Get inferencing status from inferencing status file.
-
-        Example:
-            >>> hub.get_inferencing_status()
-            {
-                "status_desc": Literal["INIT", "RUNNING", "SUCCESS", "FAILED", "STOPPED"],
-                "error_type": String,
-                "error_msg": String,
-                "step": Integer,
-                "total_Step": Integer,
-            }
-
-        Raises:
-            FileNotFoundError: if inferencing status file is not exist
-
-        Returns:
-            InferencingStatus: inferencing status
-        """
-        if not self.inferencing_status_file.exists():
-            warnings.warn(
-                "Inferencing status file is not exist. Inference first! or Check waffle-hub > 0.2.15."
-            )
-            return None
-
-        return InferencingStatus.load(self.inferencing_status_file)
-
-    def get_exporting_onnx_status(self) -> ExportingOnnxStatus:
-        """Get exporting status from exporting status file.
-
-        Example:
-            >>> hub.get_exporting_onnx_status()
-            {
-                "status": Literal["INIT", "RUNNING", "SUCCESS", "FAILED", "STOPPED"],
-                "error_type": String,
-                "error_msg": String,
-                "step": Integer,
-                "total_Step": Integer,
-            }
-
-        Raises:
-            FileNotFoundError: if exporting status file is not exist
-
-        Returns:
-            ExportingStatus: exporting status
-        """
-        if not self.exporting_onnx_status_file.exists():
-            warnings.warn(
-                "Exporting status file is not exist. Export_onnx first! or Check waffle-hub > 0.2.15."
-            )
-            return None
-
-        return ExportingOnnxStatus.load(self.exporting_onnx_status_file)
-
-    def get_exporting_waffle_status(self) -> ExportingWaffleStatus:
-        """Get exporting status from exporting status file.
-
-        Example:
-            >>> hub.get_exporting_waffle_status()
-            {
-                "status": Literal["INIT", "RUNNING", "SUCCESS", "FAILED", "STOPPED"],
-                "error_type": String,
-                "error_msg": String,
-                "step": Integer,
-                "total_Step": Integer,
-            }
-
-        Raises:
-            FileNotFoundError: if exporting status file is not exist
-
-        Returns:
-            ExportingStatus: exporting status
-        """
-        if not self.exporting_waffle_status_file.exists():
-            warnings.warn(
-                "Exporting status file is not exist. Export_waffle first! or Check waffle-hub > 0.2.15."
-            )
-            return None
-
-        return ExportingWaffleStatus.load(self.exporting_waffle_status_file)
+    def save_model_config(self):
+        """Save ModelConfig."""
+        self.manager.save_model_config(self.model_config_file)
 
     # Hub Utils
     def get_image_loader(self) -> tuple[torch.Tensor, ImageInfo]:
@@ -953,77 +797,12 @@ class Hub:
 
         return inner
 
-    # TODO: register hook
-    # Train Hook
-    def before_train(self, cfg: TrainConfig):
-        # check device
-        device = cfg.device
-        if device == "cpu":
-            logger.info("CPU training")
-        elif device.isdigit():
-            if not torch.cuda.is_available():
-                raise ValueError("CUDA is not available.")
-            # if (
-            #     int(device) >= torch.cuda.device_count()  # TODO: torch.cuda.device_count() occurs unexpected errors
-            # ):
-            #     raise IndexError(
-            #         f"GPU[{device}] index is out of range. device id should be smaller than {torch.cuda.device_count()}\n"
-            #     )
-            logger.info(f"Single GPU training: {device}")
-        elif "," in device:
-            if not torch.cuda.is_available():
-                raise ValueError("CUDA is not available.")
-            if not self.MULTI_GPU_TRAIN:
-                raise ValueError(f"{self.backend} does not support MULTI_GPU_TRAIN.")
-            # if len(device.split(",")) > torch.cuda.device_count():  # TODO: torch.cuda.device_count() occurs unexpected errors
-            #     raise ValueError(
-            #         f"GPU number is not enough. {device}\n"
-            #         + f"Given device: {device}\n"
-            #         + f"Available device count: {torch.cuda.device_count()}"
-            #     )
-            # if not all([int(x) < torch.cuda.device_count() for x in device.split(",")]):
-            #     raise IndexError(
-            #         f"GPU index is out of range. device id should be smaller than {torch.cuda.device_count()}\n"
-            #     )
-            logger.info(f"Multi GPU training: {device}")
-        else:
-            raise ValueError(f"Invalid device: {device}\n" + "Please use 'cpu', '0', '0,1,2,3'")
+    def get_model(self) -> ModelWrapper:
+        return self.manager.get_model()
 
-        # check if it is already trained
-        rank = os.getenv("RANK", -1)
-        if self.artifact_dir.exists() and rank in [
-            -1,
-            0,
-        ]:  # TODO: need to ensure that training is not already running
-            raise FileExistsError(
-                f"{self.artifact_dir}\n"
-                "Train artifacts already exist. Remove artifact to re-train (hub.delete_artifact())."
-            )
-
-    def on_train_start(self, cfg: TrainConfig):
-        pass
-
-    def save_train_config(self, cfg: TrainConfig):
-        cfg.save_yaml(self.train_config_file)
-
-    def training(self, cfg: TrainConfig, status_logger: TrainingStatusLogger):
-        pass
-
-    def on_train_end(
-        self,
-        cfg: TrainConfig,
-    ):
-        pass
-
-    def after_train(self, cfg: TrainConfig, result: TrainResult):
-        result.best_ckpt_file = self.best_ckpt_file
-        result.last_ckpt_file = self.last_ckpt_file
-        result.metrics = self.get_metrics()
-
-    @device_context
     def train(
         self,
-        dataset: Union[Dataset, str],
+        dataset: Union[Dataset, str, Path],
         dataset_root_dir: str = None,
         epochs: int = None,
         batch_size: int = None,
@@ -1083,231 +862,27 @@ class Hub:
         Returns:
             TrainResult: train result
         """
-        # status
-        status_logger = TrainingStatusLogger(save_path=self.training_status_file)
-        metric_logger = MetricLogger(
-            name=self.name,
-            log_dir=self.train_log_dir,
-            func=self.get_metrics,
-            interval=10,
-            prefix="waffle",
-            status_logger=status_logger,
-        )
-        try:
-            # parse dataset
-            if isinstance(dataset, (str, Path)):
-                if Path(dataset).exists():
-                    dataset = Path(dataset)
-                    dataset = Dataset.load(
-                        name=dataset.parts[-1], root_dir=dataset.parents[0].absolute()
-                    )
-                elif dataset in Dataset.get_dataset_list(dataset_root_dir):
-                    dataset = Dataset.load(name=dataset, root_dir=dataset_root_dir)
-                else:
-                    raise FileNotFoundError(f"Dataset {dataset} is not exist.")
 
-            ## check task match
-            if dataset.task.upper() != self.task.upper():
-                raise ValueError(
-                    f"Dataset task is not matched with hub task. Dataset task: {dataset.task}, Hub task: {self.task}"
-                )
-
-            ## check category match
-            if not self.categories:
-                self.categories = dataset.get_categories()
-                self.save_model_config()
-            elif set(dataset.get_category_names()) != set(self.get_category_names()):
-                raise ValueError(
-                    "Dataset categories are not matched with hub categories. \n"
-                    + f"Dataset categories: {dataset.get_category_names()}, Hub categories: {self.get_category_names()}"
-                )
-
-            ## convert dataset to backend format if not exist
-            export_dir = dataset.export_dir / EXPORT_MAP[self.backend.upper()]
-            if not export_dir.exists():
-                logger.info(f"[Dataset] Exporting dataset to {self.backend} format...")
-                export_dir = dataset.export(self.backend)
-                logger.info("[Dataset] Exporting done.")
-
-            # parse train config
-            cfg = TrainConfig(
-                dataset_path=export_dir,
-                epochs=epochs,
-                batch_size=batch_size,
-                image_size=image_size,
-                learning_rate=learning_rate,
-                letter_box=letter_box,
-                pretrained_model=pretrained_model,
-                device=device,
-                workers=workers,
-                seed=seed,
-                advance_params=advance_params if advance_params else {},
-                verbose=verbose,
-            )
-
-            ## overwrite train config with default config
-            for k, v in cfg.to_dict().items():
-                if v is None:
-                    field_value = getattr(
-                        self.DEFAULT_PARAMS[self.task][self.model_type][self.model_size], k
-                    )
-                    setattr(cfg, k, field_value)
-            cfg.image_size = (
-                cfg.image_size
-                if isinstance(cfg.image_size, list)
-                else [cfg.image_size, cfg.image_size]
-            )
-
-            ## overwrite train advance config
-            if cfg.advance_params:
-                if isinstance(cfg.advance_params, (str, PurePath)):
-                    # check if it is yaml or json
-                    if Path(cfg.advance_params).exists():
-                        if Path(cfg.advance_params).suffix in [".yaml", ".yml"]:
-                            cfg.advance_params = io.load_yaml(cfg.advance_params)
-                        elif Path(cfg.advance_params).suffix in [".json"]:
-                            cfg.advance_params = io.load_json(cfg.advance_params)
-                        else:
-                            raise ValueError(
-                                f"Advance parameter file should be yaml or json. {cfg.advance_params}"
-                            )
-                    else:
-                        raise FileNotFoundError(f"Advance parameter file is not exist.")
-                elif not isinstance(cfg.advance_params, dict):
-                    raise ValueError(
-                        f"Advance parameter should be dictionary or file path. {cfg.advance_params}"
-                    )
-
-                default_advance_param = self.get_default_advance_train_params()
-                for key in cfg.advance_params.keys():
-                    if key not in default_advance_param:
-                        raise ValueError(
-                            f"Advance parameter {key} is not supported.\n"
-                            + f"Supported parameters: {list(default_advance_param.keys())}"
-                        )
-
-            result = TrainResult()
-            status_logger.set_total_step(cfg.epochs)
-
-            # train run
-            status_logger.set_running()
-            metric_logger.start()
-            self.before_train(cfg)
-            self.on_train_start(cfg)
-            self.save_train_config(cfg)
-            self.training(cfg, status_logger)
-            self.on_train_end(cfg)
-            self.after_train(cfg, result)
-            status_logger.set_success()
-            metric_logger.stop()
-        except FileExistsError as e:
-            status_logger.set_failed(e)
-            metric_logger.stop()
-            raise e
-        except (KeyboardInterrupt, SystemExit) as e:
-            status_logger.set_stopped(e)
-            metric_logger.stop()
-            if self.artifact_dir.exists():
-                self.on_train_end(cfg)
-            raise e
-        except Exception as e:
-            status_logger.set_failed(e)
-            metric_logger.stop()
-            if self.artifact_dir.exists():
-                io.remove_directory(self.artifact_dir)
-            raise e
-
-        try:
-            self.evaluate(
-                dataset=dataset,
-                batch_size=cfg.batch_size,
-                image_size=cfg.image_size,
-                letter_box=cfg.letter_box,
-                device=cfg.device,
-                workers=cfg.workers,
-            )
-            result.eval_metrics = self.get_evaluate_result()
-        except Exception as e:
-            logger.error("Evaluation failed. Resolve issue and evaluate again.")
-            result.eval_metrics = []
-            raise e
-
-        return result
-
-    # Evaluation Hook
-    def get_model(self):
-        raise NotImplementedError
-
-    def before_evaluate(self, cfg: EvaluateConfig, dataset: Dataset):
-        if len(dataset.get_split_ids()[2]) == 0:
-            cfg.set_name = "val"
-            logger.warning("test set is not exist. use val set instead.")
-
-    def on_evaluate_start(self, cfg: EvaluateConfig):
-        pass
-
-    def evaluating(
-        self, cfg: EvaluateConfig, status_logger: EvaluatingStatusLogger, dataset: Dataset
-    ):
-        device = cfg.device
-
-        model = self.get_model().to(device)
-
-        dataset = Dataset.load(cfg.dataset_name, cfg.dataset_root_dir)
-        dataloader = get_dataset_class("dataset")(
-            dataset,
-            cfg.image_size,
-            letter_box=cfg.letter_box,
-            set_name=cfg.set_name,
-        ).get_dataloader(cfg.batch_size, cfg.workers)
-
-        result_parser = get_parser(self.task)(**cfg.to_dict(), categories=self.categories)
-
-        status_logger.set_total_step(len(dataloader) + 1)
-
-        preds = []
-        labels = []
-        for i, (images, image_infos, annotations) in tqdm.tqdm(
-            enumerate(dataloader, start=1), total=len(dataloader)
-        ):
-            result_batch = model(images.to(device))
-            result_batch = result_parser(result_batch, image_infos)
-
-            preds.extend(result_batch)
-            labels.extend(annotations)
-
-            status_logger.set_current_step(i)
-
-        metrics = evaluate_function(
-            preds, labels, self.task, len(self.categories), image_size=cfg.image_size
+        return self.manager.train(
+            dataset=dataset,
+            dataset_root_dir=dataset_root_dir,
+            epochs=epochs,
+            batch_size=batch_size,
+            image_size=image_size,
+            learning_rate=learning_rate,
+            letter_box=letter_box,
+            pretrained_model=pretrained_model,
+            device=device,
+            workers=workers,
+            seed=seed,
+            advance_params=advance_params,
+            verbose=verbose,
         )
 
-        result_metrics = []
-        for tag, value in metrics.to_dict().items():
-            if isinstance(value, list):
-                values = [
-                    {
-                        "class_name": cat,
-                        "value": cat_value,
-                    }
-                    for cat, cat_value in zip(self.get_category_names(), value)
-                ]
-            else:
-                values = value
-            result_metrics.append({"tag": tag, "value": values})
-
-        io.save_json(result_metrics, self.evaluate_file)
-
-    def on_evaluate_end(self, cfg: EvaluateConfig):
-        pass
-
-    def after_evaluate(self, cfg: EvaluateConfig, result: EvaluateResult):
-        result.eval_metrics = self.get_evaluate_result()
-
-    @device_context
+    # Evaluation
     def evaluate(
         self,
-        dataset: Union[Dataset, str],
+        dataset: Union[Dataset, str, Path],
         dataset_root_dir: str = None,
         set_name: str = "test",
         batch_size: int = 4,
@@ -1325,19 +900,17 @@ class Hub:
         Args:
             dataset (Union[Dataset, str]): Waffle Dataset object or path or name.
             dataset_root_dir (str, optional): Waffle Dataset root directory. Defaults to None.
+            set_name (str, optional): Waffle Dataset evalutation set name. Defaults to "test".
             batch_size (int, optional): batch size. Defaults to 4.
-            image_size (Union[int, list[int]], optional): image size. Defaults to None.
-            letter_box (bool, optional): letter box. Defaults to None.
-            confidence_threshold (float, optional): confidence threshold. Defaults to 0.25.
-            iou_threshold (float, optional): iou threshold. Defaults to 0.5.
+            image_size (Union[int, list[int]], optional): image size. If None, use train config or defaults to 224.
+            letter_box (bool, optional): letter box. If None, use train config or defaults to True.
+            confidence_threshold (float, optional): confidence threshold. Not required in classification. Defaults to 0.25.
+            iou_threshold (float, optional): iou threshold. Not required in classification. Defaults to 0.5.
             half (bool, optional): half. Defaults to False.
             workers (int, optional): workers. Defaults to 2.
             device (str, optional): device. Defaults to "0".
             draw (bool, optional): draw. Defaults to False.
-
-        Raises:
-            FileNotFoundError: if can not detect appropriate dataset.
-            e: something gone wrong with ultralytics
+            hold (bool, optional): hold. Defaults to True.
 
         Examples:
             >>> evaluate_result = hub.evaluate(
@@ -1353,8 +926,8 @@ class Hub:
             # or you can use train option by passing None
             >>> evaluate_result = hub.evaluate(
                     ...
-                    image_size=None,  # use train option
-                    letterbox=None,  # use train option
+                    image_size=None,  # use train option or default to 224
+                    letterbox=None,  # use train option or default to True
                     ...
                 )
             >>> evaluate_result.metrics
@@ -1363,168 +936,35 @@ class Hub:
         Returns:
             EvaluateResult: evaluate result
         """
-        # status
-        status_logger = EvaluatingStatusLogger(save_path=self.evaluating_status_file)
-
-        try:
-            if "," in device:
-                warnings.warn("multi-gpu is not supported in evaluation. use first gpu only.")
-                device = device.split(",")[0]
-
-            if isinstance(dataset, (str, Path)):
-                if Path(dataset).exists():
-                    dataset = Path(dataset)
-                    dataset = Dataset.load(
-                        name=dataset.parts[-1], root_dir=dataset.parents[0].absolute()
-                    )
-                elif dataset in Dataset.get_dataset_list(dataset_root_dir):
-                    dataset = Dataset.load(name=dataset, root_dir=dataset_root_dir)
-                else:
-                    raise FileNotFoundError(f"Dataset {dataset} is not exist.")
-
-            # overwrite training config
-            train_config = self.get_train_config()
-            if image_size is None:
-                image_size = train_config.image_size
-            if letter_box is None:
-                letter_box = train_config.letter_box
-
-            cfg = EvaluateConfig(
-                dataset_name=dataset.name,
-                set_name=set_name,
-                batch_size=batch_size,
-                image_size=image_size if isinstance(image_size, list) else [image_size, image_size],
-                letter_box=letter_box,
-                confidence_threshold=confidence_threshold,
-                iou_threshold=iou_threshold,
-                half=half,
-                workers=workers,
-                device="cpu" if device == "cpu" else f"cuda:{device}",
-                draw=draw,
-                dataset_root_dir=dataset.root_dir,
-            )
-
-            result = EvaluateResult()
-
-            # evaluate run
-            status_logger.set_running()
-            self.before_evaluate(cfg, dataset)
-            self.on_evaluate_start(cfg)
-            self.evaluating(cfg, status_logger, dataset)
-            self.on_evaluate_end(cfg)
-            self.after_evaluate(cfg, result)
-            status_logger.set_success()
-        except (KeyboardInterrupt, SystemExit) as e:
-            status_logger.set_stopped(e)
-            raise e
-        except Exception as e:
-            status_logger.set_failed(e)
-            if self.evaluate_file.exists():
-                io.remove_file(self.evaluate_file)
-            raise e
-
-        return result
-
-    # inference hooks
-    def before_inference(self, cfg: InferenceConfig):
-        pass
-
-    def on_inference_start(self, cfg: InferenceConfig):
-        pass
-
-    def inferencing(self, cfg: InferenceConfig, status_logger: InferencingStatusLogger):
-        device = cfg.device
-        model = self.get_model().to(device)
-        result_parser = get_parser(self.task)(**cfg.to_dict(), categories=self.categories)
-
-        if cfg.source_type == "image":
-            dataset = get_dataset_class(cfg.source_type)(
-                cfg.source, cfg.image_size, letter_box=cfg.letter_box, recursive=cfg.recursive
-            )
-            dataloader = dataset.get_dataloader(cfg.batch_size, cfg.workers)
-        elif cfg.source_type == "video":
-            dataset = get_dataset_class(cfg.source_type)(
-                cfg.source, cfg.image_size, letter_box=cfg.letter_box
-            )
-            dataloader = dataset.get_dataloader(cfg.batch_size, cfg.workers)
-        else:
-            raise ValueError(f"Invalid source type: {cfg.source_type}")
-
-        if cfg.draw and cfg.source_type == "video":
-            writer = None
-
-        results = []
-        status_logger.set_total_step(len(dataloader) + 1)
-        for i, (images, image_infos) in tqdm.tqdm(
-            enumerate(dataloader, start=1), total=len(dataloader)
-        ):
-            result_batch = model(images.to(device))
-            result_batch = result_parser(result_batch, image_infos)
-            for result, image_info in zip(result_batch, image_infos):
-
-                results.append({str(image_info.image_rel_path): [res.to_dict() for res in result]})
-
-                if cfg.draw:
-                    io.make_directory(self.draw_dir)
-                    draw = draw_results(
-                        image_info.ori_image,
-                        result,
-                        names=[x["name"] for x in self.categories],
-                    )
-
-                    if cfg.source_type == "video":
-                        if writer is None:
-                            h, w = draw.shape[:2]
-                            writer = create_video_writer(
-                                str(self.inference_dir / Path(cfg.source).with_suffix(".mp4").name),
-                                dataset.fps,
-                                (w, h),
-                            )
-                        writer.write(draw)
-
-                        draw_path = (
-                            self.draw_dir
-                            / Path(cfg.source).stem
-                            / Path(image_info.image_rel_path).with_suffix(".png")
-                        )
-                    else:
-                        draw_path = self.draw_dir / Path(image_info.image_rel_path).with_suffix(
-                            ".png"
-                        )
-                    save_image(draw_path, draw, create_directory=True)
-
-                if cfg.show:
-                    if not cfg.draw:
-                        draw = draw_results(
-                            image_info.ori_image,
-                            result,
-                            names=[x["name"] for x in self.categories],
-                        )
-                    cv2.imshow("result", draw)
-                    cv2.waitKey(1)
-
-            status_logger.set_current_step(i)
-
-        if cfg.draw and cfg.source_type == "video":
-            writer.release()
-        if cfg.show:
-            cv2.destroyAllWindows()
-
-        io.save_json(
-            results,
-            self.inference_file,
-            create_directory=True,
+        evaluator = Evaluator(
+            root_dir=self.hub_dir,
+            model=self.manager.get_model(),
+            callbacks=[EvaluateStateWriterCallback(save_path=self.evaluate_state_file)],
         )
 
-    def on_inference_end(self, cfg: InferenceConfig):
-        pass
+        # config setting
+        # overwrite training config
+        train_config = self.get_train_config()
+        if image_size is None and train_config is not None:
+            image_size = train_config.image_size
+        if letter_box is None and train_config is not None:
+            letter_box = train_config.letter_box
 
-    def after_inference(self, cfg: InferenceConfig, result: InferenceResult):
-        result.predictions = self.get_inference_result()
-        if cfg.draw:
-            result.draw_dir = self.draw_dir
+        return evaluator.evaluate(
+            dataset=dataset,
+            dataset_root_dir=dataset_root_dir,
+            set_name=set_name,
+            batch_size=batch_size,
+            image_size=image_size,
+            letter_box=letter_box,
+            confidence_threshold=confidence_threshold,
+            iou_threshold=iou_threshold,
+            half=half,
+            workers=workers,
+            device=device,
+            draw=draw,
+        )
 
-    @device_context
     def inference(
         self,
         source: Union[str, Dataset],
@@ -1545,16 +985,17 @@ class Hub:
         Args:
             source (str): image directory or image path or video path.
             recursive (bool, optional): recursive. Defaults to True.
-            image_size (Union[int, list[int]], optional): image size. None for using training config. Defaults to None.
-            letter_box (bool, optional): letter box. None for using training config. Defaults to None.
+            image_size (Union[int, list[int]], optional): image size. If None, use train config.
+            letter_box (bool, optional): letter box. If None, use train config.
             batch_size (int, optional): batch size. Defaults to 4.
-            confidence_threshold (float, optional): confidence threshold. Defaults to 0.25.
-            iou_threshold (float, optional): iou threshold. Defaults to 0.5.
+            confidence_threshold (float, optional): confidence threshold. Not required in classification. Defaults to 0.25.
+            iou_threshold (float, optional): iou threshold. Not required in classification. Defaults to 0.5.
             half (bool, optional): half. Defaults to False.
             workers (int, optional): workers. Defaults to 2.
             device (str, optional): device. "cpu" or "gpu_id". Defaults to "0".
-            draw (bool, optional): draw. Defaults to False.
-            show (bool, optional): show. Defaults to False.
+            draw (bool, optional): register draw callback. Defaults to False.
+            show (bool, optional): register show callback. Defaults to False.
+
 
         Raises:
             FileNotFoundError: if can not detect appropriate dataset.
@@ -1575,8 +1016,8 @@ class Hub:
             # or simply use train option by passing None
             >>> inference_result = hub.inference(
                     ...
-                    image_size=None,  # use train option
-                    letterbox=None,  # use train option
+                    image_size=None,  # use train option or default to 224
+                    letterbox=None,  # use train option or default to True
                     ...
                 )
             >>> inference_result.predictions
@@ -1585,207 +1026,37 @@ class Hub:
         Returns:
             InferenceResult: inference result
         """
-        # status controller
-        status_logger = InferencingStatusLogger(save_path=self.inferencing_status_file)
-
-        try:
-            # inference settings
-            # image_dir, image_path, video_path, dataset_name, dataset
-            if isinstance(source, (str, Path)):
-                if Path(source).exists():
-                    source = Path(source)
-                    if source.is_dir():
-                        source = source.absolute()
-                        source_type = "image"
-                    elif source.suffix in IMAGE_EXTS:
-                        source = source.absolute()
-                        source_type = "image"
-                    elif source.suffix in VIDEO_EXTS:
-                        source = str(source.absolute())
-                        source_type = "video"
-                    else:
-                        raise ValueError(
-                            f"Invalid source: {source}\n"
-                            + "Please use image directory or image path or video path."
-                        )
-                else:
-                    raise FileNotFoundError(f"Source {source} is not exist.")
-            else:
-                raise ValueError(
-                    f"Invalid source: {source}\n"
-                    + "Please use image directory or image path or video path."
-                )
-
-            # overwrite training config
-            train_config = self.get_train_config()
-            if image_size is None:
-                image_size = train_config.image_size
-            if letter_box is None:
-                letter_box = train_config.letter_box
-
-            cfg = InferenceConfig(
-                source=source,
-                source_type=source_type,
-                batch_size=batch_size,
-                recursive=recursive,
-                image_size=image_size if isinstance(image_size, list) else [image_size, image_size],
-                letter_box=letter_box,
-                confidence_threshold=confidence_threshold,
-                iou_threshold=iou_threshold,
-                half=half,
-                workers=workers,
-                device="cpu" if device == "cpu" else f"cuda:{device}",
-                draw=draw or show,
-                show=show,
-            )
-
-            result = InferenceResult()
-
-            # run inference
-            status_logger.set_running()
-            self.before_inference(cfg)
-            self.on_inference_start(cfg)
-            self.inferencing(cfg, status_logger)
-            self.on_inference_end(cfg)
-            self.after_inference(cfg, result)
-            status_logger.set_success()
-        except (KeyboardInterrupt, SystemExit) as e:
-            status_logger.set_stopped(e)
-            raise e
-        except Exception as e:
-            status_logger.set_failed(e)
-            if self.inference_dir.exists():
-                io.remove_directory(self.inference_dir)
-            raise e
-
-        return result
-
-    # Export Hook
-    def before_export_onnx(self, cfg: ExportOnnxConfig):
-        pass
-
-    def on_export_onnx_start(self, cfg: ExportOnnxConfig):
-        pass
-
-    def exporting_onnx(self, cfg: ExportOnnxConfig, status_logger: ExportingOnnxStatusLogger) -> str:
-        image_size = cfg.image_size
-        image_size = [image_size, image_size] if isinstance(image_size, int) else image_size
-
-        model = self.get_model().half() if cfg.half else self.get_model()
-        model = model.to(cfg.device)
-
-        input_name = ["inputs"]
-        if self.task == TaskType.OBJECT_DETECTION:
-            output_names = ["bbox", "conf", "class_id"]
-        elif self.task == TaskType.CLASSIFICATION:
-            output_names = ["predictions"]
-        elif self.task == TaskType.INSTANCE_SEGMENTATION:
-            output_names = ["bbox", "conf", "class_id", "masks"]
-        elif self.task == TaskType.TEXT_RECOGNITION:
-            output_names = ["class_ids", "confs"]
-        elif self.task == TaskType.SEMANTIC_SEGMENTATION:
-            output_names = ["score_map"]
-        else:
-            raise NotImplementedError(f"{self.task} does not support export yet.")
-
-        dummy_input = torch.randn(
-            cfg.batch_size, 3, *image_size, dtype=torch.float16 if cfg.half else torch.float32
+        inferencer = Inferencer(
+            root_dir=self.hub_dir,
+            model=self.manager.get_model(),
+            callbacks=[InferenceStateWriterCallback(save_path=self.inference_state_file)],
         )
-        dummy_input = dummy_input.to(cfg.device)
+        # draw option
+        if draw:
+            inferencer.register_callback(InferenceDrawCallback(self.draw_dir))
+        # show option
+        if show:
+            inferencer.register_callback(InferenceShowCallback())
 
-        torch.onnx.export(
-            model,
-            dummy_input,
-            str(self.onnx_file),
-            input_names=input_name,
-            output_names=output_names,
-            opset_version=cfg.opset_version,
-            dynamic_axes={name: {0: "batch_size"} for name in input_name + output_names},
+        # overwrite training config
+        train_config = self.get_train_config()
+        if image_size is None and train_config is not None:
+            image_size = train_config.image_size
+        if letter_box is None and train_config is not None:
+            letter_box = train_config.letter_box
+
+        return inferencer.inference(
+            source=source,
+            recursive=recursive,
+            image_size=image_size,
+            letter_box=letter_box,
+            batch_size=batch_size,
+            confidence_threshold=confidence_threshold,
+            iou_threshold=iou_threshold,
+            half=half,
+            workers=workers,
+            device=device,
         )
-
-    def on_export_onnx_end(self, cfg: ExportOnnxConfig):
-        pass
-
-    def after_export_onnx(self, cfg: ExportOnnxConfig, result: ExportOnnxResult):
-        result.onnx_file = self.onnx_file
-
-    @device_context
-    def export_onnx(
-        self,
-        image_size: Union[int, list[int]] = None,
-        batch_size: int = 16,
-        opset_version: int = 11,
-        half: bool = False,
-        device: str = "0",
-    ) -> ExportOnnxResult:
-        """Export Onnx Model
-
-        Args:
-            image_size (Union[int, list[int]], optional): inference image size. None for same with train_config (recommended).
-            batch_size (int, optional): dynamic batch size. Defaults to 16.
-            opset_version (int, optional): onnx opset version. Defaults to 11.
-            half (bool, optional): half. Defaults to False.
-            device (str, optional): device. "cpu" or "gpu_id". Defaults to "0".
-
-        Example:
-            >>> export_onnx_result = hub.export_onnx(
-                image_size=640,
-                batch_size=16,
-                opset_version=11,
-            )
-            # or simply use train option by passing None
-            >>> export_onnx_result = hub.export_onnx(
-                ...,
-                image_size=None,  # use train option
-                ...
-            )
-            >>> export_onnx_result.onnx_file
-            hubs/my_hub/weights/model.onnx
-
-        Returns:
-            ExportOnnxResult: export onnx result
-        """
-        self.check_train_sanity()
-
-        # status controller
-        status_logger = ExportingOnnxStatusLogger(save_path=self.exporting_onnx_status_file)
-
-        try:
-            # overwrite training config
-            train_config = self.get_train_config()
-            if image_size is None:
-                image_size = train_config.image_size
-
-            cfg = ExportOnnxConfig(
-                image_size=image_size if isinstance(image_size, list) else [image_size, image_size],
-                batch_size=batch_size,
-                opset_version=opset_version,
-                half=half,
-                device="cpu" if device == "cpu" else f"cuda:{device}",
-            )
-
-            result = ExportOnnxResult()
-
-            # run export onnx
-            status_logger.set_running()
-            self.before_export_onnx(cfg)
-            self.on_export_onnx_start(cfg)
-            self.exporting_onnx(cfg, status_logger)
-            self.on_export_onnx_end(cfg)
-            self.after_export_onnx(cfg, result)
-            status_logger.set_success()
-        except (KeyboardInterrupt, SystemExit) as e:
-            status_logger.set_stopped(e)
-            if self.onnx_file.exists():
-                io.remove_file(self.onnx_file)
-            raise e
-        except Exception as e:
-            status_logger.set_failed(e)
-            if self.onnx_file.exists():
-                io.remove_file(self.onnx_file)
-            raise e
-
-        return result
 
     def benchmark(
         self,
@@ -1825,45 +1096,75 @@ class Hub:
         Returns:
             dict: benchmark result
         """
-        self.check_train_sanity()
-
-        if half and (not torch.cuda.is_available() or device == "cpu"):
-            raise RuntimeError("half is not supported in cpu")
-
-        image_size = image_size or self.get_train_config().image_size
-        image_size = [image_size, image_size] if isinstance(image_size, int) else image_size
-
-        device = "cpu" if device == "cpu" else f"cuda:{device}"
-
-        model = self.get_model()
-        model = model.to(device) if not half else model.half().to(device)
-
-        dummy_input = torch.randn(
-            batch_size, 3, *image_size, dtype=torch.float32 if not half else torch.float16
+        inferencer = Inferencer(
+            root_dir=self.hub_dir,
+            model=self.manager.get_model(),
         )
-        dummy_input = dummy_input.to(device)
+        # overwrite training config or default
+        train_config = self.get_train_config()
+        if image_size is None and train_config is not None:
+            image_size = train_config.image_size
 
-        model.eval()
-        with torch.no_grad():
-            start = time.time()
-            for _ in tqdm.tqdm(range(trial)):
-                model(dummy_input)
-            end = time.time()
-            inference_time = end - start
+        return inferencer.benchmark(
+            image_size=image_size,
+            batch_size=batch_size,
+            device=device,
+            half=half,
+            trial=trial,
+        )
 
-        del model
+    def export_onnx(
+        self,
+        image_size: Union[int, list[int]] = None,
+        batch_size: int = 16,
+        opset_version: int = 11,
+        half: bool = False,
+        device: str = "0",
+    ) -> ExportOnnxResult:
+        """Export Onnx Model
 
-        return {
-            "inference_time": inference_time,
-            # image throughput per second
-            "fps": trial * batch_size / inference_time,
-            "image_size": image_size,
-            "batch_size": batch_size,
-            "precision": "fp16" if half else "fp32",
-            "device": device,
-            "cpu_name": cpuinfo.get_cpu_info()["brand_raw"],
-            "gpu_name": torch.cuda.get_device_name(0) if device != "cpu" else None,
-        }
+        Args:
+            image_size (Union[int, list[int]], optional): image size. If None, same train config (recommended).
+            batch_size (int, optional): dynamic batch size. Defaults to 16.
+            opset_version (int, optional): onnx opset version. Defaults to 11.
+            half (bool, optional): half. Defaults to False.
+            device (str, optional): device. "cpu" or "gpu_id". Defaults to "0".
+        Example:
+            >>> export_onnx_result = hub.export_onnx(
+                image_size=640,
+                batch_size=16,
+                opset_version=11,
+            )
+            # or simply use train option by passing None
+            >>> export_onnx_result = hub.export_onnx(
+                ...,
+                image_size=None,  # use train option
+                ...
+            )
+            >>> export_onnx_result.onnx_file
+            hubs/my_hub/weights/model.onnx
+
+        Returns:
+            ExportOnnxResult: export onnx result
+        """
+        onnx_exporter = OnnxExporter(
+            root_dir=self.hub_dir,
+            model=self.manager.get_model(),
+            callbacks=[ExportOnnxStateWriterCallback(save_path=self.export_onnx_state_file)],
+        )
+
+        # overwrite training config
+        train_config = self.get_train_config()
+        if image_size is None and train_config is not None:
+            image_size = train_config.image_size
+
+        return onnx_exporter.export(
+            image_size=image_size,
+            batch_size=batch_size,
+            opset_version=opset_version,
+            half=half,
+            device=device,
+        )
 
     def export_waffle(self) -> ExportWaffleResult:
         """Export Waffle Model
@@ -1876,19 +1177,25 @@ class Hub:
         """
         self.check_train_sanity()
 
-        result = ExportWaffleResult()
-        status_logger = ExportingWaffleStatusLogger(save_path=self.exporting_waffle_status_file)
         try:
-            status_logger.set_running()
-            io.zip([self.config_dir, self.weights_dir, self.running_status_dir], self.waffle_file)
+            state = ExportWaffleState(status=ExportWaffleStatus.INIT)
+            state.save_json(self.export_waffle_state_file)
+            result = ExportWaffleResult()
+
+            io.zip([self.weights_dir, self.config_dir], self.waffle_file, recursive=True)
             result.waffle_file = self.waffle_file
-            status_logger.set_success()
+
+            state.status = ExportWaffleStatus.SUCCESS
+            state.save_json(self.export_waffle_state_file)
+
         except (KeyboardInterrupt, SystemExit) as e:
-            status_logger.set_stopped(e)
+            state.status = ExportWaffleStatus.STOPPED
+            state.save_json(self.export_waffle_state_file)
             if self.waffle_file.exists():
                 io.remove_file(self.waffle_file)
         except Exception as e:
-            status_logger.set_failed(e)
+            state.status = ExportWaffleStatus.FAILED
+            state.save_json(self.export_waffle_state_file)
             if self.waffle_file.exists():
                 io.remove_file(self.waffle_file)
             raise e
