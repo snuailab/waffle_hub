@@ -104,7 +104,6 @@ class Evaluator(BaseEvaluateHook):
             half (bool, optional): half. Defaults to False.
             workers (int, optional): workers. Defaults to 2.
             device (str, optional): device. Defaults to "0".
-            draw (bool, optional): draw. Defaults to False.
 
         Raises:
             FileNotFoundError: if can not detect appropriate dataset.
@@ -166,7 +165,6 @@ class Evaluator(BaseEvaluateHook):
                 half=half,
                 workers=workers,
                 device="cpu" if device == "cpu" else f"cuda:{device}",
-                draw=draw,
             )
 
             self.run_default_hook("before_evaluate")

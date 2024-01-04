@@ -1,12 +1,3 @@
-""" (.rst format docstring)
-Hub
-================
-Hub is a multi-backend compatible interface for model training, evaluation, inference, and export.
-
-.. note::
-    Check out docstrings for more details.
-
-"""
 import importlib
 import logging
 import os
@@ -22,19 +13,26 @@ from waffle_utils.validator import setter_type_validator
 
 from waffle_hub import BACKEND_MAP, ExportWaffleStatus
 from waffle_hub.dataset import Dataset
-from waffle_hub.hub.eval.callbacks import EvaluateStateWriterCallback
-from waffle_hub.hub.eval.evaluator import Evaluator
-from waffle_hub.hub.infer.callbacks import (
+from waffle_hub.hub.evaluator.callbacks import (
+    BaseEvaluateCallback,
+    EvaluateStateWriterCallback,
+)
+from waffle_hub.hub.evaluator.evaluator import Evaluator
+from waffle_hub.hub.inferencer.callbacks import (
+    BaseInferenceCallback,
     InferenceDrawCallback,
     InferenceShowCallback,
     InferenceStateWriterCallback,
 )
-from waffle_hub.hub.infer.inferencer import Inferencer
+from waffle_hub.hub.inferencer.inferencer import Inferencer
 from waffle_hub.hub.manager.base_manager import BaseManager
-from waffle_hub.hub.manager.callbacks import TrainStateWriterCallback
+from waffle_hub.hub.manager.callbacks import BaseTrainCallback, TrainStateWriterCallback
 from waffle_hub.hub.model.wrapper import ModelWrapper
-from waffle_hub.hub.onnx.callbacks import ExportOnnxStateWriterCallback
-from waffle_hub.hub.onnx.exporter import OnnxExporter
+from waffle_hub.hub.onnx_exporter.callbacks import (
+    BaseExportOnnxCallback,
+    ExportOnnxStateWriterCallback,
+)
+from waffle_hub.hub.onnx_exporter.exporter import OnnxExporter
 from waffle_hub.schema.configs import ModelConfig, TrainConfig
 from waffle_hub.schema.data import ImageInfo
 from waffle_hub.schema.fields import Category
@@ -77,6 +75,7 @@ class Hub:
         model_size: str = None,
         categories: list[Union[str, int, float, dict, Category]] = None,
         root_dir: str = None,
+        train_callbacks: list[BaseTrainCallback] = None,
         *args,
         **kwargs,
     ):
@@ -92,6 +91,8 @@ class Hub:
         default_train_callbacks = [
             TrainStateWriterCallback(self.train_state_file, self.evaluate_state_file)
         ]
+        if train_callbacks is not None:
+            default_train_callbacks.extend(train_callbacks)
 
         train_state = self.get_train_state()
         self.manager = (
@@ -256,6 +257,7 @@ class Hub:
         model_size: str = None,
         categories: Union[list[dict], list] = None,
         root_dir: str = None,
+        train_callbacks: list[BaseTrainCallback] = None,
         *args,
         **kwargs,
     ) -> "Hub":
@@ -269,6 +271,7 @@ class Hub:
             model_size (str, optional): Model Size. See Hub.get_available_model_sizes. Defaults to None.
             categories (Union[list[dict], list], optional): class dictionary or list. [{"supercategory": "name"}, ] or ["name",]. Defaults to None.
             root_dir (str, optional): Root directory of hub repository. Defaults to None.
+            train_callbacks (list[BaseTrainCallback], optional): Train callbacks. Defaults to None.
 
         Returns:
             Hub: Hub instance
@@ -298,6 +301,7 @@ class Hub:
                 model_size=model_size,
                 categories=categories,
                 root_dir=root_dir,
+                train_callbacks=train_callbacks,
             )
         except Exception as e:
             if (root_dir / name).exists():
@@ -305,12 +309,15 @@ class Hub:
             raise e
 
     @classmethod
-    def load(cls, name: str, root_dir: str = None) -> "Hub":
+    def load(
+        cls, name: str, root_dir: str = None, train_callbacks: list[BaseTrainCallback] = None
+    ) -> "Hub":
         """Load Hub by name.
 
         Args:
             name (str): hub name.
             root_dir (str, optional): hub root directory. Defaults to None.
+            train_callbacks (list[BaseTrainCallback], optional): Train callbacks. Defaults to None.
 
         Raises:
             FileNotFoundError: if hub is not exist in root_dir
@@ -327,17 +334,25 @@ class Hub:
             **{
                 **model_config.to_dict(),
                 "root_dir": root_dir,
+                "train_callbacks": train_callbacks,
             }
         )
 
     @classmethod
-    def from_model_config(cls, name: str, model_config_file: str, root_dir: str = None) -> "Hub":
+    def from_model_config(
+        cls,
+        name: str,
+        model_config_file: str,
+        root_dir: str = None,
+        train_callbacks: list[BaseTrainCallback] = None,
+    ) -> "Hub":
         """Create new Hub with model config.
 
         Args:
             name (str): hub name.
             model_config_file (str): model config yaml file.
             root_dir (str, optional): hub root directory. Defaults to None.
+            train_callbacks (list[BaseTrainCallback], optional): Train callbacks. Defaults to None.
 
         Returns:
             Hub: New Hub instance
@@ -353,6 +368,7 @@ class Hub:
                     **model_config,
                     "name": name,
                     "root_dir": root_dir,
+                    "train_callbacks": train_callbacks,
                 }
             )
         except Exception as e:
@@ -385,13 +401,20 @@ class Hub:
         return hub_name_list
 
     @classmethod
-    def from_waffle_file(cls, name: str, waffle_file: str, root_dir: str = None) -> "Hub":
+    def from_waffle_file(
+        cls,
+        name: str,
+        waffle_file: str,
+        root_dir: str = None,
+        train_callbacks: list[BaseTrainCallback] = None,
+    ) -> "Hub":
         """Import new Hub with waffle file for inference.
 
         Args:
             name (str): hub name.
             waffle_file (str): waffle file path.
             root_dir (str, optional): hub root directory. Defaults to None.
+            train_callbacks (list[BaseTrainCallback], optional): Train callbacks. Defaults to None.
 
         Returns:
             Hub: New Hub instance
@@ -424,6 +447,7 @@ class Hub:
                     **model_config,
                     "name": name,
                     "root_dir": root_dir,
+                    "train_callbacks": train_callbacks,
                 }
             )
 
@@ -768,35 +792,6 @@ class Hub:
         self.manager.save_model_config(self.model_config_file)
 
     # Hub Utils
-    def get_image_loader(self) -> tuple[torch.Tensor, ImageInfo]:
-        """Get image loader function.
-
-        Returns:
-            tuple[torch.Tensor, ImageInfo]: input transform function
-
-        Example:
-            >>> transform = hub.get_image_loader()
-            >>> image, image_info = transform("path/to/image.jpg")
-            >>> model = hub.get_model()
-            >>> output = model(image.unsqueeze(0))
-        """
-        train_config: TrainConfig = self.get_train_config()
-        transform = get_image_transform(train_config.image_size, train_config.letter_box)
-
-        def inner(x: Union[np.ndarray, str]):
-            """Input Transform Function
-
-            Args:
-                x (Union[np.ndarray, str]): opencv image or image path
-
-            Returns:
-                tuple[torch.Tensor, ImageInfo]: image and image info
-            """
-            image, image_info = transform(x)
-            return image, image_info
-
-        return inner
-
     def get_model(self) -> ModelWrapper:
         return self.manager.get_model()
 
@@ -893,7 +888,7 @@ class Hub:
         half: bool = False,
         workers: int = 2,
         device: str = "0",
-        draw: bool = False,
+        callbacks: list[BaseEvaluateCallback] = None,
     ) -> EvaluateResult:
         """Start Evaluate
 
@@ -909,8 +904,7 @@ class Hub:
             half (bool, optional): half. Defaults to False.
             workers (int, optional): workers. Defaults to 2.
             device (str, optional): device. Defaults to "0".
-            draw (bool, optional): draw. Defaults to False.
-            hold (bool, optional): hold. Defaults to True.
+            callbacks (list[BaseEvaluateCallback], optional): evaluate callbacks. Defaults to None.
 
         Examples:
             >>> evaluate_result = hub.evaluate(
@@ -936,10 +930,14 @@ class Hub:
         Returns:
             EvaluateResult: evaluate result
         """
+        default_callbacks = [EvaluateStateWriterCallback(save_path=self.evaluate_state_file)]
+        if callbacks is not None:
+            default_callbacks.extend(callbacks)
+
         evaluator = Evaluator(
             root_dir=self.hub_dir,
             model=self.manager.get_model(),
-            callbacks=[EvaluateStateWriterCallback(save_path=self.evaluate_state_file)],
+            callbacks=default_callbacks,
         )
 
         # config setting
@@ -962,7 +960,6 @@ class Hub:
             half=half,
             workers=workers,
             device=device,
-            draw=draw,
         )
 
     def inference(
@@ -979,6 +976,7 @@ class Hub:
         device: str = "0",
         draw: bool = False,
         show: bool = False,
+        callbacks: list[BaseInferenceCallback] = None,
     ) -> InferenceResult:
         """Start Inference
 
@@ -995,6 +993,7 @@ class Hub:
             device (str, optional): device. "cpu" or "gpu_id". Defaults to "0".
             draw (bool, optional): register draw callback. Defaults to False.
             show (bool, optional): register show callback. Defaults to False.
+            callbacks (list[BaseInferenceCallback], optional): inference callbacks. Defaults to None.
 
 
         Raises:
@@ -1026,10 +1025,14 @@ class Hub:
         Returns:
             InferenceResult: inference result
         """
+        default_callbacks = [InferenceStateWriterCallback(save_path=self.inference_state_file)]
+        if callbacks is not None:
+            default_callbacks.extend(callbacks)
+
         inferencer = Inferencer(
             root_dir=self.hub_dir,
             model=self.manager.get_model(),
-            callbacks=[InferenceStateWriterCallback(save_path=self.inference_state_file)],
+            callbacks=default_callbacks,
         )
         # draw option
         if draw:
@@ -1120,6 +1123,7 @@ class Hub:
         opset_version: int = 11,
         half: bool = False,
         device: str = "0",
+        callbacks: list[BaseExportOnnxCallback] = None,
     ) -> ExportOnnxResult:
         """Export Onnx Model
 
@@ -1129,6 +1133,8 @@ class Hub:
             opset_version (int, optional): onnx opset version. Defaults to 11.
             half (bool, optional): half. Defaults to False.
             device (str, optional): device. "cpu" or "gpu_id". Defaults to "0".
+            callbacks (list[BaseExportOnnxCallback], optional): export onnx callbacks. Defaults to None.
+
         Example:
             >>> export_onnx_result = hub.export_onnx(
                 image_size=640,
@@ -1147,10 +1153,14 @@ class Hub:
         Returns:
             ExportOnnxResult: export onnx result
         """
+        default_callbacks = [ExportOnnxStateWriterCallback(save_path=self.export_onnx_state_file)]
+        if callbacks is not None:
+            default_callbacks.extend(callbacks)
+
         onnx_exporter = OnnxExporter(
             root_dir=self.hub_dir,
             model=self.manager.get_model(),
-            callbacks=[ExportOnnxStateWriterCallback(save_path=self.export_onnx_state_file)],
+            callbacks=default_callbacks,
         )
 
         # overwrite training config

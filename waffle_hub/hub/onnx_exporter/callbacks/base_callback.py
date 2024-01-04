@@ -2,7 +2,7 @@ from abc import ABC
 
 from waffle_utils.callback import BaseCallback
 
-from waffle_hub.hub.onnx.exporter import OnnxExporter
+from waffle_hub.hub.onnx_exporter.exporter import OnnxExporter
 
 
 class BaseExportOnnxCallback(BaseCallback, ABC):

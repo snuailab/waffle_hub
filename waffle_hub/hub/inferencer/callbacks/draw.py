@@ -7,8 +7,8 @@ from waffle_utils.file import io
 from temp_utils.image.io import save_image
 from temp_utils.video.io import create_video_writer
 from waffle_hub.dataset.dataset import Dataset
-from waffle_hub.hub.infer.callbacks import BaseInferenceCallback
-from waffle_hub.hub.infer.inferencer import Inferencer
+from waffle_hub.hub.inferencer.callbacks import BaseInferenceCallback
+from waffle_hub.hub.inferencer.inferencer import Inferencer
 from waffle_hub.utils.draw import draw_results
 
 

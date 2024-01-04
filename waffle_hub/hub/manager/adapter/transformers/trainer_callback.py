@@ -8,6 +8,7 @@ from transformers.training_args import TrainingArguments
 from waffle_utils.file import io
 
 
+# TODO: epochs logging & stop handling
 class CustomCallback(TrainerCallback):
     """
     This class is necessary to obtain logs for the training.
@@ -21,10 +22,7 @@ class CustomCallback(TrainerCallback):
     def on_train_end(
         self, args: TrainingArguments, state: TrainerState, control: TrainerControl, **kwargs
     ):
-        print("!!")
         epoch_metric = defaultdict(list)
-        print(epoch_metric)
-        print(state.log_history)
         for metric in state.log_history:
             epoch = int(metric.get("epoch"))
             for key, value in metric.items():

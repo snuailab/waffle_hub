@@ -11,7 +11,7 @@ from waffle_utils.file import io
 
 from waffle_hub import InferenceStatus
 from waffle_hub.dataset import Dataset
-from waffle_hub.hub.infer.hook import BaseInferenceHook
+from waffle_hub.hub.inferencer.hook import BaseInferenceHook
 from waffle_hub.hub.model.result_parser import get_parser
 from waffle_hub.hub.model.wrapper import ModelWrapper
 from waffle_hub.schema.configs import InferenceConfig

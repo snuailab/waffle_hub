@@ -1,8 +1,8 @@
 from pathlib import Path
 from typing import Union
 
-from waffle_hub.hub.onnx.callbacks import BaseExportOnnxCallback
-from waffle_hub.hub.onnx.exporter import OnnxExporter
+from waffle_hub.hub.onnx_exporter.callbacks import BaseExportOnnxCallback
+from waffle_hub.hub.onnx_exporter.exporter import OnnxExporter
 
 
 class ExportOnnxStateWriterCallback(BaseExportOnnxCallback):

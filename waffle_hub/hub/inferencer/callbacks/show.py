@@ -4,8 +4,8 @@ import cv2
 from torch.utils.data import DataLoader
 
 from waffle_hub.dataset.dataset import Dataset
-from waffle_hub.hub.infer.callbacks import BaseInferenceCallback
-from waffle_hub.hub.infer.inferencer import Inferencer
+from waffle_hub.hub.inferencer.callbacks import BaseInferenceCallback
+from waffle_hub.hub.inferencer.inferencer import Inferencer
 from waffle_hub.utils.draw import draw_results
 
 
