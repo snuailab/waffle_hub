@@ -14,7 +14,6 @@ from torchmetrics.classification import (
 from torchmetrics.detection import mean_ap
 
 from waffle_hub.schema.evaluate import (
-    BaseMetric,
     ClassificationMetric,
     InstanceSegmentationMetric,
     ObjectDetectionMetric,
@@ -273,7 +272,13 @@ def evaluate_function(
     num_classes: int = None,
     *args,
     **kwargs
-) -> BaseMetric:
+) -> Union[
+    ClassificationMetric,
+    ObjectDetectionMetric,
+    InstanceSegmentationMetric,
+    TextRecognitionMetric,
+    SemanticSegmentationMetric,
+]:
     if task == TaskType.CLASSIFICATION:
         return evaluate_classification(preds, labels, num_classes, *args, **kwargs)
     elif task == TaskType.OBJECT_DETECTION:

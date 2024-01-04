@@ -243,7 +243,13 @@ class Evaluator(BaseEvaluateHook):
         self.run_default_hook("on_evaluate_loop_end", preds)
         self.run_callback_hooks("on_evaluate_loop_end", self, preds)
 
-        metrics = evaluate_function(preds, labels, self.model.task, len(dataset.get_categories()))
+        metrics = evaluate_function(
+            preds,
+            labels,
+            self.model.task,
+            len(dataset.get_categories()),
+            image_size=self.cfg.image_size,
+        )
         result_metrics = []
         for tag, value in metrics.to_dict().items():
             if isinstance(value, list):
