@@ -68,7 +68,7 @@ class Inferencer(BaseInferenceHook):
         Args:
             root_dir (Union[str, Path]): root directory of inference file
 
-        Example:
+        Examples:
             >>> Inferencer.get_inference_result(root_dir)
             [
                 {
@@ -121,7 +121,7 @@ class Inferencer(BaseInferenceHook):
             FileNotFoundError: if can not detect appropriate dataset.
             e: something gone wrong with ultralytics
 
-        Example:
+        Examples:
             >>> inferencer = Inferencer(...)
             >>> inference_result = hub.inference(
                     source="path/to/images",
@@ -226,7 +226,7 @@ class Inferencer(BaseInferenceHook):
             half (bool, optional): half. Defaults to False.
             trial (int, optional): number of trials. Defaults to 100.
 
-        Example:
+        Examples:
             >>> inferencer = Inferencer(...)
             >>> inferencer.benchmark(
                     image_size=640,

@@ -55,7 +55,7 @@ class Evaluator(BaseEvaluateHook):
         Args:
             root_dir (Union[str, Path]): root directory of evaluate file
 
-        Example:
+        Examples:
             >>> Evaluator.get_evaluate_result()
             [
                 {

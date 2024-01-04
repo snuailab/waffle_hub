@@ -26,7 +26,7 @@ class UltralyticsManager(BaseManager):
     """
 
     BACKEND_NAME = str(BackendType.ULTRALYTICS.value)
-    BACKEND_VERSION = "8.0.201"
+    BACKEND_VERSION = "8.0.227"
     MODEL_TYPES = MODEL_TYPES
     MULTI_GPU_TRAIN = True
     DEFAULT_PARAMS = DEFAULT_PARAMS

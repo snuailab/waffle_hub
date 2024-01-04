@@ -965,7 +965,7 @@ class Dataset:
             yaml_path (str): Yolo yaml file path. when task is classification, yaml_path is not required.
             root_dir (str, optional): Dataset root directory. Defaults to None.
 
-        Example:
+        Examples:
             >>> ds = Dataset.from_yolo("yolo", "classification", "path/to/yolo_root_dir")
             >>> ds = Dataset.from_yolo("yolo", "object_detection", "path/to/yolo_root_dir", "path/to/yolo.yaml")
 
@@ -1048,7 +1048,7 @@ class Dataset:
             image_dir (str): Label studio image directory.
             root_dir (str, optional): Dataset root directory. Defaults to None.
 
-        Example:
+        Examples:
             >>> ds = Dataset.from_label_studio(
                 "label_studio",
                 "classification",

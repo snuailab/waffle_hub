@@ -5,9 +5,6 @@ import warnings
 from pathlib import Path
 from typing import Union
 
-import numpy as np
-import torch
-import tqdm
 from waffle_utils.file import io
 from waffle_utils.validator import setter_type_validator
 
@@ -34,7 +31,6 @@ from waffle_hub.hub.onnx_exporter.callbacks import (
 )
 from waffle_hub.hub.onnx_exporter.exporter import OnnxExporter
 from waffle_hub.schema.configs import ModelConfig, TrainConfig
-from waffle_hub.schema.data import ImageInfo
 from waffle_hub.schema.fields import Category
 from waffle_hub.schema.result import (
     EvaluateResult,
@@ -45,7 +41,6 @@ from waffle_hub.schema.result import (
 )
 from waffle_hub.schema.state import ExportWaffleState, TrainState
 from waffle_hub.type import BackendType, TaskType
-from waffle_hub.utils.data import get_image_transform
 
 logger = logging.getLogger(__name__)
 
@@ -703,7 +698,7 @@ class Hub:
     def get_metrics(self) -> list[list[dict]]:
         """Get metrics per epoch from metric file.
 
-        Example:
+        Examples:
             >>> hub.get_metrics()
             [
                 [
@@ -733,7 +728,7 @@ class Hub:
     def get_evaluate_result(self) -> list[dict]:
         """Get evaluate result from evaluate file.
 
-        Example:
+        Examples:
             >>> hub.get_evaluate_result()
             [
                 {
@@ -750,7 +745,7 @@ class Hub:
     def get_inference_result(self) -> list[dict]:
         """Get inference result from inference file.
 
-        Example:
+        Examples:
             >>> hub.get_inference_result()
             [
                 {
@@ -835,7 +830,7 @@ class Hub:
             ValueError: if can not detect appropriate dataset.
             e: something gone wrong with ultralytics
 
-        Example:
+        Examples:
             >>> train_result = hub.train(
                     dataset=dataset,
                     epochs=100,
@@ -964,7 +959,7 @@ class Hub:
 
     def inference(
         self,
-        source: Union[str, Dataset],
+        source: Union[str, Path],
         recursive: bool = True,
         image_size: Union[int, list[int]] = None,
         letter_box: bool = None,
@@ -981,7 +976,7 @@ class Hub:
         """Start Inference
 
         Args:
-            source (str): image directory or image path or video path.
+            source (Union[str, Path]): image directory or image path or video path.
             recursive (bool, optional): recursive. Defaults to True.
             image_size (Union[int, list[int]], optional): image size. If None, use train config.
             letter_box (bool, optional): letter box. If None, use train config.
@@ -1000,7 +995,7 @@ class Hub:
             FileNotFoundError: if can not detect appropriate dataset.
             e: something gone wrong with ultralytics
 
-        Example:
+        Examples:
             >>> inference_result = hub.inference(
                     source="path/to/images",
                     batch_size=4,
@@ -1078,7 +1073,7 @@ class Hub:
             half (bool, optional): half. Defaults to False.
             trial (int, optional): number of trials. Defaults to 100.
 
-        Example:
+        Examples:
             >>> hub.benchmark(
                     image_size=640,
                     batch_size=16,
@@ -1135,7 +1130,7 @@ class Hub:
             device (str, optional): device. "cpu" or "gpu_id". Defaults to "0".
             callbacks (list[BaseExportOnnxCallback], optional): export onnx callbacks. Defaults to None.
 
-        Example:
+        Examples:
             >>> export_onnx_result = hub.export_onnx(
                 image_size=640,
                 batch_size=16,
@@ -1178,7 +1173,7 @@ class Hub:
 
     def export_waffle(self) -> ExportWaffleResult:
         """Export Waffle Model
-        Example:
+        Examples:
             >>> export_waffle_result = hub.export_waffle()
             >>> export_waffle_result.waffle_file
             hubs/my_hub/my_hub.waffle

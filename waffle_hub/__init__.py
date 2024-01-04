@@ -1,6 +1,5 @@
 __version__ = "0.4.0a1"
 
-import signal
 from collections import OrderedDict
 
 from waffle_utils.enum import StrEnum as BaseEnum
@@ -85,13 +84,3 @@ BACKEND_MAP = CaseInsensitiveDict(
         },
     }
 )
-
-
-for key in list(EXPORT_MAP.keys()):
-    EXPORT_MAP[str(key).lower()] = EXPORT_MAP[key]
-    EXPORT_MAP[str(key).upper()] = EXPORT_MAP[key]
-
-
-for key in list(BACKEND_MAP.keys()):
-    BACKEND_MAP[str(key).lower()] = BACKEND_MAP[key]
-    BACKEND_MAP[str(key).upper()] = BACKEND_MAP[key]

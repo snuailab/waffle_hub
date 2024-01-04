@@ -70,7 +70,7 @@ class OnnxExporter(BaseExportOnnxHook):
             half (bool, optional): half. Defaults to False.
             device (str, optional): device. "cpu" or "gpu_id". Defaults to "0".
 
-        Example:
+        Examples:
             >>> exporter = OnnxExporter(...)
             >>> export_onnx_result = exporter.export(
                 image_size=640,
