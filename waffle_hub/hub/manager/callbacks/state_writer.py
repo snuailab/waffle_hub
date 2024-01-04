@@ -1,7 +1,7 @@
 from pathlib import Path
 from typing import Union
 
-from waffle_hub.hub.eval.callbacks import EvaluateStateWriterCallback
+from waffle_hub.hub.evaluator.callbacks import EvaluateStateWriterCallback
 from waffle_hub.hub.manager.base_manager import BaseManager
 from waffle_hub.hub.manager.callbacks import BaseTrainCallback
 

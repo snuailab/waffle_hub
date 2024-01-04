@@ -1,6 +1,6 @@
 from pathlib import Path
 
-from waffle_hub.hub.eval.evaluator import Evaluator
+from waffle_hub.hub.evaluator.evaluator import Evaluator
 from waffle_hub.hub.model.wrapper import ModelWrapper
 from waffle_hub.type import task_type
 

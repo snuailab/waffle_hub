@@ -11,7 +11,7 @@ from waffle_utils.validator import setter_type_validator
 
 from waffle_hub import EXPORT_MAP, TrainStatus
 from waffle_hub.dataset import Dataset
-from waffle_hub.hub.eval.evaluator import Evaluator
+from waffle_hub.hub.evaluator.evaluator import Evaluator
 from waffle_hub.hub.manager.hook import BaseTrainHook
 from waffle_hub.hub.model.wrapper import ModelWrapper
 from waffle_hub.schema.configs import ModelConfig, TrainConfig

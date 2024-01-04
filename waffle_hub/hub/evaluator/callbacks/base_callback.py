@@ -4,7 +4,7 @@ from typing import Any
 from torch.utils.data import DataLoader
 from waffle_utils.callback import BaseCallback
 
-from waffle_hub.hub.eval.evaluator import Evaluator
+from waffle_hub.hub.evaluator.evaluator import Evaluator
 
 
 class BaseEvaluateCallback(BaseCallback, ABC):

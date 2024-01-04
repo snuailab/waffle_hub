@@ -88,7 +88,6 @@ class Evaluator(BaseEvaluateHook):
         half: bool = False,
         workers: int = 2,
         device: str = "0",
-        draw: bool = False,
     ) -> EvaluateResult:
         """Start Evaluate
 

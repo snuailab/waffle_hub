@@ -3,8 +3,8 @@ from typing import Any, Union
 
 from torch.utils.data import DataLoader
 
-from waffle_hub.hub.eval.callbacks import BaseEvaluateCallback
-from waffle_hub.hub.eval.evaluator import Evaluator
+from waffle_hub.hub.evaluator.callbacks import BaseEvaluateCallback
+from waffle_hub.hub.evaluator.evaluator import Evaluator
 
 
 class EvaluateStateWriterCallback(BaseEvaluateCallback):
