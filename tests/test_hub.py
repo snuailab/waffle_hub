@@ -85,7 +85,8 @@ def _inference(hub, source: str):
     assert inference_state["status"] == InferenceStatus.SUCCESS
     assert inference_state["step"] == inference_state["total_step"]
     assert len(result.predictions) >= 1
-    assert Path(result.draw_dir).exists()
+    assert result.draw_dir == hub.draw_dir
+    assert Path(hub.draw_dir).exists()
 
     return result
 

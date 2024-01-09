@@ -265,21 +265,24 @@ class Evaluator(BaseEvaluateHook):
         self.run_default_hook("on_evaluate_end", result_metrics)
         self.run_callback_hooks("on_evaluate_end", self, result_metrics)
 
-    def is_valid_dataset(self, dataset: Dataset) -> bool:
+    def is_valid_dataset(self, dataset: Dataset):
         """Check dataset is valid for model.
 
         Args:
             dataset (Dataset): dataset
 
-        Returns:
-            bool: is valid
+        Raises:
+            ValueError: if model task is not equal to dataset task
+            ValueError: if model categories is not equal to dataset categories
         """
         # check task
         if self.model.task != dataset.task:
-            return False
+            raise ValueError(
+                f"Model task {self.model.task} is not equal to dataset task {dataset.task}"
+            )
 
         # check categories
         if [category.name for category in self.model.categories] != dataset.get_category_names():
-            return False
-
-        return True
+            raise ValueError(
+                f"Model categories {self.model.categories} is not equal to dataset categories {dataset.get_category_names()}"
+            )

@@ -56,9 +56,9 @@ class BaseManager(BaseTrainHook, ABC):
         self,
         root_dir: Path,
         name: str,
-        task: Union[str, TaskType],
-        model_type: str,
-        model_size: str,
+        task: Union[str, TaskType] = None,
+        model_type: str = None,
+        model_size: str = None,
         categories: list[Union[str, int, float, dict, Category]] = None,
         callbacks: list[BaseCallback] = None,
         load: bool = False,
@@ -83,9 +83,13 @@ class BaseManager(BaseTrainHook, ABC):
         super().__init__(callbacks=callbacks)
         self.root_dir = Path(root_dir)
         self.name = name
-        self.task = task
-        self.model_type = model_type
-        self.model_size = model_size
+        self.task = TaskType.from_str(task).value if task else self.get_available_tasks()[0]
+        self.model_type = model_type if model_type else self.get_available_model_types(self.task)[0]
+        self.model_size = (
+            model_size
+            if model_size
+            else self.get_available_model_sizes(self.task, self.model_type)[0]
+        )
         self.categories = categories
         self.backend = self.BACKEND_NAME
 
@@ -360,6 +364,83 @@ class BaseManager(BaseTrainHook, ABC):
             train_state=train_state,
         )
 
+    @classmethod
+    def get_available_tasks(cls) -> list[str]:
+        """
+        Get available tasks
+
+        Returns:
+            list[str]: Available tasks
+        """
+        return list(cls.MODEL_TYPES.keys())
+
+    @classmethod
+    def get_available_model_types(cls, task: str) -> list[str]:
+        """
+        Get available model types
+
+        Args:
+            task (str): Task name
+
+        Raises:
+            ModuleNotFoundError: If backend is not supported
+
+        Returns:
+            list[str]: Available model types
+        """
+        if task not in list(cls.MODEL_TYPES.keys()):
+            raise ValueError(f"{task} is not supported with {cls.BACKEND_NAME}")
+        task = TaskType.from_str(task).value
+        return list(cls.MODEL_TYPES[task].keys())
+
+    @classmethod
+    def get_available_model_sizes(cls, task: str, model_type: str) -> list[str]:
+        """
+        Get available model sizes
+
+        Args:
+            task (str): Task name
+            model_type (str): Model type
+
+        Raises:
+            ValueError: If backend is not supported
+
+        Returns:
+            list[str]: Available model sizes
+        """
+        if task not in list(cls.MODEL_TYPES.keys()):
+            raise ValueError(f"{task} is not supported with {cls.BACKEND_NAME}")
+        task = TaskType.from_str(task).value
+        if model_type not in list(cls.MODEL_TYPES[task].keys()):
+            raise ValueError(f"{model_type} is not supported with {cls.BACKEND_NAME}")
+        model_sizes = cls.MODEL_TYPES[task][model_type]
+        return model_sizes if isinstance(model_sizes, list) else list(model_sizes.keys())
+
+    @classmethod
+    def get_default_params(cls, task: str, model_type: str, model_size: str) -> dict:
+        """
+        Get default params
+
+        Args:
+            task (str): Task name
+            model_type (str): Model type
+            model_size (str): Model size
+
+        Raises:
+            ValueError: If backend is not supported
+
+        Returns:
+            dict: Default params
+        """
+        if task not in list(cls.MODEL_TYPES.keys()):
+            raise ValueError(f"{task} is not supported with {cls.BACKEND_NAME}")
+        task = TaskType.from_str(task).value
+        if model_type not in cls.MODEL_TYPES[task]:
+            raise ValueError(f"{model_type} is not supported with {cls.BACKEND_NAME}")
+        if model_size not in cls.MODEL_TYPES[task][model_type]:
+            raise ValueError(f"{model_size} is not supported with {cls.BACKEND_NAME}")
+        return cls.DEFAULT_PARAMS[task][model_type][model_size]
+
     def delete_manager(self):
         """
         Delete manager.
@@ -373,7 +454,6 @@ class BaseManager(BaseTrainHook, ABC):
         """
         Delete manager.
         """
-        # TODO: utils 1.0 연동 시 get 함수 사용
         if self.train_config_file.exists():
             io.remove_file(self.train_config_file)
         if self.artifacts_dir.exists():
@@ -384,6 +464,8 @@ class BaseManager(BaseTrainHook, ABC):
             io.remove_directory(self.train_log_dir, recursive=True)
         if self.metric_file.exists():
             io.remove_file(self.metric_file)
+
+        self.state = TrainState(status=TrainStatus.INIT)
         return None
 
     # Configs methods
@@ -552,7 +634,7 @@ class BaseManager(BaseTrainHook, ABC):
             ]:  # TODO: need to ensure that training is not already running
                 raise FileExistsError(
                     f"{self.artifacts_dir}\n"
-                    "Train artifacts already exist. Remove artifact to re-train [delete_artifact]."
+                    "Train artifacts already exist. Remove artifact to re-train [delete_artifacts]."
                 )
 
             # parse dataset
@@ -669,6 +751,12 @@ class BaseManager(BaseTrainHook, ABC):
             else:
                 raise FileNotFoundError(f"Dataset {dataset} is not exist.")
 
+        # check task match
+        if dataset.task.lower() != self.task.lower():
+            raise ValueError(
+                f"Dataset task is not matched with hub task. Dataset task: {dataset.task}, Hub task: {self.task}"
+            )
+
         # check category match
         if not self.categories:
             self.categories = dataset.get_categories()
@@ -677,12 +765,6 @@ class BaseManager(BaseTrainHook, ABC):
             raise ValueError(
                 "Dataset categories are not matched with hub categories. \n"
                 + f"Dataset categories: {dataset.get_category_names()}, Hub categories: {self.get_category_names()}"
-            )
-
-        # check task match
-        if dataset.task.lower() != self.task.lower():
-            raise ValueError(
-                f"Dataset task is not matched with hub task. Dataset task: {dataset.task}, Hub task: {self.task}"
             )
 
         # convert dataset to backend format if not exist

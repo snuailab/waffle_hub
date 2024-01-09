@@ -151,6 +151,9 @@ class OnnxExporter(BaseExportOnnxHook):
         )
         dummy_input = dummy_input.to(self.cfg.device)
 
+        if not self.export_dir.exists():
+            io.make_directory(self.export_dir)
+
         torch.onnx.export(
             model,
             dummy_input,

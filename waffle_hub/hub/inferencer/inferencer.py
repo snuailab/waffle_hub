@@ -102,6 +102,8 @@ class Inferencer(BaseInferenceHook):
         half: bool = False,
         workers: int = 2,
         device: str = "0",
+        draw: bool = False,
+        show: bool = False,
     ) -> InferenceResult:
         """Start Inference
 
@@ -116,6 +118,8 @@ class Inferencer(BaseInferenceHook):
             half (bool, optional): half. Defaults to False.
             workers (int, optional): workers. Defaults to 2.
             device (str, optional): device. "cpu" or "gpu_id". Defaults to "0".
+            draw (bool, optional): register draw callback. Defaults to False.
+            show (bool, optional): register show callback. Defaults to False.
 
         Raises:
             FileNotFoundError: if can not detect appropriate dataset.
@@ -139,6 +143,16 @@ class Inferencer(BaseInferenceHook):
         Returns:
             InferenceResult: inference result
         """
+        # draw option
+        if draw:
+            from .callbacks import InferenceDrawCallback
+
+            self.register_callback(InferenceDrawCallback(self.draw_dir))
+        # show option
+        if show:
+            from .callbacks import InferenceShowCallback
+
+            self.register_callback(InferenceShowCallback())
 
         try:
             self.run_default_hook("setup")

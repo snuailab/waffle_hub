@@ -3,13 +3,37 @@ from waffle_hub.type import TaskType
 
 # Common
 MODEL_TYPES = {
-    TaskType.OBJECT_DETECTION: {"YOLOv5": list("sml")},
-    TaskType.CLASSIFICATION: {"Classifier": list("sml")},
-    TaskType.TEXT_RECOGNITION: {
-        "TextRecognition": list("sml"),
-        "LicencePlateRecognition": list("sml"),
+    TaskType.OBJECT_DETECTION: {
+        "YOLOv5": {
+            "s": "",
+            "m": "",
+            "l": "",
+        },
     },
-    TaskType.SEMANTIC_SEGMENTATION: {"Segmenter": ["m"]},
+    TaskType.CLASSIFICATION: {
+        "Classifier": {
+            "s": "",
+            "m": "",
+            "l": "",
+        },
+    },
+    TaskType.TEXT_RECOGNITION: {
+        "TextRecognition": {
+            "s": "",
+            "m": "",
+            "l": "",
+        },
+        "LicencePlateRecognition": {
+            "s": "",
+            "m": "",
+            "l": "",
+        },
+    },
+    TaskType.SEMANTIC_SEGMENTATION: {
+        "Segmenter": {
+            "m": "",
+        },
+    },
 }
 
 # Backend Specifics

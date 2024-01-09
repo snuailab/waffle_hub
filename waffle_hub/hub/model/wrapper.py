@@ -7,7 +7,7 @@ from waffle_hub.schema.fields.category import Category
 from waffle_hub.type import TaskType
 
 
-class ModelWrapper(torch.nn.Module):
+class ModelWrapper(torch.nn.Module):  # TODO: add Model Wrapper hook, callbacks
     def __init__(
         self,
         model: torch.nn.Module,
@@ -34,24 +34,27 @@ class ModelWrapper(torch.nn.Module):
                 and
                 outputs results that fit with our convention.
 
-                Classification:
+                CLASSIFICATION:
                     [
                         [batch, class_num],
                     ]  # scores per attribute
-                Detection:
+                OBJECT_DETECTION:
                     [
                         [batch, bbox_num, 4(x1, y1, x2, y2)],  # bounding box
                         [batch, bbox_num],  # confidence
                         [batch, bbox_num],  # class id
                     ]
-                Segmentation:
+                INSTANCE_SEGMENTATION:
                     [
-                        [batch, bbox_num, 4(x1, y1, x2, y2)],  # bounding box
-                        [batch, bbox_num],  # confidence
-                        [batch, bbox_num],  # class id
-                        [batch, mask(H, W)] # warning: mask size and image size are not same
+                        [batch, pred_num, 4(x1, y1, x2, y2)],  # bounding box
+                        [batch, pred_num],  # confidence
+                        [batch, pred_num],  # class id
+                        [batch, pred_num, mask(H, W)] # warning: mask size and image size are not same
                     ]
-
+                SEMANTIC_SEGMENTATION:
+                    [
+                        [class_num, height, width]  # mask
+                    }
             task (str): task type
             categories (list[Union[str, int, float, dict, Category]]): categories
         """
@@ -61,6 +64,36 @@ class ModelWrapper(torch.nn.Module):
         self.postprocess = postprocess
         self.task = task
         self.categories = categories
+
+    @property
+    def categories(self) -> list[Category]:
+        return self.__categories
+
+    @categories.setter
+    def categories(self, v):
+        if isinstance(v[0], dict):
+            v = [
+                getattr(Category, self.task.lower())(
+                    **{
+                        **category,
+                        "category_id": category.get("category_id", i),
+                    }
+                )
+                for i, category in enumerate(v, start=1)
+            ]
+        elif isinstance(v[0], (str, int, float)):
+            v = [
+                getattr(Category, self.task.lower())(
+                    category_id=i,
+                    supercategory="object",
+                    name=str(category),
+                )
+                for i, category in enumerate(v, start=1)
+            ]
+        elif isinstance(v[0], Category):
+            pass
+
+        self.__categories = v
 
     def forward(self, x):
         _, _, H, W = x.shape

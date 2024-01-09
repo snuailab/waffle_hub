@@ -17,8 +17,6 @@ from waffle_hub.hub.evaluator.callbacks import (
 from waffle_hub.hub.evaluator.evaluator import Evaluator
 from waffle_hub.hub.inferencer.callbacks import (
     BaseInferenceCallback,
-    InferenceDrawCallback,
-    InferenceShowCallback,
     InferenceStateWriterCallback,
 )
 from waffle_hub.hub.inferencer.inferencer import Inferencer
@@ -162,9 +160,7 @@ class Hub:
         Returns:
             list[str]: Available tasks
         """
-        backend = backend if backend else cls.BACKEND_NAME
-        manager = cls.get_manager_class(backend)
-        return list(manager.MODEL_TYPES.keys())
+        return cls.get_manager_class(backend).get_available_tasks()
 
     @classmethod
     def get_available_model_types(cls, backend: str, task: str) -> list[str]:
@@ -176,17 +172,12 @@ class Hub:
             task (str): Task name
 
         Raises:
-            ModuleNotFoundError: If backend is not supported
+            ValueError: If backend is not supported
 
         Returns:
             list[str]: Available model types
         """
-
-        manager = cls.get_manager_class(backend)
-        if task not in list(manager.MODEL_TYPES.keys()):
-            raise ValueError(f"{task} is not supported with {backend}")
-        task = TaskType.from_str(task).value
-        return list(manager.MODEL_TYPES[task].keys())
+        return cls.get_manager_class(backend).get_available_model_types(task)
 
     @classmethod
     def get_available_model_sizes(cls, backend: str, task: str, model_type: str) -> list[str]:
@@ -199,19 +190,12 @@ class Hub:
             model_type (str): Model type
 
         Raises:
-            ModuleNotFoundError: If backend is not supported
+            ValueError: If backend is not supported
 
         Returns:
             list[str]: Available model sizes
         """
-        manager = cls.get_manager_class(backend)
-        if task not in list(manager.MODEL_TYPES.keys()):
-            raise ValueError(f"{task} is not supported with {backend}")
-        task = TaskType.from_str(task).value
-        if model_type not in manager.MODEL_TYPES[task]:
-            raise ValueError(f"{model_type} is not supported with {backend}")
-        model_sizes = manager.MODEL_TYPES[task][model_type]
-        return model_sizes if isinstance(model_sizes, list) else list(model_sizes.keys())
+        return cls.get_manager_class(backend).get_available_model_sizes(task, model_type)
 
     @classmethod
     def get_default_train_params(
@@ -227,20 +211,12 @@ class Hub:
             model_size (str): Model size
 
         Raises:
-            ModuleNotFoundError: If backend is not supported
+            ValueError: If backend is not supported
 
         Returns:
             dict: Default train params
         """
-        manager = cls.get_manager_class(backend)
-        if task not in list(manager.MODEL_TYPES.keys()):
-            raise ValueError(f"{task} is not supported with {backend}")
-        task = TaskType.from_str(task).value
-        if model_type not in manager.MODEL_TYPES[task]:
-            raise ValueError(f"{model_type} is not supported with {backend}")
-        if model_size not in manager.MODEL_TYPES[task][model_type]:
-            raise ValueError(f"{model_size} is not supported with {backend}")
-        return manager.DEFAULT_PARAMS[task][model_type][model_size]
+        return cls.get_manager_class(backend).get_default_params(task, model_type, model_size)
 
     @classmethod
     def new(
@@ -1029,12 +1005,6 @@ class Hub:
             model=self.manager.get_model(),
             callbacks=default_callbacks,
         )
-        # draw option
-        if draw:
-            inferencer.register_callback(InferenceDrawCallback(self.draw_dir))
-        # show option
-        if show:
-            inferencer.register_callback(InferenceShowCallback())
 
         # overwrite training config
         train_config = self.get_train_config()
@@ -1054,6 +1024,8 @@ class Hub:
             half=half,
             workers=workers,
             device=device,
+            draw=draw,
+            show=show,
         )
 
     def benchmark(
