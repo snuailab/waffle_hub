@@ -4,11 +4,14 @@ from itertools import groupby
 from pathlib import Path
 from typing import Union
 
+import cv2
+import numpy as np
 from waffle_utils.file import io, search
-from waffle_utils.image.io import load_image
 
-from waffle_hub import TaskType
+from temp_utils.image.io import load_image
+from waffle_hub.schema.data import ImageInfo
 from waffle_hub.schema.fields import Annotation, Category, Image
+from waffle_hub.type import TaskType
 from waffle_hub.utils.conversion import merge_multi_segment
 
 
@@ -34,6 +37,59 @@ def _check_valid_file_paths(images: list[Image]) -> bool:
             )
     else:
         return True
+
+
+def resize_image(
+    image: np.ndarray, image_size: list[int], letter_box: bool = False
+) -> list[np.ndarray, ImageInfo]:
+    """Resize Image.
+
+    Args:
+        image (np.ndarray): opencv image.
+        image_size (list[int]): image [width, height].
+        letter_box (bool): letter box.
+
+    Returns:
+        list[np.ndarray, ImageInfo]: resized image, image info.
+    """
+
+    h, w = image.shape[:2]
+    W, H = image_size
+
+    if letter_box:
+        h_ratio = H / h
+        w_ratio = W / w
+
+        if w_ratio < h_ratio:
+            resize_shape = (int(w * w_ratio), round(h * w_ratio))
+            total_pad = H - resize_shape[1]
+            top = total_pad // 2
+            bottom = total_pad - top
+            left, right = 0, 0
+        else:
+            resize_shape = (round(w * h_ratio), int(h * h_ratio))
+            total_pad = W - resize_shape[0]
+            left = total_pad // 2
+            right = total_pad - left
+            top, bottom = 0, 0
+
+        resized_image = cv2.resize(image, resize_shape, interpolation=cv2.INTER_LINEAR)
+        resized_image = cv2.copyMakeBorder(
+            resized_image, top, bottom, left, right, None, value=(114, 114, 114)
+        )
+
+    else:
+        resize_shape = (W, H)
+        left, top = 0, 0
+        resized_image = cv2.resize(image, resize_shape, interpolation=cv2.INTER_LINEAR)
+
+    return resized_image, ImageInfo(
+        ori_image=cv2.cvtColor(image, cv2.COLOR_BGR2RGB),
+        ori_shape=(w, h),
+        new_shape=resize_shape,
+        input_shape=(W, H),
+        pad=(left, top),
+    )
 
 
 def _export_yolo_classification(
@@ -76,7 +132,11 @@ def _export_yolo_classification(
             category_id = annotations[0].category_id
 
             image_dst_path = split_dir / category_names[category_id] / image.file_name
-            io.copy_file(image_path, image_dst_path, create_directory=True)
+            # TODO : resize_image를 dataset.utils로 분할, make_directory를 사용하지 않고 dataset.utils에 image save하는 경우 create_directory=True를 할 수 있도록
+            io.make_directory(image_dst_path.parent)
+            img = cv2.imread(str(image_path))
+            transformed_image, image_info = resize_image(img, image_size=[224, 224], letter_box=True)
+            cv2.imwrite(str(image_dst_path), transformed_image)
 
 
 def _export_yolo_detection(

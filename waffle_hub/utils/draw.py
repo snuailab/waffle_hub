@@ -5,10 +5,10 @@ from typing import Union
 import numpy as np
 from PIL import Image, ImageDraw, ImageFont
 from waffle_utils.file.network import get_file_from_url
-from waffle_utils.image.io import load_image
 
-from waffle_hub import TaskType
+from temp_utils.image.io import load_image
 from waffle_hub.schema.fields import Annotation
+from waffle_hub.type import TaskType
 
 FONT_URL = "https://raw.githubusercontent.com/snuailab/assets/main/waffle/fonts/gulim.ttc"
 FONT_NAME = "gulim.ttc"
@@ -169,6 +169,34 @@ def draw_text_recognition(
     return image
 
 
+def draw_semantic_segmentation(
+    image: np.ndarray,
+    annotation: Annotation,
+    names: list[str],
+):
+    segments: list = annotation.segmentation
+
+    if len(segments) == 0:
+        return image
+
+    pil_image = Image.fromarray(image)
+    draw = ImageDraw.Draw(pil_image, "RGBA")
+    fill_color = tuple(colors[annotation.category_id - 1])
+    fill_color = fill_color + (120,)
+    for segment in segments:
+        if len(segment) < 6:
+            continue
+
+        draw.polygon(
+            segment,
+            fill=fill_color,
+        )
+
+    image = np.array(pil_image)
+
+    return image
+
+
 def draw_results(
     image: Union[np.ndarray, str],
     results: list[Annotation],
@@ -180,7 +208,7 @@ def draw_results(
 
     task_results = {task: [] for task in TaskType}
     for result in results:
-        task_results[result.task.upper()].append(result)
+        task_results[result.task.lower()].append(result)
 
     font_scale = max(image.shape[0], image.shape[1]) / 1000
     font_scale = 1.0 if font_scale < 1.0 else font_scale
@@ -202,5 +230,8 @@ def draw_results(
 
     for i, result in enumerate(task_results[TaskType.TEXT_RECOGNITION], start=1):
         image = draw_text_recognition(image, result, loc_x=10, loc_y=10)
+
+    for i, result in enumerate(task_results[TaskType.SEMANTIC_SEGMENTATION], start=1):
+        image = draw_semantic_segmentation(image, result, names=names)
 
     return image

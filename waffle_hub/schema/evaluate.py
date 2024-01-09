@@ -4,7 +4,12 @@ from waffle_hub.schema.base_schema import BaseSchema
 
 
 @dataclass
-class ObjectDetectionMetric(BaseSchema):
+class BaseMetric(BaseSchema):
+    pass
+
+
+@dataclass
+class ObjectDetectionMetric(BaseMetric):
     mAP: float
     mAP_50: float
     mAP_75: float
@@ -22,7 +27,7 @@ class ObjectDetectionMetric(BaseSchema):
 
 
 @dataclass
-class ClassificationMetric(BaseSchema):
+class ClassificationMetric(BaseMetric):
     accuracy: float
     recall: float
     precision: float
@@ -37,10 +42,16 @@ class ClassificationMetric(BaseSchema):
 
 
 @dataclass
-class InstanceSegmentationMetric(BaseSchema):
+class InstanceSegmentationMetric(BaseMetric):
     mAP: float
 
 
 @dataclass
-class TextRecognitionMetric(BaseSchema):
+class TextRecognitionMetric(BaseMetric):
     accuracy: float
+
+
+@dataclass
+class SemanticSegmentationMetric(BaseMetric):
+    mean_pixel_accuracy: float
+    IoU: float

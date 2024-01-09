@@ -7,8 +7,8 @@ import tqdm
 from pycocotools.coco import COCO
 from waffle_utils.file import io
 
-from waffle_hub import TaskType
 from waffle_hub.schema.fields import Annotation, Category, Image
+from waffle_hub.type import TaskType
 from waffle_hub.utils.conversion import convert_rle_to_polygon
 
 
@@ -88,13 +88,7 @@ def export_autocare_dlt(self, export_dir: Union[str, Path]) -> str:
 
     train_ids, val_ids, test_ids, unlabeled_ids = self.get_split_ids()
 
-    if self.task == TaskType.CLASSIFICATION:
-        _export_autocare_dlt(self, export_dir, train_ids, val_ids, test_ids, [])
-    elif self.task == TaskType.OBJECT_DETECTION:
-        _export_autocare_dlt(self, export_dir, train_ids, val_ids, test_ids, [])
-    elif self.task == TaskType.INSTANCE_SEGMENTATION:
-        _export_autocare_dlt(self, export_dir, train_ids, val_ids, test_ids, [])
-    elif self.task == TaskType.TEXT_RECOGNITION:
+    if self.task in list(TaskType):
         _export_autocare_dlt(self, export_dir, train_ids, val_ids, test_ids, [])
     else:
         raise ValueError(f"Unsupported task type: {self.task}")

@@ -14,11 +14,11 @@ from typing import Union
 import PIL.Image
 import tqdm
 from waffle_utils.file import io, network
-from waffle_utils.image.io import load_image, save_image
-from waffle_utils.log import datetime_now
-from waffle_utils.utils import type_validator
+from waffle_utils.logger import datetime_now
+from waffle_utils.validator import setter_type_validator
 
-from waffle_hub import EXPORT_MAP, DataType, SplitMethod, TaskType
+from temp_utils.image.io import load_image, save_image
+from waffle_hub import EXPORT_MAP, SplitMethod
 from waffle_hub.dataset.adapter import (
     export_autocare_dlt,
     export_coco,
@@ -31,6 +31,7 @@ from waffle_hub.dataset.adapter import (
     import_yolo,
 )
 from waffle_hub.schema import Annotation, Category, DatasetInfo, Image
+from waffle_hub.type import DataType, TaskType
 from waffle_hub.utils.draw import draw_results
 
 logger = logging.getLogger(__name__)
@@ -86,7 +87,7 @@ class Dataset:
         return self.__name
 
     @name.setter
-    @type_validator(str)
+    @setter_type_validator(str)
     def name(self, v):
         self.__name = v
 
@@ -96,10 +97,9 @@ class Dataset:
 
     @task.setter
     def task(self, v):
-        v = str(v).upper()
-        if v not in TaskType:
+        if v not in list(TaskType):
             raise ValueError(f"Invalid task type: {v}" f"Available task types: {list(TaskType)}")
-        self.__task = v
+        self.__task = str(v.value) if isinstance(v, TaskType) else str(v).lower()
 
     @property
     def categories(self) -> list[Category]:
@@ -236,7 +236,7 @@ class Dataset:
         return self.__root_dir
 
     @root_dir.setter
-    @type_validator(Path, strict=False)
+    @setter_type_validator(Path, strict=False)
     def root_dir(self, v):
         self.__root_dir = Dataset.parse_root_dir(v)
         logger.info(f"Dataset root directory: {self.__root_dir}")
@@ -550,6 +550,14 @@ class Dataset:
                         name=chr(64 + category_id),
                         supercategory="object",
                     )
+                elif task == TaskType.SEMANTIC_SEGMENTATION:
+                    category = Category.object_detection(
+                        category_id=category_id,
+                        name=f"category_{category_id}",
+                        supercategory="object",
+                    )
+                else:
+                    raise NotImplementedError(f"not supported task: {task}")
 
                 ds.add_categories([category])
 
@@ -606,6 +614,25 @@ class Dataset:
                             caption=chr(64 + random.randint(1, category_num)),
                         )
                     ]
+                elif task == TaskType.SEMANTIC_SEGMENTATION:
+                    annotations = [
+                        Annotation.instance_segmentation(
+                            annotation_id=annotation_id + i,
+                            image_id=image_id,
+                            category_id=random.randint(1, category_num),
+                            bbox=[
+                                random.randint(0, 100),
+                                random.randint(0, 100),
+                                random.randint(0, 100),
+                                random.randint(0, 100),
+                            ],
+                            segmentation=[[random.randint(0, 100) for _ in range(10)]],
+                        )
+                        for i in range(random.randint(1, 5))
+                    ]
+                else:
+                    raise NotImplementedError(f"not supported task: {task}")
+
                 ds.add_annotations(annotations)
                 annotation_id += len(annotations)
 
@@ -684,7 +711,7 @@ class Dataset:
         if len(src_names) != len(src_root_dirs):
             raise ValueError("Length of src_names and src_root_dirs should be same.")
         if isinstance(task, str):
-            task = task.upper()
+            task = task.lower()
         if task not in [k for k in TaskType]:
             raise ValueError(f"task should be one of {[k for k in TaskType]}")
 
@@ -938,7 +965,7 @@ class Dataset:
             yaml_path (str): Yolo yaml file path. when task is classification, yaml_path is not required.
             root_dir (str, optional): Dataset root directory. Defaults to None.
 
-        Example:
+        Examples:
             >>> ds = Dataset.from_yolo("yolo", "classification", "path/to/yolo_root_dir")
             >>> ds = Dataset.from_yolo("yolo", "object_detection", "path/to/yolo_root_dir", "path/to/yolo.yaml")
 
@@ -1021,7 +1048,7 @@ class Dataset:
             image_dir (str): Label studio image directory.
             root_dir (str, optional): Dataset root directory. Defaults to None.
 
-        Example:
+        Examples:
             >>> ds = Dataset.from_label_studio(
                 "label_studio",
                 "classification",
@@ -1070,6 +1097,7 @@ class Dataset:
                 TaskType.CLASSIFICATION,
                 TaskType.OBJECT_DETECTION,
                 TaskType.INSTANCE_SEGMENTATION,
+                TaskType.SEMANTIC_SEGMENTATION,
             ]:
                 url = "https://raw.githubusercontent.com/snuailab/assets/main/waffle/sample_dataset/mnist.zip"
             elif task == TaskType.TEXT_RECOGNITION:
@@ -1617,7 +1645,7 @@ class Dataset:
 
         self._check_trainable()
 
-        export_dir: Path = self.export_dir / EXPORT_MAP[data_type.upper()]
+        export_dir: Path = self.export_dir / EXPORT_MAP[data_type]
         if data_type in [DataType.YOLO, DataType.ULTRALYTICS]:
             export_function = export_yolo
         elif data_type in [DataType.COCO]:
@@ -1646,7 +1674,7 @@ class Dataset:
 
     def delete(self):
         """Delete Dataset"""
-        io.remove_directory(self.dataset_dir)
+        io.remove_directory(self.dataset_dir, recursive=True)
         del self
 
     def draw_annotations(self, image_ids=None):

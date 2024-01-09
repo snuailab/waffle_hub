@@ -1,26 +1,29 @@
 # print utils
 tqdm
 tabulate==0.9.0
-pydantic==1.8.2
+pydantic>=2.4.1
 rich==13.5.2
 onnxruntime==1.15.1
 tbparse==0.0.7
 
 # waffle dependencies
-waffle-utils==0.3.3
+waffle-utils>=1.1.0a2
+waffle-dough>=0.0.0a1
 
 # ultralytics
-ultralytics==8.0.112
+ultralytics==8.0.227
 
 # huggingface
 datasets==2.12.0
-transformers==4.28.1
+transformers==4.34.1
 albumentations==1.3.0
 evaluate==0.4.0
 timm==0.6.13
+fsspec<2023.10.0
+accelerate
 
 #autocare dlt
-autocare-dlt==0.2.4
+autocare-dlt==0.2.6
 
 # etc
 numpy<=1.23.5
@@ -30,3 +33,4 @@ py-cpuinfo>=8.0.0
 shapely>=2.0.0
 fire==0.5.0
 Pillow==9.5.0
+fsspec<2023.10.0

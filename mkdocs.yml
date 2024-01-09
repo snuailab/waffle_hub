@@ -15,10 +15,18 @@ theme:
     - navigation.footer
     - content.code.copy
 
+plugins:
+  - search
+  - autorefs
+  - mkdocstrings
+  - mkdocs-jupyter:
+      ignore_h1_titles: True
+      include_source: True
+
 extra:
   social:
     - icon: fontawesome/brands/github
-      link: https://github.com/snuailab/waffle_hub
+      link: https://github.com/snuailab/waffle
 
     - icon: fontawesome/brands/linkedin
       link: https://www.linkedin.com/company/snuailab/mycompany/
@@ -35,29 +43,44 @@ markdown_extensions:
           class: mermaid
           format: !!python/name:pymdownx.superfences.fence_code_format
 nav:
-  - Home: index.md
-  - Getting Started: getting_started.md
+  - Home: README.md
+  - Tutorials:
+    - Introduction: tutorials/README.md
+  #   - Dataset:
+  #     - tutorials/dataset/README.md
+  #     - Import: tutorials/dataset/import.ipynb
+  #     - Split: tutorials/dataset/split.ipynb
+  #     - Export: tutorials/dataset/export.ipynb
+    - Hub:
+      - tutorials/hub/README.md
+      - Waffle_hub: tutorials/hub/using_hub.ipynb
+  #     - Create: tutorials/hub/create.ipynb
+  #     - Train: tutorials/hub/train.ipynb
+  #     # - Test: tutorials/hub/test.ipynb
+  #     - Export: tutorials/hub/export.ipynb
+  #   - Menu:
+  #     - tutorials/menu/README.md
   - Documentations:
-    - Waffle Utils:
-      - Dataset:
-        - Introduction: waffle_utils/dataset/index.md
-        - Create Dataset: waffle_utils/dataset/dataset.md
-        - Field: waffle_utils/dataset/field.md
-      - Utility:
-        - Introduction: waffle_utils/utility/index.md
-
     - Waffle Hub:
+      - Introduction: waffle_hub/README.md
+      - Dataset:
+        - Dataset: waffle_hub/dataset/dataset.md
       - Hub:
-        - Introduction: waffle_hub/hub/index.md
-        - Create Hub: waffle_hub/hub/hub.md
-        - Train: waffle_hub/hub/train.md
-        - Inference: waffle_hub/hub/inference.md
-        - Evaluate: waffle_hub/hub/evaluate.md
-        - Export: waffle_hub/hub/export.md
-      - Model:
-        - Introduction: waffle_hub/model/index.md
-        - Wrapper: waffle_hub/model/wrapper.md
-  - Experimental:
-    - Model Serve: experimental/model_serve.md
-    - Auto Labeling: experimental/auto_labeling.md
-  - Blogs: None
+        - Hub: waffle_hub/hub/hub.md
+      - Manager:
+        - Manager: waffle_hub/manager/manager.md
+        - TrainHook: waffle_hub/manager/hook.md
+        - TrainCallback: waffle_hub/manager/callbacks.md
+      - Evaluator:
+        - Evaluator: waffle_hub/evaluator/evaluator.md
+        - EvaluateHook: waffle_hub/evaluator/hook.md
+        - EvaluateCallback: waffle_hub/evaluator/callbacks.md
+      - Inferencer:
+        - Inferencer: waffle_hub/inferencer/inferencer.md
+        - InferenceHook: waffle_hub/inferencer/hook.md
+        - InferenceCallback: waffle_hub/inferencer/callbacks.md
+      - Onnx Exporter:
+        - Onnx Exporter: waffle_hub/onnx_exporter/exporter.md
+        - ExportOnnxHook: waffle_hub/onnx_exporter/hook.md
+        - ExportOnnxCallback: waffle_hub/onnx_exporter/callbacks.md
+  - Blog: https://medium.com/snuailab

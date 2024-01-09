@@ -3,8 +3,8 @@ from pathlib import Path
 import pytest
 from waffle_utils.file import io, network
 
-from waffle_hub import TaskType
 from waffle_hub.dataset import Dataset
+from waffle_hub.type import TaskType
 
 
 @pytest.fixture(scope="session")
@@ -106,7 +106,7 @@ def test_video_path(tmp_path_factory: pytest.TempPathFactory):
 @pytest.fixture
 def instance_segmentation_dataset(coco_path: Path, tmpdir: Path):
     dataset: Dataset = Dataset.from_coco(
-        name="seg",
+        name="ins_seg",
         task=TaskType.INSTANCE_SEGMENTATION,
         coco_file=coco_path / "coco.json",
         coco_root_dir=coco_path / "images",
@@ -121,7 +121,7 @@ def instance_segmentation_dataset(coco_path: Path, tmpdir: Path):
 def object_detection_dataset(coco_path: Path, tmpdir: Path):
     dataset: Dataset = Dataset.from_coco(
         name="od",
-        task=TaskType.OBJECT_DETECTION,
+        task=str(TaskType.OBJECT_DETECTION.value),
         coco_file=coco_path / "coco.json",
         coco_root_dir=coco_path / "images",
         root_dir=tmpdir,
@@ -135,7 +135,7 @@ def object_detection_dataset(coco_path: Path, tmpdir: Path):
 def classification_dataset(coco_path: Path, tmpdir: Path):
     dataset: Dataset = Dataset.from_coco(
         name="cls",
-        task=TaskType.CLASSIFICATION,
+        task=str(TaskType.CLASSIFICATION.value),
         coco_file=coco_path / "coco.json",
         coco_root_dir=coco_path / "images",
         root_dir=tmpdir,
@@ -149,11 +149,25 @@ def classification_dataset(coco_path: Path, tmpdir: Path):
 def text_recognition_dataset(coco_path: Path, tmpdir: Path):
     dataset: Dataset = Dataset.from_coco(
         name="ocr",
-        task=TaskType.TEXT_RECOGNITION,
+        task=str(TaskType.TEXT_RECOGNITION.value),
         coco_file=coco_path / "coco.json",
         coco_root_dir=coco_path / "images",
         root_dir=tmpdir,
     )
     dataset.split(0.8)
+
+    return dataset
+
+
+@pytest.fixture
+def semantic_segmentation_dataset(coco_path: Path, tmpdir: Path):
+    dataset: Dataset = Dataset.from_autocare_dlt(
+        name="sem_seg",
+        task=TaskType.SEMANTIC_SEGMENTATION,
+        coco_file=coco_path / "coco.json",
+        coco_root_dir=coco_path / "images",
+        root_dir=tmpdir,
+    )
+    dataset.split(0.2, 0.8)
 
     return dataset

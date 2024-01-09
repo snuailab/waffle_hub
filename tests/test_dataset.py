@@ -5,9 +5,9 @@ import pytest
 from waffle_utils.file.io import load_json, save_json
 from waffle_utils.file.search import get_image_files
 
-from waffle_hub import TaskType
 from waffle_hub.dataset import Dataset
 from waffle_hub.schema.fields import Annotation, Category, Image
+from waffle_hub.type import TaskType
 from waffle_hub.utils.data import ImageDataset, LabeledDataset
 
 
@@ -242,7 +242,7 @@ def _export(dataset_name, task: TaskType, root_dir):
         )
         assert len(dataset.get_images()) == len(import_ds.get_images())
     if task in [TaskType.OBJECT_DETECTION, TaskType.INSTANCE_SEGMENTATION, TaskType.CLASSIFICATION]:
-        export_dir = Path(dataset.export("yolo"))
+        export_dir = Path(dataset.export("ultralytics"))
         import_ds = Dataset.from_yolo(
             name=f"{task}_import_yolo",
             task=task,
@@ -260,7 +260,12 @@ def _export(dataset_name, task: TaskType, root_dir):
             root_dir=root_dir,
         )
         assert len(dataset.get_images()) == len(import_ds.get_images())
-    if task in [TaskType.OBJECT_DETECTION, TaskType.TEXT_RECOGNITION, TaskType.CLASSIFICATION]:
+    if task in [
+        TaskType.OBJECT_DETECTION,
+        TaskType.TEXT_RECOGNITION,
+        TaskType.CLASSIFICATION,
+        TaskType.SEMANTIC_SEGMENTATION,
+    ]:
         export_dir = Path(dataset.export("autocare_dlt"))
         import_ds = Dataset.from_autocare_dlt(
             name=f"{task}_import_autocare_dlt",
@@ -303,6 +308,7 @@ def test_dummy(tmpdir):
         TaskType.OBJECT_DETECTION,
         TaskType.INSTANCE_SEGMENTATION,
         TaskType.TEXT_RECOGNITION,
+        TaskType.SEMANTIC_SEGMENTATION,
     ]:
         _total_dummy(f"dummy_{task}", task, 100, 5, 10, tmpdir)
 
@@ -453,7 +459,13 @@ def _total_autocare_dlt(dataset_name, task: TaskType, coco_path, root_dir):
 
 
 @pytest.mark.parametrize(
-    "task", [TaskType.CLASSIFICATION, TaskType.OBJECT_DETECTION, TaskType.TEXT_RECOGNITION]
+    "task",
+    [
+        TaskType.CLASSIFICATION,
+        TaskType.OBJECT_DETECTION,
+        TaskType.TEXT_RECOGNITION,
+        TaskType.SEMANTIC_SEGMENTATION,
+    ],
 )
 def test_autocare_dlt(coco_path, tmpdir, task):
     _total_autocare_dlt(f"autocare_dlt_{task}", task, coco_path, tmpdir)

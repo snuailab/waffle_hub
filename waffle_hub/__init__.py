@@ -1,86 +1,64 @@
-__version__ = "0.2.15"
+__version__ = "0.4.0a1"
 
-import enum
 from collections import OrderedDict
 
+from waffle_utils.enum import StrEnum as BaseEnum
 
-class CustomEnumMeta(enum.EnumMeta):
-    def __contains__(cls, item):
-        if isinstance(item, str):
-            return item.upper() in cls._member_names_
-        return super().__contains__(item)
-
-    def __upper__(self):
-        return self.name.upper()
-
-
-class BaseEnum(enum.Enum, metaclass=CustomEnumMeta):
-    """Base class for Enum
-
-    Example:
-        >>> class Color(BaseEnum):
-        >>>     RED = 1
-        >>>     GREEN = 2
-        >>>     BLUE = 3
-        >>> Color.RED == "red"
-        True
-        >>> Color.RED == "RED"
-        True
-        >>> "red" in DataType
-        True
-        >>> "RED" in DataType
-        True
-    """
-
-    def __eq__(self, other):
-        if isinstance(other, str):
-            return self.name.upper() == other.upper()
-        return super().__eq__(other)
-
-    def __ne__(self, other):
-        if isinstance(other, str):
-            return self.name.upper() != other.upper()
-        return super().__ne__(other)
-
-    def __hash__(self):
-        return hash(self.name.upper())
-
-    def __str__(self):
-        return self.name.upper()
-
-    def __repr__(self):
-        return self.name.upper()
-
-
-class DataType(BaseEnum):
-    # TODO: map to same value
-
-    YOLO = enum.auto()
-    ULTRALYTICS = enum.auto()
-
-    COCO = enum.auto()
-
-    AUTOCARE_DLT = enum.auto()
-
-    TRANSFORMERS = enum.auto()
-
-
-class TaskType(BaseEnum):
-    CLASSIFICATION = enum.auto()
-    OBJECT_DETECTION = enum.auto()
-    SEMANTIC_SEGMENTATION = enum.auto()
-    INSTANCE_SEGMENTATION = enum.auto()
-    KEYPOINT_DETECTION = enum.auto()
-    TEXT_RECOGNITION = enum.auto()
-    REGRESSION = enum.auto()
+from waffle_hub.type import BackendType, DataType
+from waffle_hub.utils.utils import CaseInsensitiveDict
 
 
 class SplitMethod(BaseEnum):
-    RANDOM = enum.auto()
-    STRATIFIED = enum.auto()
+    RANDOM = "random"
+    STRATIFIED = "stratified"
 
 
-EXPORT_MAP = OrderedDict(
+# for changeable status desc
+class BaseStatus(BaseEnum):
+    pass
+
+
+class TrainStatus(BaseStatus):
+    INIT = "init"
+    RUNNING = "running"
+    SUCCESS = "success"
+    FAILED = "failed"
+    STOPPED = "stopped"
+
+
+class EvaluateStatus(BaseStatus):
+    INIT = "init"
+    RUNNING = "running"
+    SUCCESS = "success"
+    FAILED = "failed"
+    STOPPED = "stopped"
+
+
+class InferenceStatus(BaseStatus):
+    INIT = "init"
+    RUNNING = "running"
+    SUCCESS = "success"
+    FAILED = "failed"
+    STOPPED = "stopped"
+
+
+class ExportOnnxStatus(BaseStatus):
+    INIT = "init"
+    RUNNING = "running"
+    SUCCESS = "success"
+    FAILED = "failed"
+    STOPPED = "stopped"
+
+
+class ExportWaffleStatus(BaseStatus):
+    INIT = "init"
+    RUNNING = "running"
+    SUCCESS = "success"
+    FAILED = "failed"
+    STOPPED = "stopped"
+
+
+EXPORT_MAP = CaseInsensitiveDict(
     {
         DataType.YOLO: "ULTRALYTICS",
         DataType.ULTRALYTICS: "ULTRALYTICS",
@@ -90,30 +68,19 @@ EXPORT_MAP = OrderedDict(
     }
 )
 
-
-BACKEND_MAP = OrderedDict(
+BACKEND_MAP = CaseInsensitiveDict(
     {
-        DataType.ULTRALYTICS: {
-            "import_path": "waffle_hub.hub.adapter.ultralytics",
-            "class_name": "UltralyticsHub",
+        BackendType.ULTRALYTICS: {
+            "adapter_import_path": "waffle_hub.hub.manager.adapter.ultralytics.ultralytics",
+            "adapter_class_name": "UltralyticsManager",
         },
-        DataType.AUTOCARE_DLT: {
-            "import_path": "waffle_hub.hub.adapter.autocare_dlt",
-            "class_name": "AutocareDLTHub",
+        BackendType.AUTOCARE_DLT: {
+            "adapter_import_path": "waffle_hub.hub.manager.adapter.autocare_dlt.autocare_dlt",
+            "adapter_class_name": "AutocareDltManager",
         },
-        DataType.TRANSFORMERS: {
-            "import_path": "waffle_hub.hub.adapter.transformers",
-            "class_name": "TransformersHub",
+        BackendType.TRANSFORMERS: {
+            "adapter_import_path": "waffle_hub.hub.manager.adapter.transformers.transformers",
+            "adapter_class_name": "TransformersManager",
         },
     }
 )
-
-
-for key in list(EXPORT_MAP.keys()):
-    EXPORT_MAP[str(key).lower()] = EXPORT_MAP[key]
-    EXPORT_MAP[str(key).upper()] = EXPORT_MAP[key]
-
-
-for key in list(BACKEND_MAP.keys()):
-    BACKEND_MAP[str(key).lower()] = BACKEND_MAP[key]
-    BACKEND_MAP[str(key).upper()] = BACKEND_MAP[key]

@@ -1,5 +1,5 @@
-from waffle_utils.log import datetime_now
-from waffle_utils.utils import type_validator
+from waffle_utils.logger import datetime_now
+from waffle_utils.validator import setter_type_validator
 
 from .base_field import BaseField
 
@@ -30,7 +30,7 @@ class Image(BaseField):
         return self.__image_id
 
     @image_id.setter
-    @type_validator(int)
+    @setter_type_validator(int)
     def image_id(self, v):
         if v and v < 1:
             raise ValueError("id should be greater than 0.")
@@ -41,7 +41,7 @@ class Image(BaseField):
         return self.__file_name
 
     @file_name.setter
-    @type_validator(str, strict=False)
+    @setter_type_validator(str, strict=False)
     def file_name(self, v):
         self.__file_name = v
 
@@ -50,7 +50,7 @@ class Image(BaseField):
         return self.__width
 
     @width.setter
-    @type_validator(int)
+    @setter_type_validator(int)
     def width(self, v):
         self.__width = v
 
@@ -59,7 +59,7 @@ class Image(BaseField):
         return self.__height
 
     @height.setter
-    @type_validator(int)
+    @setter_type_validator(int)
     def height(self, v):
         self.__height = v
 
@@ -68,7 +68,7 @@ class Image(BaseField):
         return self.__original_file_name
 
     @original_file_name.setter
-    @type_validator(str, strict=False)
+    @setter_type_validator(str, strict=False)
     def original_file_name(self, v):
         self.__original_file_name = v or self.file_name
 
@@ -77,7 +77,7 @@ class Image(BaseField):
         return self.__date_captured
 
     @date_captured.setter
-    @type_validator(str)
+    @setter_type_validator(str)
     def date_captured(self, v):
         if v is None:
             self.__date_captured = datetime_now()

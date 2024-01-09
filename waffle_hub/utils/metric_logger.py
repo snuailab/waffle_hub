@@ -6,6 +6,8 @@ from pathlib import Path
 from threading import Thread
 from typing import Union
 
+from waffle_hub.schema.state import TrainState
+
 __all__ = ["MetricLogger"]
 
 logger = logging.getLogger(__name__)
@@ -104,6 +106,8 @@ class MetricLogger:
         log_dir: Union[str, Path],
         func: callable,
         interval: float,
+        state: TrainState,
+        state_save_path: Union[str, Path] = None,
         prefix: str = "",
         **kwargs,
     ):
@@ -116,6 +120,8 @@ class MetricLogger:
                 func should return a list of metrics.
                 e.g. func() -> [[{"tag": "value}, ...], ...]
             interval (float): The interval to log metrics. (seconds)
+            state (TrainState): train state.
+            state_save_path (Union[str, Path]): The path to save the state. If None, state will not be saved.
             prefix (str, optional): The prefix of the log file. Defaults to "".
             kwargs: The arguments for the metric logger.
         """
@@ -125,7 +131,8 @@ class MetricLogger:
         self.func = func
         self.interval = float(interval)
         self.prefix = str(prefix)
-
+        self.state = state
+        self.state_save_path = state_save_path
         self.kwargs = kwargs
 
         self.loggers = [
@@ -153,16 +160,19 @@ class MetricLogger:
 
         self._stop = False
 
-        self.thread = Thread(target=self._loop, daemon=True)
-        self.thread.start()
+        self._thread = Thread(target=self._loop, daemon=True)
+        self._thread.start()
 
     def stop(self):
         """Stop logging thread."""
-        self._stop = True
-
-        self.thread.join()
-        for logger in self.loggers:
-            logger.close()
+        if self._thread is not None:
+            self._stop = True
+            self._thread.join()
+            self._thread = None
+            self._log()  # final log after stop
+            for logger in self.loggers:
+                logger.close()
+            self._initiated = False
 
     def _loop(self):
         """Log metrics every interval seconds."""
@@ -184,6 +194,9 @@ class MetricLogger:
         """Log metrics."""
         metrics_per_epoch = self.func()
         current_step = len(metrics_per_epoch)
+        self.state.step = current_step
+        if self.state_save_path is not None:
+            self.state.save_json(save_path=self.state_save_path)
         for step in range(self._last_step, current_step):
             # metrics is a list of dict
             # e.g. [{"tag": "value"}, ...]
@@ -199,3 +212,6 @@ class MetricLogger:
                 self.log_metric(tag, value, step)
 
         self._last_step = current_step
+
+    def set_state_save_path(self, state_save_path: Union[str, Path]):
+        self.state_save_path = Path(state_save_path)

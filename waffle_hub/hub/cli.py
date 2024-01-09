@@ -1,10 +1,14 @@
+import logging
+
 import fire
-from waffle_utils.log import initialize_logger
+from waffle_utils.logger import initialize_logger
 
 from waffle_hub.hub import Hub
 from waffle_hub.utils.base_cli import BaseCLI, cli
 
-initialize_logger("hub.log", root_level="INFO", console_level="INFO", file_level="DEBUG")
+initialize_logger(
+    "hub.log", root_level=logging.INFO, console_level=logging.INFO, file_level=logging.DEBUG
+)
 
 
 class HubInstance(BaseCLI):
@@ -12,28 +16,7 @@ class HubInstance(BaseCLI):
     restrict_method_names = [
         "load",
         "get_default_advance_train_params",
-        "get_image_loader",
         "get_model",
-        "after_evaluate",
-        "after_export_onnx",
-        "after_inference",
-        "after_train",
-        "before_evaluate",
-        "before_export_onnx",
-        "before_inference",
-        "before_train",
-        "evaluating",
-        "exporting_onnx",
-        "inferencing",
-        "training",
-        "on_evaluate_end",
-        "on_evaluate_start",
-        "on_export_onnx_end",
-        "on_export_onnx_start",
-        "on_inference_end",
-        "on_inference_start",
-        "on_train_end",
-        "on_train_start",
         "save_model_config",
         "save_train_config",
     ]
