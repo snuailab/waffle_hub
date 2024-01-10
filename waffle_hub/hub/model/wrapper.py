@@ -263,7 +263,7 @@ class SemanticSegmentationResultParser(ResultParser):
         return parseds
 
 
-def get_parser(task: str):
+def get_parser(task: str) -> ResultParser:
     if task == TaskType.CLASSIFICATION:
         return ClassificationResultParser
     elif task == TaskType.OBJECT_DETECTION:

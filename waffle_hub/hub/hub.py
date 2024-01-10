@@ -23,9 +23,7 @@ import numpy as np
 import torch
 import tqdm
 from waffle_utils.file import io
-from waffle_utils.image.io import save_image
-from waffle_utils.utils import type_validator
-from waffle_utils.video.io import create_video_writer
+from waffle_utils.validator import setter_type_validator
 
 from waffle_hub import BACKEND_MAP, EXPORT_MAP, TaskType, TrainStatusDesc
 from waffle_hub.dataset import Dataset
@@ -53,6 +51,8 @@ from waffle_hub.schema.running_status import (
     InferencingStatus,
     TrainingStatus,
 )
+from waffle_hub.temp_utils.image.io import save_image
+from waffle_hub.temp_utils.video.io import create_video_writer
 from waffle_hub.utils.data import (
     IMAGE_EXTS,
     VIDEO_EXTS,
@@ -341,7 +341,7 @@ class Hub:
             )
         except Exception as e:
             if (root_dir / name).exists():
-                io.remove_directory(root_dir / name)
+                io.remove_directory(root_dir / name, recursive=True)
             raise e
 
     @classmethod
@@ -397,7 +397,7 @@ class Hub:
             )
         except Exception as e:
             if (root_dir / name).exists():
-                io.remove_directory(root_dir / name)
+                io.remove_directory(root_dir / name, recursive=True)
             raise e
 
     @classmethod
@@ -466,7 +466,7 @@ class Hub:
 
         except Exception as e:
             if (root_dir / name).exists():
-                io.remove_directory(root_dir / name)
+                io.remove_directory(root_dir / name, recursive=True)
             raise e
 
     # properties
@@ -476,7 +476,7 @@ class Hub:
         return self.__name
 
     @name.setter
-    @type_validator(str)
+    @setter_type_validator(str)
     def name(self, v):
         self.__name = v
 
@@ -486,7 +486,7 @@ class Hub:
         return self.__root_dir
 
     @root_dir.setter
-    @type_validator(Path, strict=False)
+    @setter_type_validator(Path, strict=False)
     def root_dir(self, v):
         self.__root_dir = Hub.parse_root_dir(v)
         logger.info(f"Hub root directory: {self.root_dir}")
@@ -518,7 +518,7 @@ class Hub:
         return self.__model_type
 
     @model_type.setter
-    @type_validator(str)
+    @setter_type_validator(str)
     def model_type(self, v):
         if v not in self.MODEL_TYPES[self.task]:
             raise ValueError(
@@ -532,7 +532,7 @@ class Hub:
         return self.__model_size
 
     @model_size.setter
-    @type_validator(str)
+    @setter_type_validator(str)
     def model_size(self, v):
         if v not in self.MODEL_TYPES[self.task][self.model_type]:
             raise ValueError(
@@ -546,7 +546,7 @@ class Hub:
         return self.__backend
 
     @backend.setter
-    @type_validator(str, strict=False)
+    @setter_type_validator(str, strict=False)
     def backend(self, v):
         v = str(v).upper()
         if v not in BACKEND_MAP:
@@ -561,7 +561,7 @@ class Hub:
         return self.__version
 
     @version.setter
-    @type_validator(str)
+    @setter_type_validator(str)
     def version(self, v):
         self.__version = v
 
@@ -570,7 +570,7 @@ class Hub:
         return self.__categories
 
     @categories.setter
-    @type_validator(list)
+    @setter_type_validator(list)
     def categories(self, v):
         if v is None or len(v) == 0:
             warnings.warn(
@@ -719,13 +719,13 @@ class Hub:
     # common functions
     def delete_hub(self):
         """Delete all artifacts of Hub. Hub name can be used again."""
-        io.remove_directory(self.hub_dir)
+        io.remove_directory(self.hub_dir, recursive=True)
         del self
         return None
 
     def delete_artifact(self):
         """Delete Artifact Directory. It can be trained again."""
-        io.remove_directory(self.artifact_dir)
+        io.remove_directory(self.artifact_dir, recursive=True)
 
     def check_train_sanity(self) -> bool:
         """Check if all essential files are exist.
@@ -1297,7 +1297,7 @@ class Hub:
             status_logger.set_failed(e)
             metric_logger.stop()
             if self.artifact_dir.exists():
-                io.remove_directory(self.artifact_dir)
+                io.remove_directory(self.artifact_dir, recursive=True)
             raise e
 
         try:
@@ -1746,7 +1746,7 @@ class Hub:
         except Exception as e:
             status_logger.set_failed(e)
             if self.inference_dir.exists():
-                io.remove_directory(self.inference_dir)
+                io.remove_directory(self.inference_dir, recursive=True)
             raise e
 
         return result
