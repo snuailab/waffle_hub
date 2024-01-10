@@ -14,9 +14,8 @@ from typing import Union
 import PIL.Image
 import tqdm
 from waffle_utils.file import io, network, search
-from waffle_utils.image.io import load_image, save_image
-from waffle_utils.log import datetime_now
-from waffle_utils.utils import type_validator
+from waffle_utils.logger import datetime_now
+from waffle_utils.validator import setter_type_validator
 
 from waffle_hub import EXPORT_MAP, DataType, SplitMethod, TaskType
 from waffle_hub.dataset.adapter import (
@@ -31,6 +30,7 @@ from waffle_hub.dataset.adapter import (
     import_yolo,
 )
 from waffle_hub.schema import Annotation, Category, DatasetInfo, Image
+from waffle_hub.temp_utils.image.io import load_image, save_image
 from waffle_hub.utils.draw import draw_results
 
 logger = logging.getLogger(__name__)
@@ -88,7 +88,7 @@ class Dataset:
         return self.__name
 
     @name.setter
-    @type_validator(str)
+    @setter_type_validator(str)
     def name(self, v):
         self.__name = v
 
@@ -238,7 +238,7 @@ class Dataset:
         return self.__root_dir
 
     @root_dir.setter
-    @type_validator(Path, strict=False)
+    @setter_type_validator(Path, strict=False)
     def root_dir(self, v):
         self.__root_dir = Dataset.parse_root_dir(v)
         logger.info(f"Dataset root directory: {self.__root_dir}")
@@ -447,7 +447,7 @@ class Dataset:
             return cls(name=name, task=task, categories=categories, root_dir=root_dir)
         except Exception as e:
             if (root_dir / name).exists():
-                io.remove_directory(root_dir / name)
+                io.remove_directory(root_dir / name, recursive=True)
             raise e
 
     @classmethod
@@ -497,7 +497,7 @@ class Dataset:
             return ds
         except Exception as e:
             if (root_dir / name).exists():
-                io.remove_directory(root_dir / name)
+                io.remove_directory(root_dir / name, recursive=True)
             raise e
 
     @classmethod
@@ -799,7 +799,7 @@ class Dataset:
 
         except Exception as e:
             if merged_ds.dataset_dir.exists():
-                io.remove_directory(merged_ds.dataset_dir)
+                io.remove_directory(merged_ds.dataset_dir, recursive=True)
             raise e
 
         ds = Dataset.load(name, root_dir)
@@ -1749,7 +1749,7 @@ class Dataset:
 
         try:
             if export_dir.exists():
-                io.remove_directory(export_dir)
+                io.remove_directory(export_dir, recursive=True)
                 warnings.warn(f"{export_dir} already exists. Removing exist export and override.")
 
             export_dir = export_function(self, export_dir)
@@ -1758,12 +1758,12 @@ class Dataset:
 
         except Exception as e:
             if export_dir.exists():
-                io.remove_directory(export_dir)
+                io.remove_directory(export_dir, recursive=True)
             raise e
 
     def delete(self):
         """Delete Dataset"""
-        io.remove_directory(self.dataset_dir)
+        io.remove_directory(self.dataset_dir, recursive=True)
         del self
 
     def draw_annotations(self, image_ids=None):

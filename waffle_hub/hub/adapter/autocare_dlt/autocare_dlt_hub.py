@@ -15,7 +15,7 @@ from autocare_dlt.tools import train
 from box import Box
 from torchvision import transforms as T
 from waffle_utils.file import io
-from waffle_utils.utils import type_validator
+from waffle_utils.validator import setter_type_validator
 
 from waffle_hub import DataType, TaskType
 from waffle_hub.hub import Hub

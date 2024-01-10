@@ -8,11 +8,11 @@ import torch
 from natsort import natsorted
 from torchvision import transforms as T
 from waffle_utils.file import io
-from waffle_utils.image.io import load_image
 
 from waffle_hub.dataset import Dataset
 from waffle_hub.schema.data import ImageInfo
 from waffle_hub.schema.fields import Annotation, Category, Image
+from waffle_hub.temp_utils.image.io import load_image
 
 IMAGE_EXTS = [".png", ".jpg", ".jpeg", ".bmp", ".tif", ".tiff"]
 VIDEO_EXTS = [".mp4", ".avi", ".mov", ".mkv"]
