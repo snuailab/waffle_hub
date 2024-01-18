@@ -4,8 +4,16 @@ from pycocotools import mask as mask_utils
 
 
 def convert_rle_to_mask(rle: dict) -> np.ndarray:
-    mask = mask_utils.frPyObjects(rle, rle["size"][0], rle["size"][1])  # height, width
-    return mask_utils.decode(mask)
+    if isinstance(rle, dict) and isinstance(rle["counts"], str):
+        import base64
+
+        from pycocotools import _mask
+
+        rle["counts"] = base64.b64decode(rle["counts"])
+        return _mask.decode([rle])
+    else:
+        mask = mask_utils.frPyObjects(rle, rle["size"][0], rle["size"][1])  # height, width
+        return mask_utils.decode(mask)
 
 
 def convert_rle_to_polygon(rle: dict) -> list:
