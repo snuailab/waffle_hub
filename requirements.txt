@@ -7,7 +7,7 @@ onnxruntime==1.15.1
 tbparse==0.0.7
 
 # waffle dependencies
-waffle-utils>=1.1.0a3
+waffle-utils>=1.1.0
 
 # ultralytics
 ultralytics==8.0.112
