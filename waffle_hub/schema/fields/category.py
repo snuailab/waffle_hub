@@ -1,6 +1,6 @@
 from typing import Union
 
-from waffle_utils.utils import type_validator
+from waffle_utils.validator import setter_type_validator
 
 from waffle_hub import TaskType
 
@@ -35,7 +35,7 @@ class Category(BaseField):
         return self.__category_id
 
     @category_id.setter
-    @type_validator(int)
+    @setter_type_validator(int)
     def category_id(self, v):
         if v and v < 1:
             raise ValueError("id should be greater than 0.")
@@ -54,7 +54,7 @@ class Category(BaseField):
         return self.__name
 
     @name.setter
-    @type_validator(str)
+    @setter_type_validator(str)
     def name(self, v):
         self.__name = v
 
@@ -63,7 +63,7 @@ class Category(BaseField):
         return self.__keypoints
 
     @keypoints.setter
-    @type_validator(list)
+    @setter_type_validator(list)
     def keypoints(self, v):
         self.__keypoints = v
 
@@ -72,7 +72,7 @@ class Category(BaseField):
         return self.__skeleton
 
     @skeleton.setter
-    @type_validator(list)
+    @setter_type_validator(list)
     def skeleton(self, v):
         self.__skeleton = v
 
