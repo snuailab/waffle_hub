@@ -1,5 +1,5 @@
 import fire
-from waffle_utils.log import initialize_logger
+from waffle_utils.logger import initialize_logger
 
 from waffle_hub.dataset import Dataset
 from waffle_hub.utils.base_cli import BaseCLI, cli

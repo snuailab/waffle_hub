@@ -1,7 +1,7 @@
 from dataclasses import dataclass
 
 import numpy as np
-from waffle_utils.log import datetime_now
+from waffle_utils.logger import datetime_now
 
 from waffle_hub.schema.base_schema import BaseSchema
 from waffle_hub.schema.fields import Category

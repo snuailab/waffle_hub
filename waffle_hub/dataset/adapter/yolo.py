@@ -7,11 +7,11 @@ from typing import Union
 import cv2
 import numpy as np
 from waffle_utils.file import io, search
-from waffle_utils.image.io import load_image
 
 from waffle_hub import TaskType
 from waffle_hub.schema.data import ImageInfo
 from waffle_hub.schema.fields import Annotation, Category, Image
+from waffle_hub.temp_utils.image.io import load_image
 from waffle_hub.utils.conversion import merge_multi_segment
 
 
