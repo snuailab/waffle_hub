@@ -23,6 +23,10 @@ from waffle_hub.schema.evaluate import (
 )
 from waffle_hub.schema.fields import Annotation
 from waffle_hub.utils.conversion import convert_polygon_to_mask
+from waffle_hub.utils.iou import (
+    near_box_idx,
+    bbox_iou
+)
 
 logger = logging.getLogger(__name__)
 
@@ -172,7 +176,41 @@ def evaluate_object_detection(
     )
     return result
 
+def metrics_object_detection(
+    preds: list[Annotation], labels: list[Annotation], num_classes: int, *args, **kwargs
+) -> ObjectDetectionMetric:
+    preds = convert_to_torchmetric_format(preds, TaskType.OBJECT_DETECTION, prediction=True)
+    labels = convert_to_torchmetric_format(labels, TaskType.OBJECT_DETECTION)
+    
+    num_classes = ['a','c','d','e','q','b']
+    iou_threshold = 0.7
+    confusion_dict = dict()
+    for num in range(len(num_classes)):
+        content = {
+            "tp" : 0,
+            "fp" : 0,
+            "fn" : 0
+        }
+        confusion_dict[num] = content
 
+    for img_num, label in enumerate(labels):
+        for label_idx in range(len(label['boxes'])):
+            near_idx_list = near_box_idx(label, preds[img_num], label_idx, format = "xywh")   # TODO
+            for cnt, near_idx in enumerate(near_idx_list):
+                iou_score = bbox_iou(preds[img_num]['boxes'][near_idx],label['boxes'][label_idx], format = "xywh")        # TODO
+                if iou_score >= iou_threshold:
+                    if label['labels'][label_idx] == preds[img_num]['labels'][near_idx]:
+                        confusion_dict[int(label['labels'][label_idx])]['tp'] += 1
+                        break
+                    else :
+                        confusion_dict[int(label['labels'][label_idx])]['fp'] += 1
+                        break
+                elif iou_score < iou_threshold:
+                    if len(near_idx_list)-1 == cnt:
+                        confusion_dict[int(label['labels'][label_idx])]['fn'] += 1
+                    else:
+                        continue
+    
 def evaluate_instance_segmentation(
     preds: list[Annotation], labels: list[Annotation], num_classes: int, *args, **kwargs
 ) -> InstanceSegmentationMetric:

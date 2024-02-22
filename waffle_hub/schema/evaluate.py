@@ -19,7 +19,7 @@ class ObjectDetectionMetric(BaseSchema):
     mAR_large: float
     mAP_per_class: list[float]
     mAR_100_per_class: list[float]
-
+    confusion_matrix: dict
 
 @dataclass
 class ClassificationMetric(BaseSchema):
