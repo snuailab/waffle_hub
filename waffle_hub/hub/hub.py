@@ -1362,12 +1362,14 @@ class Hub:
             status_logger.set_current_step(i)
 
         metrics = evaluate_function(
-            preds, labels, self.task, len(self.categories), image_size=cfg.image_size
+            preds, labels, self.task, len(self.categories), image_size=cfg.image_size, extended_summary = cfg.extended_summary
         )
 
         result_metrics = []
         for tag, value in metrics.to_dict().items():
-            if isinstance(value, list):
+            if value == None:
+                continue
+            elif isinstance(value, list):
                 values = [
                     {
                         "class_name": cat,
@@ -1402,6 +1404,7 @@ class Hub:
         workers: int = 2,
         device: str = "0",
         draw: bool = False,
+        extended_summary = False
     ) -> EvaluateResult:
         """Start Evaluate
 
@@ -1489,6 +1492,7 @@ class Hub:
                 device="cpu" if device == "cpu" else f"cuda:{device}",
                 draw=draw,
                 dataset_root_dir=dataset.root_dir,
+                extended_summary = extended_summary
             )
 
             result = EvaluateResult()

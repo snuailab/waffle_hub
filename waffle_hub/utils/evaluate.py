@@ -147,7 +147,12 @@ def evaluate_classification(
 
 
 def evaluate_object_detection(
-    preds: list[Annotation], labels: list[Annotation], num_classes: int, *args, **kwargs
+    preds: list[Annotation],
+    labels: list[Annotation],
+    num_classes: int,
+    extended_summary: bool,
+    *args,
+    **kwargs
 ) -> ObjectDetectionMetric:
     preds = convert_to_torchmetric_format(preds, TaskType.OBJECT_DETECTION, prediction=True)
     labels = convert_to_torchmetric_format(labels, TaskType.OBJECT_DETECTION)
@@ -158,58 +163,79 @@ def evaluate_object_detection(
         class_metrics=True,
     )(preds, labels)
 
-    result = ObjectDetectionMetric(
-        mAP=float(map_dict["map"]),
-        mAP_50=float(map_dict["map_50"]),
-        mAP_75=float(map_dict["map_75"]),
-        mAP_small=float(map_dict["map_small"]),
-        mAP_medium=float(map_dict["map_medium"]),
-        mAP_large=float(map_dict["map_large"]),
-        mAR_1=float(map_dict["mar_1"]),
-        mAR_10=float(map_dict["mar_10"]),
-        mAR_100=float(map_dict["mar_100"]),
-        mAR_small=float(map_dict["mar_small"]),
-        mAR_medium=float(map_dict["map_medium"]),
-        mAR_large=float(map_dict["map_large"]),
-        mAP_per_class=map_dict["map_per_class"].tolist(),
-        mAR_100_per_class=map_dict["mar_100_per_class"].tolist(),
-    )
+    if extended_summary == True:
+        confusion_matrix = metrics_object_detection(preds, labels, num_classes)
+        result = ObjectDetectionMetric(
+            mAP=float(map_dict["map"]),
+            mAP_50=float(map_dict["map_50"]),
+            mAP_75=float(map_dict["map_75"]),
+            mAP_small=float(map_dict["map_small"]),
+            mAP_medium=float(map_dict["map_medium"]),
+            mAP_large=float(map_dict["map_large"]),
+            mAR_1=float(map_dict["mar_1"]),
+            mAR_10=float(map_dict["mar_10"]),
+            mAR_100=float(map_dict["mar_100"]),
+            mAR_small=float(map_dict["mar_small"]),
+            mAR_medium=float(map_dict["map_medium"]),
+            mAR_large=float(map_dict["map_large"]),
+            mAP_per_class=map_dict["map_per_class"].tolist(),
+            mAR_100_per_class=map_dict["mar_100_per_class"].tolist(),
+            confusion_matrix=confusion_matrix
+        )
+    else:
+        result = ObjectDetectionMetric(
+            mAP = float(map_dict["map"]),
+            mAP_50=float(map_dict["map_50"]),
+            mAR_100 = float(map_dict["mar_100"]),
+            mAP_per_class=map_dict["map_per_class"].tolist(),
+        )
     return result
 
 def metrics_object_detection(
-    preds: list[Annotation], labels: list[Annotation], num_classes: int, *args, **kwargs
+    preds: list[Annotation],
+    labels: list[Annotation],
+    num_classes: int,
+    iou_threshold: float = 0.45,
+    *args,
+    **kwargs
 ) -> ObjectDetectionMetric:
-    preds = convert_to_torchmetric_format(preds, TaskType.OBJECT_DETECTION, prediction=True)
-    labels = convert_to_torchmetric_format(labels, TaskType.OBJECT_DETECTION)
     
-    num_classes = ['a','c','d','e','q','b']
-    iou_threshold = 0.7
-    confusion_dict = dict()
-    for num in range(len(num_classes)):
+
+    confusion_list = list()
+    for _ in range(num_classes):
         content = {
             "tp" : 0,
             "fp" : 0,
             "fn" : 0
         }
-        confusion_dict[num] = content
+        confusion_list.append(content)
 
     for img_num, label in enumerate(labels):
-        for label_idx in range(len(label['boxes'])):
-            near_idx_list = near_box_idx(label, preds[img_num], label_idx, format = "xywh")   # TODO
+        pred_list = list(map(int, preds[img_num]['labels']))
+        label_list = list(map(int, labels[img_num]['labels']))
+        for label_idx in range(len(label['boxes'])):            
+            near_idx_list = near_box_idx(label, preds[img_num], label_idx, format = "xywh")
             for cnt, near_idx in enumerate(near_idx_list):
-                iou_score = bbox_iou(preds[img_num]['boxes'][near_idx],label['boxes'][label_idx], format = "xywh")        # TODO
-                if iou_score >= iou_threshold:
-                    if label['labels'][label_idx] == preds[img_num]['labels'][near_idx]:
-                        confusion_dict[int(label['labels'][label_idx])]['tp'] += 1
-                        break
-                    else :
-                        confusion_dict[int(label['labels'][label_idx])]['fp'] += 1
-                        break
+                iou_score = bbox_iou(preds[img_num]['boxes'][near_idx],label['boxes'][label_idx], format = "xywh")
+                if (iou_score >= iou_threshold) & (label['labels'][label_idx] == preds[img_num]['labels'][near_idx]):
+                    """예측 중에서 iou 임계치가 넘고 클래스가 동일한 TP(정탐)판정"""
+                    confusion_list[int(label['labels'][label_idx])]['tp'] += 1
+                    pred_list.remove(label['labels'][label_idx])
+                    break
                 elif iou_score < iou_threshold:
+                    """탐지 중에서 iou 임계치를 넘지 못한 박스"""
                     if len(near_idx_list)-1 == cnt:
-                        confusion_dict[int(label['labels'][label_idx])]['fn'] += 1
+                        """마지막 예측인 경우 모든 pred가 label위치에 없으므로 FN(미탐)판정"""
+                        confusion_list[int(label['labels'][label_idx])]['fn'] += 1
                     else:
+                        """다음 예측박스로"""
                         continue
+        
+        """tp나 fn이 되지 못한 pred박스를 fp(오탐)으로 판정"""
+        for fp_pred in pred_list:
+            confusion_list[fp_pred]['fp'] +=1
+                
+    return confusion_list
     
 def evaluate_instance_segmentation(
     preds: list[Annotation], labels: list[Annotation], num_classes: int, *args, **kwargs

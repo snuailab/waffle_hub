@@ -45,6 +45,7 @@ class EvaluateConfig(BaseSchema):
     device: str = None
     draw: bool = None
     dataset_root_dir: str = None
+    extended_summary: bool = None
 
 
 @dataclass
