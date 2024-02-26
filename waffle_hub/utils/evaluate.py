@@ -195,46 +195,49 @@ def metrics_object_detection(
     preds: list[Annotation],
     labels: list[Annotation],
     num_classes: int,
-    iou_threshold: float = 0.45,
+    iou_threshold: float = 0.5,
     *args,
     **kwargs
 ) -> ObjectDetectionMetric:
+    """
+    Advenced option. It can find confusion matrix for object detection model analysis.
+    """
     
-
     confusion_list = list()
     for _ in range(num_classes):
         content = {
             "tp" : 0,
             "fp" : 0,
-            "fn" : 0
+            "fn" : 0,
+            "bbox_overlap" : 0
         }
         confusion_list.append(content)
 
     for img_num, label in enumerate(labels):
         pred_list = list(map(int, preds[img_num]['labels']))
-        label_list = list(map(int, labels[img_num]['labels']))
-        for label_idx in range(len(label['boxes'])):            
+        #label_list = list(map(int, labels[img_num]['labels']))
+        for label_idx in range(len(label['boxes'])):
             near_idx_list = near_box_idx(label, preds[img_num], label_idx, format = "xywh")
             for cnt, near_idx in enumerate(near_idx_list):
                 iou_score = bbox_iou(preds[img_num]['boxes'][near_idx],label['boxes'][label_idx], format = "xywh")
                 if (iou_score >= iou_threshold) & (label['labels'][label_idx] == preds[img_num]['labels'][near_idx]):
-                    """예측 중에서 iou 임계치가 넘고 클래스가 동일한 TP(정탐)판정"""
-                    confusion_list[int(label['labels'][label_idx])]['tp'] += 1
-                    pred_list.remove(label['labels'][label_idx])
+                    confusion_list[int(label['labels'][label_idx])]['tp'] += 1  # TP
+                    if label['labels'][label_idx] in pred_list:
+                        pred_list.remove(label['labels'][label_idx])
+                    else:
+                        confusion_list[int(label['labels'][label_idx])]['bbox_overlap'] += 1 # Overlap
                     break
                 elif iou_score < iou_threshold:
-                    """탐지 중에서 iou 임계치를 넘지 못한 박스"""
                     if len(near_idx_list)-1 == cnt:
-                        """마지막 예측인 경우 모든 pred가 label위치에 없으므로 FN(미탐)판정"""
-                        confusion_list[int(label['labels'][label_idx])]['fn'] += 1
+                        confusion_list[int(label['labels'][label_idx])]['fn'] += 1  #FN
+                        #print(f"fn : img_num = {img_num}, label = {label['labels']}, pred = {preds[img_num]['labels']} label_idx = {label_idx}")
                     else:
                         """다음 예측박스로"""
                         continue
         
-        """tp나 fn이 되지 못한 pred박스를 fp(오탐)으로 판정"""
         for fp_pred in pred_list:
-            confusion_list[fp_pred]['fp'] +=1
-                
+            confusion_list[fp_pred]['fp'] +=1   #FP
+            #print(f"fp : img_num = {img_num}, label = {label['labels']}, pred = {preds[img_num]['labels']} label_idx = {label_idx}")
     return confusion_list
     
 def evaluate_instance_segmentation(
