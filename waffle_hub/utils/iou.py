@@ -94,7 +94,8 @@ def bbox_iou(label_box, pred_box, format = "xywh"):
     
     pred_area = (pred_x2 - pred_x1) * (pred_y2 - pred_y1)
     label_area = (label_x2 - label_x1) * (label_y2 - label_y1)
+    union = pred_area + label_area - inter_area + 1e-7          # Add epsilon for not allowing divide/0
     
-    iou = inter_area / float(pred_area + label_area - inter_area)
+    iou = inter_area / union
     
     return iou
