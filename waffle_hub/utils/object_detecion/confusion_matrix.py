@@ -215,3 +215,25 @@ class ConfusionMatrix:
             for fp_pred in pred_list:
                 confusion_list[fp_pred][classnum_background] += 1 #FP
         return confusion_list
+    
+    @staticmethod
+    def f1_scores(TPFPFN):
+        """find f1_score per class.
+
+        Args:
+            TPFPFN (list): tp, fp, fn value
+        """
+        result = []
+        for conf in TPFPFN:
+            precision = conf['tp'] / (conf['tp'] + conf['fp'])
+            recall = conf['tp'] / (conf['tp'] + conf['fn'])
+            result.append( 2*(precision*recall)/(precision+recall))
+        
+        return result
+    
+    @staticmethod
+    def f1_score(f1_scores):
+        """
+        find average f1_score.
+        """
+        return sum(f1_scores) / len(f1_scores)

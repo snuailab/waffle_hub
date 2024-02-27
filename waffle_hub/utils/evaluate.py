@@ -160,27 +160,33 @@ def evaluate_object_detection(
         class_metrics=True,
     )(preds, labels)
 
+    Confusion_Matrix = ObjectDetectionConfusionMatrix.getConfusionMatrix(preds = preds,labels = labels, num_classes = num_classes)
+    TPFPFN = ObjectDetectionConfusionMatrix.getTPFPFN(preds = preds,labels = labels, num_classes = num_classes)
+    
+    f1_scores = ObjectDetectionConfusionMatrix.f1_scores(TPFPFN)
+    f1_score = ObjectDetectionConfusionMatrix.f1_score(f1_scores)
+    
     if extended_summary == True:
-        TPFPFN = ObjectDetectionConfusionMatrix.getTPFPFN(preds = preds,labels = labels, num_classes = num_classes)
-        Confusion_Matrix = ObjectDetectionConfusionMatrix.getConfusionMatrix(preds = preds,labels = labels, num_classes = num_classes)
-        
         result = ObjectDetectionMetric(
             mAP=float(map_dict["map"]),
             mAP_50=float(map_dict["map_50"]),
+            mAR_100=float(map_dict["mar_100"]),
+            precision_per_class=map_dict["map_per_class"].tolist(),
+            f1_score = f1_score,
+            f1_score_per_class=f1_scores,
+            confusion_matrix=Confusion_Matrix,
             mAP_75=float(map_dict["map_75"]),
             mAP_small=float(map_dict["map_small"]),
             mAP_medium=float(map_dict["map_medium"]),
             mAP_large=float(map_dict["map_large"]),
             mAR_1=float(map_dict["mar_1"]),
             mAR_10=float(map_dict["mar_10"]),
-            mAR_100=float(map_dict["mar_100"]),
             mAR_small=float(map_dict["mar_small"]),
             mAR_medium=float(map_dict["map_medium"]),
             mAR_large=float(map_dict["map_large"]),
-            precision_per_class=map_dict["map_per_class"].tolist(),
             mAR_100_per_class=map_dict["mar_100_per_class"].tolist(),
             tpfpfn_table=TPFPFN,
-            confusion_matrix=Confusion_Matrix
+
         )
         
     elif extended_summary == False:
@@ -188,7 +194,9 @@ def evaluate_object_detection(
             mAP = float(map_dict["map"]),
             mAP_50=float(map_dict["map_50"]),
             mAR_100 = float(map_dict["mar_100"]),
-            mAP_per_class=map_dict["map_per_class"].tolist(),
+            precision_per_class=map_dict["map_per_class"].tolist(),
+            f1_score = f1_score,
+            f1_score_per_class=f1_scores,
             confusion_matrix=Confusion_Matrix
         )
     return result
