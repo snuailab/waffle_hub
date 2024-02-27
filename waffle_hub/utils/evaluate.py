@@ -6,7 +6,7 @@ from typing import Union
 import torch
 from torchmetrics.classification import (
     Accuracy,
-    ConfusionMatrix,
+    ConfusionMatrix as ClassificationConfusionMatrix,
     F1Score,
     Precision,
     Recall,
@@ -23,10 +23,7 @@ from waffle_hub.schema.evaluate import (
 )
 from waffle_hub.schema.fields import Annotation
 from waffle_hub.utils.conversion import convert_polygon_to_mask
-from waffle_hub.utils.iou import (
-    near_box_idx,
-    bbox_iou
-)
+from waffle_hub.utils.object_detecion.confusion_matrix import ConfusionMatrix as ObjectDetectionConfusionMatrix
 
 logger = logging.getLogger(__name__)
 
@@ -130,7 +127,7 @@ def evaluate_classification(
     recalls = Recall(task="multiclass", num_classes=num_classes, average="none")(preds, labels)
     precisions = Precision(task="multiclass", num_classes=num_classes, average="none")(preds, labels)
     f1_scores = F1Score(task="multiclass", num_classes=num_classes, average="none")(preds, labels)
-    confmats = ConfusionMatrix(task="multiclass", num_classes=num_classes)(preds, labels)
+    confmats = ClassificationConfusionMatrix(task="multiclass", num_classes=num_classes)(preds, labels)
 
     result = ClassificationMetric(
         accuracy=float(mean_acc),
@@ -164,7 +161,9 @@ def evaluate_object_detection(
     )(preds, labels)
 
     if extended_summary == True:
-        confusion_matrix = metrics_object_detection(preds, labels, num_classes)
+        TPFPFN = ObjectDetectionConfusionMatrix.getTPFPFN(preds = preds,labels = labels, num_classes = num_classes)
+        Confusion_Matrix = ObjectDetectionConfusionMatrix.getConfusionMatrix(preds = preds,labels = labels, num_classes = num_classes)
+        
         result = ObjectDetectionMetric(
             mAP=float(map_dict["map"]),
             mAP_50=float(map_dict["map_50"]),
@@ -180,65 +179,19 @@ def evaluate_object_detection(
             mAR_large=float(map_dict["map_large"]),
             mAP_per_class=map_dict["map_per_class"].tolist(),
             mAR_100_per_class=map_dict["mar_100_per_class"].tolist(),
-            confusion_matrix=confusion_matrix
+            tpfpfn_table=TPFPFN,
+            confusion_matrix=Confusion_Matrix
         )
-    else:
+        
+    elif extended_summary == False:
         result = ObjectDetectionMetric(
             mAP = float(map_dict["map"]),
             mAP_50=float(map_dict["map_50"]),
             mAR_100 = float(map_dict["mar_100"]),
             mAP_per_class=map_dict["map_per_class"].tolist(),
+            confusion_matrix=Confusion_Matrix
         )
     return result
-
-def metrics_object_detection(
-    preds: list[Annotation],
-    labels: list[Annotation],
-    num_classes: int,
-    iou_threshold: float = 0.5,
-    *args,
-    **kwargs
-) -> ObjectDetectionMetric:
-    """
-    Advenced option. It can find confusion matrix for object detection model analysis.
-    """
-    
-    confusion_list = list()
-    for _ in range(num_classes):
-        content = {
-            "tp" : 0,
-            "fp" : 0,
-            "fn" : 0,
-            "bbox_overlap" : 0
-        }
-        confusion_list.append(content)
-
-    for img_num, label in enumerate(labels):
-        pred_list = list(map(int, preds[img_num]['labels']))
-        #label_list = list(map(int, labels[img_num]['labels']))
-        for label_idx in range(len(label['boxes'])):
-            near_idx_list = near_box_idx(label, preds[img_num], label_idx, format = "xywh")
-            for cnt, near_idx in enumerate(near_idx_list):
-                iou_score = bbox_iou(preds[img_num]['boxes'][near_idx],label['boxes'][label_idx], format = "xywh")
-                if (iou_score >= iou_threshold) & (label['labels'][label_idx] == preds[img_num]['labels'][near_idx]):
-                    confusion_list[int(label['labels'][label_idx])]['tp'] += 1  # TP
-                    if label['labels'][label_idx] in pred_list:
-                        pred_list.remove(label['labels'][label_idx])
-                    else:
-                        confusion_list[int(label['labels'][label_idx])]['bbox_overlap'] += 1 # Overlap
-                    break
-                elif iou_score < iou_threshold:
-                    if len(near_idx_list)-1 == cnt:
-                        confusion_list[int(label['labels'][label_idx])]['fn'] += 1  #FN
-                        #print(f"fn : img_num = {img_num}, label = {label['labels']}, pred = {preds[img_num]['labels']} label_idx = {label_idx}")
-                    else:
-                        """다음 예측박스로"""
-                        continue
-        
-        for fp_pred in pred_list:
-            confusion_list[fp_pred]['fp'] +=1   #FP
-            #print(f"fp : img_num = {img_num}, label = {label['labels']}, pred = {preds[img_num]['labels']} label_idx = {label_idx}")
-    return confusion_list
     
 def evaluate_instance_segmentation(
     preds: list[Annotation], labels: list[Annotation], num_classes: int, *args, **kwargs

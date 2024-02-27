@@ -19,6 +19,7 @@ class ObjectDetectionMetric(BaseSchema):
     mAR_medium: float = None
     mAR_large: float = None
     mAR_100_per_class: list[float] = None
+    tpfpfn_table: list[float] = None
     confusion_matrix: list[dict] = None
 
 @dataclass

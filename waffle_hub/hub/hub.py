@@ -16,6 +16,9 @@ import warnings
 from functools import cached_property
 from pathlib import Path, PurePath
 from typing import Union
+import pandas as pd
+import matplotlib.pyplot as plt
+import seaborn as sn
 
 import cpuinfo
 import cv2
@@ -107,6 +110,7 @@ class Hub:
 
     # evaluate results
     EVALUATE_FILE = "evaluate.json"
+    CONFUSIONMATRIX_FILE = "confusion_matrix.jpg"
 
     # inference results
     INFERENCE_FILE = "inferences.json"
@@ -686,6 +690,10 @@ class Hub:
         """Evaluate Json File"""
         return self.hub_dir / Hub.EVALUATE_FILE
 
+    @cached_property
+    def confusionmatrix_file(self) -> Path:
+        """Confusion matrix file after Evaluate"""
+        return self.hub_dir / Hub.CONFUSIONMATRIX_FILE
     @cached_property
     def waffle_file(self) -> Path:
         """Export Waffle file"""
@@ -1364,19 +1372,63 @@ class Hub:
         metrics = evaluate_function(
             preds, labels, self.task, len(self.categories), image_size=cfg.image_size, extended_summary = cfg.extended_summary
         )
+        if cfg.draw == True:
+            if dataset.task == "OBJECT_DETECTION":
+                confusion_matrix = metrics.confusion_matrix
+                conf_list = self.get_category_names()
+                conf_list += ['background']
+                df_cm = pd.DataFrame(confusion_matrix, index = [i for i in conf_list], columns =  [i for i in conf_list])
+                sn.set_theme(font_scale=1.0) # for label size
+                plt.figure(figsize = (12,10))
+                ax = plt.axes()
+                sn.heatmap(df_cm, annot=True, fmt='.10g', cmap = 'Reds', ax = ax) # font size
+                ax.set_title('Confusion Matrix')
+                plt.xlabel("labels",fontsize = 22)
+                plt.ylabel("predicts",fontsize = 22)
+                plt.savefig(self.confusionmatrix_file)
+                    
+            elif dataset.task == "CLASSIFICATION":
+                confusion_matrix = metrics.confusion_matrix
+                conf_list = self.get_category_names()
+                df_cm = pd.DataFrame(confusion_matrix, index = [i for i in conf_list], columns =  [i for i in conf_list])
+                sn.set_theme(font_scale=1.0) # for label size
+                plt.figure(figsize = (12,10))
+                ax = plt.axes()
+                sn.heatmap(df_cm, annot=True, fmt='.10g', cmap = 'Reds', ax = ax) # font size
+                ax.set_title('Confusion Matrix')
+                plt.xlabel("labels",fontsize = 22)
+                plt.ylabel("predicts",fontsize = 22)
+                plt.savefig(self.confusionmatrix_file)
+                
+            else:
+                pass
 
         result_metrics = []
         for tag, value in metrics.to_dict().items():
             if value == None:
                 continue
             elif isinstance(value, list):
-                values = [
-                    {
-                        "class_name": cat,
-                        "value": cat_value,
-                    }
-                    for cat, cat_value in zip(self.get_category_names(), value)
-                ]
+                if len(self.get_category_names()) == len(value) - 1:
+                    """for object detection confusion matrix """
+                    values = [
+                        {
+                            "class_name": cat,
+                            "value": cat_value,
+                        }
+                        for cat, cat_value in zip(self.get_category_names(), value)
+                    ]
+                    values.append({
+                        "class_name": "background",
+                        "value": value[-1]
+                    })
+                else:
+                    values = [
+                        {
+                            "class_name": cat,
+                            "value": cat_value,
+                        }
+                        for cat, cat_value in zip(self.get_category_names(), value)
+                    ]
             else:
                 values = value
             result_metrics.append({"tag": tag, "value": values})
