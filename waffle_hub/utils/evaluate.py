@@ -177,7 +177,7 @@ def evaluate_object_detection(
             mAR_small=float(map_dict["mar_small"]),
             mAR_medium=float(map_dict["map_medium"]),
             mAR_large=float(map_dict["map_large"]),
-            mAP_per_class=map_dict["map_per_class"].tolist(),
+            precision_per_class=map_dict["map_per_class"].tolist(),
             mAR_100_per_class=map_dict["mar_100_per_class"].tolist(),
             tpfpfn_table=TPFPFN,
             confusion_matrix=Confusion_Matrix

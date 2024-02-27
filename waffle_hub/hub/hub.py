@@ -1121,7 +1121,7 @@ class Hub:
         workers: int = 2,
         seed: int = 0,
         advance_params: Union[dict, str] = None,
-        verbose: bool = True,
+        verbose: bool = True
     ) -> TrainResult:
         """Start Train
 
@@ -1372,7 +1372,7 @@ class Hub:
         metrics = evaluate_function(
             preds, labels, self.task, len(self.categories), image_size=cfg.image_size, extended_summary = cfg.extended_summary
         )
-        if cfg.draw == True:
+        if cfg.get_confusion_matrix == True:
             if dataset.task == "OBJECT_DETECTION":
                 confusion_matrix = metrics.confusion_matrix
                 conf_list = self.get_category_names()
@@ -1456,7 +1456,8 @@ class Hub:
         workers: int = 2,
         device: str = "0",
         draw: bool = False,
-        extended_summary = False
+        extended_summary = False,
+        get_confusion_matrix = True
     ) -> EvaluateResult:
         """Start Evaluate
 
@@ -1544,7 +1545,8 @@ class Hub:
                 device="cpu" if device == "cpu" else f"cuda:{device}",
                 draw=draw,
                 dataset_root_dir=dataset.root_dir,
-                extended_summary = extended_summary
+                extended_summary = extended_summary,
+                get_confusion_matrix = get_confusion_matrix
             )
 
             result = EvaluateResult()

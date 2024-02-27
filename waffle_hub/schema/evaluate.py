@@ -8,7 +8,14 @@ class ObjectDetectionMetric(BaseSchema):
     mAP: float
     mAP_50: float
     mAR_100: float
-    mAP_per_class: list[float]
+    
+    precision_per_class: list[float]
+    
+    confusion_matrix: list[dict] = None
+    tpfpfn_table: list[float] = None
+    
+    
+    
     mAP_75: float = None
     mAP_small: float = None
     mAP_medium: float = None
@@ -20,7 +27,6 @@ class ObjectDetectionMetric(BaseSchema):
     mAR_large: float = None
     mAR_100_per_class: list[float] = None
     tpfpfn_table: list[float] = None
-    confusion_matrix: list[dict] = None
 
 @dataclass
 class ClassificationMetric(BaseSchema):
