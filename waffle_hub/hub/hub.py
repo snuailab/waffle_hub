@@ -1408,27 +1408,28 @@ class Hub:
             if value == None:
                 continue
             elif isinstance(value, list):
-                if len(self.get_category_names()) == len(value) - 1:
-                    """for object detection confusion matrix """
-                    values = [
-                        {
-                            "class_name": cat,
-                            "value": cat_value,
-                        }
-                        for cat, cat_value in zip(self.get_category_names(), value)
-                    ]
-                    values.append({
-                        "class_name": "background",
-                        "value": value[-1]
-                    })
-                else:
-                    values = [
-                        {
-                            "class_name": cat,
-                            "value": cat_value,
-                        }
-                        for cat, cat_value in zip(self.get_category_names(), value)
-                    ]
+                if self.task == "OBJECT_DETECTION" or self.task == "CLASSIFICATION":
+                    if len(self.get_category_names()) == len(value) - 1:
+                        """for object detection confusion matrix """
+                        values = [
+                            {
+                                "class_name": cat,
+                                "value": cat_value,
+                            }
+                            for cat, cat_value in zip(self.get_category_names(), value)
+                        ]
+                        values.append({
+                            "class_name": "background",
+                            "value": value[-1]
+                        })
+                    else:
+                        values = [
+                            {
+                                "class_name": cat,
+                                "value": cat_value,
+                            }
+                            for cat, cat_value in zip(self.get_category_names(), value)
+                        ]
             else:
                 values = value
             result_metrics.append({"tag": tag, "value": values})

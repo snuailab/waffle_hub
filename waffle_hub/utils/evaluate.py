@@ -160,8 +160,9 @@ def evaluate_object_detection(
         class_metrics=True,
     )(preds, labels)
 
-    Confusion_Matrix = ObjectDetectionConfusionMatrix.getConfusionMatrix(preds = preds,labels = labels, num_classes = num_classes)
-    TPFPFN = ObjectDetectionConfusionMatrix.getTPFPFN(preds = preds,labels = labels, num_classes = num_classes)
+    metric = ObjectDetectionConfusionMatrix.getConfusionMatrix(preds = preds,labels = labels, num_classes = num_classes)
+    Confusion_Matrix = metric['confusion_matrix']
+    TPFPFN = metric['tpfpfn']
     
     f1_scores = ObjectDetectionConfusionMatrix.f1_scores(TPFPFN)
     f1_score = ObjectDetectionConfusionMatrix.f1_score(f1_scores)

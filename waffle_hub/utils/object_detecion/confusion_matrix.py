@@ -124,55 +124,6 @@ class ConfusionMatrix:
         return iou
     
     @classmethod
-    def getTPFPFN(
-        cls,
-        iou_threshold: float = 0.5,
-        preds: list[Annotation] = None,
-        labels: list[Annotation] = None,
-        num_classes: int = None,
-        *args,
-        **kwargs
-    ) -> ObjectDetectionMetric:
-        """
-        Advenced option. It can find tpfpfn table for object detection model analysis.
-        """
-        
-        table_list = list()
-        for _ in range(num_classes):
-            content = {
-                "tp" : 0,
-                "fp" : 0,
-                "fn" : 0,
-                "bbox_overlap" : 0
-            }
-            table_list.append(content)
-
-        for img_num, label in enumerate(labels):
-            pred_list = list(map(int, preds[img_num]['labels']))
-            for label_idx in range(len(label['boxes'])):
-                near_idx_list = cls.near_box_idx(label, preds[img_num], label_idx, format = "xywh")
-                for cnt, near_idx in enumerate(near_idx_list):
-                    iou_score = cls.bbox_iou(preds[img_num]['boxes'][near_idx],label['boxes'][label_idx], format = "xywh")
-                    if (iou_score >= iou_threshold) & (label['labels'][label_idx] == preds[img_num]['labels'][near_idx]):
-                        table_list[int(label['labels'][label_idx])]['tp'] += 1  # TP
-                        if label['labels'][label_idx] in pred_list:
-                            pred_list.remove(label['labels'][label_idx])
-                        else:
-                            table_list[int(label['labels'][label_idx])]['bbox_overlap'] += 1 # Overlap
-                        break
-                    elif iou_score < iou_threshold:
-                        if len(near_idx_list)-1 == cnt:
-                            table_list[int(label['labels'][label_idx])]['fn'] += 1  #FN
-                            #print(f"fn : img_num = {img_num}, label = {label['labels']}, pred = {preds[img_num]['labels']} label_idx = {label_idx}")
-                        else:
-                            continue
-            
-            for fp_pred in pred_list:
-                table_list[fp_pred]['fp'] +=1   #FP
-                #print(f"fp : img_num = {img_num}, label = {label['labels']}, pred = {preds[img_num]['labels']} label_idx = {label_idx}")
-        return table_list
-    
-    @classmethod
     def getConfusionMatrix(
         cls,
         iou_threshold: float = 0.5,
@@ -186,12 +137,24 @@ class ConfusionMatrix:
         Advenced option. It can find confusion matrix for object detection model analysis.
         """
         
+        result = dict()
         confusion_list = list()
         for _ in range(num_classes+1):
             content = [0]*(num_classes+1)
             confusion_list.append(content)
 
+        table_list = list()
+        for _ in range(num_classes):
+            content = {
+                "tp" : 0,
+                "fp" : 0,
+                "fn" : 0,
+                "bbox_overlap" : 0
+            }
+            table_list.append(content)
+        
         classnum_background = num_classes
+        fnfp_image_set = set()
         
         for img_num, label in enumerate(labels):
             pred_list = list(map(int, preds[img_num]['labels']))
@@ -200,21 +163,33 @@ class ConfusionMatrix:
                 for cnt, near_idx in enumerate(near_idx_list):
                     iou_score = cls.bbox_iou(preds[img_num]['boxes'][near_idx],label['boxes'][label_idx], format = "xywh")
                     if (iou_score >= iou_threshold) & (label['labels'][label_idx] == preds[img_num]['labels'][near_idx]):
+                        table_list[int(label['labels'][label_idx])]['tp'] += 1  # TP
                         confusion_list[int(label['labels'][label_idx])][int(label['labels'][label_idx])] += 1 # TP
                         if label['labels'][label_idx] in pred_list:
                             pred_list.remove(label['labels'][label_idx])
                         else:
                             confusion_list[int(label['labels'][label_idx])][classnum_background] += 1   # FP(overlap)
+                            table_list[int(label['labels'][label_idx])]['bbox_overlap'] += 1 # Overlap
+                            fnfp_image_set.add(img_num)
                         break
                     elif iou_score < iou_threshold:
                         if len(near_idx_list)-1 == cnt:
                             confusion_list[classnum_background][int(label['labels'][label_idx])] += 1  # FN
+                            table_list[int(label['labels'][label_idx])]['fn'] += 1  #FN
+                            fnfp_image_set.add(img_num)
                         else:
                             continue
             
             for fp_pred in pred_list:
                 confusion_list[fp_pred][classnum_background] += 1 #FP
-        return confusion_list
+                table_list[fp_pred]['fp'] +=1   #FP
+                fnfp_image_set.add(img_num)
+                
+        result['confusion_matrix'] = confusion_list
+        result['tpfpfn'] = table_list
+        result['fpfn'] = img_num
+        
+        return result
     
     @staticmethod
     def f1_scores(TPFPFN):
