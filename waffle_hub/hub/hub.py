@@ -54,7 +54,7 @@ from waffle_hub.schema.running_status import (
     InferencingStatus,
     TrainingStatus,
 )
-from waffle_hub.temp_utils.image.io import save_image
+from waffle_hub.temp_utils.image.io import save_image, save_images
 from waffle_hub.temp_utils.video.io import create_video_writer
 from waffle_hub.utils.data import (
     IMAGE_EXTS,
@@ -111,6 +111,9 @@ class Hub:
     # evaluate results
     EVALUATE_FILE = "evaluate.json"
     CONFUSIONMATRIX_FILE = "confusion_matrix.jpg"
+    FALSE_PREDICT_DIR = Path("false")
+    FALSE_POSSITIVE_DIR = Path("fp")
+    FALSE_NEGATIVE_DIR = Path("fn")
 
     # inference results
     INFERENCE_FILE = "inferences.json"
@@ -646,6 +649,21 @@ class Hub:
         return self.hub_dir / Hub.INFERENCE_DIR
 
     @cached_property
+    def false_predict_dir(self) -> Path:
+        """Comparing pred and label in Evaluation. Directory"""
+        return self.hub_dir / Hub.FALSE_PREDICT_DIR
+
+    @cached_property
+    def fp_dir(self) -> Path:
+        """False Possitive Directory"""
+        return self.false_predict_dir / Hub.FALSE_POSSITIVE_DIR
+    
+    @cached_property
+    def fn_dir(self) -> Path:
+        """False Negative Directory"""
+        return self.false_predict_dir / Hub.FALSE_NEGATIVE_DIR
+        
+    @cached_property
     def inference_file(self) -> Path:
         """Inference Results File"""
         return self.inference_dir / Hub.INFERENCE_FILE
@@ -654,7 +672,7 @@ class Hub:
     def draw_dir(self) -> Path:
         """Draw Results Directory"""
         return self.inference_dir / Hub.DRAW_DIR
-
+    
     @cached_property
     def train_log_dir(self) -> Path:
         """Train Logs Directory"""
@@ -1404,6 +1422,7 @@ class Hub:
                 pass
 
         result_metrics = []
+                
         for tag, value in metrics.to_dict().items():
             if value == None:
                 continue
@@ -1430,10 +1449,59 @@ class Hub:
                             }
                             for cat, cat_value in zip(self.get_category_names(), value)
                         ]
+            elif isinstance(value, set):
+                values = list(value)
+            
             else:
                 values = value
             result_metrics.append({"tag": tag, "value": values})
 
+        # fp, fn에 대해서 draw해야함
+        if (cfg.draw == True) & (self.task == "OBJECT_DETECTION"):
+            io.make_directory(self.false_predict_dir)
+            io.make_directory(self.fp_dir)
+            io.make_directory(self.fn_dir)
+            
+            set_file = io.load_json(getattr(dataset, f"{cfg.set_name}_set_file"))
+            
+            #fp
+            for result_tag in result_metrics:
+                if result_tag['tag'] == 'fp_images_set':
+                    for fp in result_tag['value']:
+                        image_num = set_file[fp]
+                        image_info = dataset.image_dict[image_num]
+                        draw_pred = draw_results(
+                            image = str(dataset.raw_image_dir / image_info.file_name),
+                            results = preds[fp],
+                            names = [x["name"] for x in self.categories]
+                        )
+                        draw_label = draw_results(
+                            image = str(dataset.raw_image_dir / image_info.file_name),
+                            results = labels[fp],
+                            names = [x["name"] for x in self.categories]
+                        )          
+                        
+                        draw_path = self.fp_dir / Path(image_info.file_name)
+                        save_images(draw_path, [draw_pred, draw_label], create_directory = True)
+                        
+                if result_tag['tag'] == 'fn_images_set':
+                    for fn in result_tag['value']:
+                        image_num = set_file[fn]
+                        image_info = dataset.image_dict[image_num]
+                        draw_pred = draw_results(
+                            image = str(dataset.raw_image_dir / image_info.file_name),
+                            results = preds[fn],
+                            names = [x["name"] for x in self.categories]
+                        )
+                        draw_label = draw_results(
+                            image = str(dataset.raw_image_dir / image_info.file_name),
+                            results = labels[fn],
+                            names = [x["name"] for x in self.categories]
+                        )
+
+                        draw_path = self.fn_dir / Path(image_info.file_name)
+                        save_images(draw_path, [draw_pred, draw_label], create_directory = True)
+                        
         io.save_json(result_metrics, self.evaluate_file)
 
     def on_evaluate_end(self, cfg: EvaluateConfig):

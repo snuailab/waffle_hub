@@ -235,3 +235,7 @@ def draw_results(
         image = draw_semantic_segmentation(image, result, names=names)
 
     return image
+
+# def draw_compare_fpfn(
+    
+# )

@@ -154,7 +154,8 @@ class ConfusionMatrix:
             table_list.append(content)
         
         classnum_background = num_classes
-        fnfp_image_set = set()
+        fn_images_set = set()
+        fp_images_set = set()
         
         for img_num, label in enumerate(labels):
             pred_list = list(map(int, preds[img_num]['labels']))
@@ -170,24 +171,25 @@ class ConfusionMatrix:
                         else:
                             confusion_list[int(label['labels'][label_idx])][classnum_background] += 1   # FP(overlap)
                             table_list[int(label['labels'][label_idx])]['bbox_overlap'] += 1 # Overlap
-                            fnfp_image_set.add(img_num)
+                            fp_images_set.add(img_num)
                         break
                     elif iou_score < iou_threshold:
                         if len(near_idx_list)-1 == cnt:
                             confusion_list[classnum_background][int(label['labels'][label_idx])] += 1  # FN
                             table_list[int(label['labels'][label_idx])]['fn'] += 1  #FN
-                            fnfp_image_set.add(img_num)
+                            fn_images_set.add(img_num)
                         else:
                             continue
             
             for fp_pred in pred_list:
                 confusion_list[fp_pred][classnum_background] += 1 #FP
                 table_list[fp_pred]['fp'] +=1   #FP
-                fnfp_image_set.add(img_num)
+                fp_images_set.add(img_num)
                 
         result['confusion_matrix'] = confusion_list
         result['tpfpfn'] = table_list
-        result['fpfn'] = img_num
+        result['fp'] = fp_images_set
+        result['fn'] = fn_images_set
         
         return result
     

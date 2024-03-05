@@ -29,6 +29,8 @@ class ObjectDetectionMetric(BaseSchema):
     mAR_large: float = None
     mAR_100_per_class: list[float] = None
     tpfpfn_table: list[float] = None
+    fp_images_set: set = None
+    fn_images_set: set = None
 
 @dataclass
 class ClassificationMetric(BaseSchema):

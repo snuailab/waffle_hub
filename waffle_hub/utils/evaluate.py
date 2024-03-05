@@ -161,10 +161,8 @@ def evaluate_object_detection(
     )(preds, labels)
 
     metric = ObjectDetectionConfusionMatrix.getConfusionMatrix(preds = preds,labels = labels, num_classes = num_classes)
-    Confusion_Matrix = metric['confusion_matrix']
-    TPFPFN = metric['tpfpfn']
     
-    f1_scores = ObjectDetectionConfusionMatrix.f1_scores(TPFPFN)
+    f1_scores = ObjectDetectionConfusionMatrix.f1_scores(metric['tpfpfn'])
     f1_score = ObjectDetectionConfusionMatrix.f1_score(f1_scores)
     
     if extended_summary == True:
@@ -175,7 +173,7 @@ def evaluate_object_detection(
             precision_per_class=map_dict["map_per_class"].tolist(),
             f1_score = f1_score,
             f1_score_per_class=f1_scores,
-            confusion_matrix=Confusion_Matrix,
+            confusion_matrix=metric['confusion_matrix'],
             mAP_75=float(map_dict["map_75"]),
             mAP_small=float(map_dict["map_small"]),
             mAP_medium=float(map_dict["map_medium"]),
@@ -186,8 +184,9 @@ def evaluate_object_detection(
             mAR_medium=float(map_dict["map_medium"]),
             mAR_large=float(map_dict["map_large"]),
             mAR_100_per_class=map_dict["mar_100_per_class"].tolist(),
-            tpfpfn_table=TPFPFN,
-
+            tpfpfn_table=metric['tpfpfn'],
+            fp_images_set = metric['fp'],
+            fn_images_set = metric['fn']
         )
         
     elif extended_summary == False:
@@ -198,7 +197,9 @@ def evaluate_object_detection(
             precision_per_class=map_dict["map_per_class"].tolist(),
             f1_score = f1_score,
             f1_score_per_class=f1_scores,
-            confusion_matrix=Confusion_Matrix
+            confusion_matrix=metric['confusion_matrix'],
+            fp_images_set = metric['fp'],
+            fn_images_set = metric['fn']
         )
     return result
     
