@@ -168,6 +168,7 @@ def evaluate_object_detection(
     f1_scores = ODConfusionMatrix.f1_scores(metric["tpfpfn"])
     macro_f1_score = ODConfusionMatrix.macro_f1_score(f1_scores)
     micro_f1_score = ODConfusionMatrix.micro_f1_score(metric["tpfpfn"])
+    weighted_f1_score = ODConfusionMatrix.weighted_f1_score(metric["tpfpfn"], f1_scores)
 
     result = ObjectDetectionMetric(
         mAP=float(map_dict["map"]),
@@ -191,6 +192,7 @@ def evaluate_object_detection(
         f1_score_per_class=f1_scores,
         macro_f1_score=macro_f1_score,
         micro_f1_score=micro_f1_score,
+        weighted_f1_score=weighted_f1_score,
     )
     return result
 

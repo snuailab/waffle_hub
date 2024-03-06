@@ -230,3 +230,17 @@ class ODConfusionMatrix:
             total_fn += conf["fn"]
 
         return total_tp / (total_tp + 0.5 * (total_fp + total_fn))
+
+    @staticmethod
+    def weighted_f1_score(TPFPFN: list[dict], f1_scores: list[float]):
+        cnt_true = []
+        ratio = []
+        result = 0
+
+        for true_sum in TPFPFN:
+            cnt_true.append(true_sum["tp"] + true_sum["fn"])
+        for num in range(len(TPFPFN)):
+            ratio.append(cnt_true[num] / sum(cnt_true))
+            result += ratio[num] * f1_scores[num]
+
+        return result

@@ -26,6 +26,7 @@ class ObjectDetectionMetric(BaseSchema):
     f1_score_per_class: list[float] = None
     macro_f1_score: float = None
     micro_f1_score: float = None
+    weighted_f1_score: float = None
 
 
 @dataclass
