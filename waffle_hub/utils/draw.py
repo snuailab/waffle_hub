@@ -2,12 +2,15 @@ import logging
 from pathlib import Path
 from typing import Union
 
+import matplotlib.pyplot as plt
 import numpy as np
+import pandas as pd
+import seaborn as sn
 from PIL import Image, ImageDraw, ImageFont
 from waffle_utils.file.network import get_file_from_url
 
 from waffle_hub import TaskType
-from waffle_hub.schema.fields import Annotation
+from waffle_hub.schema.fields import Annotation, Category
 from waffle_hub.temp_utils.image.io import load_image
 
 FONT_URL = "https://raw.githubusercontent.com/snuailab/assets/main/waffle/fonts/gulim.ttc"
@@ -197,6 +200,27 @@ def draw_semantic_segmentation(
     return image
 
 
+def draw_confusion_matrix(
+    conf_mat: list,
+    task: str,
+    categories: list[str],
+    save_path: Union[Path, str],
+    theme="Reds",
+):
+    """Draw confusion matrix"""
+    if task == "OBJECT_DETECTION":
+        categories += ["background"]
+    df_cm = pd.DataFrame(conf_mat, index=[i for i in categories], columns=[i for i in categories])
+    sn.set_theme(font_scale=1.0)
+    plt.figure(figsize=(12, 10))
+    ax = plt.axes()
+    sn.heatmap(df_cm, annot=True, fmt=".10g", cmap=theme, ax=ax)
+    ax.set_title("Confusion Matrix")
+    plt.xlabel("labels", fontsize=22)
+    plt.ylabel("predicts", fontsize=22)
+    plt.savefig(save_path)
+
+
 def draw_results(
     image: Union[np.ndarray, str],
     results: list[Annotation],
@@ -235,7 +259,3 @@ def draw_results(
         image = draw_semantic_segmentation(image, result, names=names)
 
     return image
-
-# def draw_compare_fpfn(
-    
-# )

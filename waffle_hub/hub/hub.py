@@ -16,13 +16,13 @@ import warnings
 from functools import cached_property
 from pathlib import Path, PurePath
 from typing import Union
-import pandas as pd
-import matplotlib.pyplot as plt
-import seaborn as sn
 
 import cpuinfo
 import cv2
+import matplotlib.pyplot as plt
 import numpy as np
+import pandas as pd
+import seaborn as sn
 import torch
 import tqdm
 from waffle_utils.file import io
@@ -62,7 +62,7 @@ from waffle_hub.utils.data import (
     get_dataset_class,
     get_image_transform,
 )
-from waffle_hub.utils.draw import draw_results
+from waffle_hub.utils.draw import draw_confusion_matrix, draw_results
 from waffle_hub.utils.evaluate import evaluate_function
 from waffle_hub.utils.memory import device_context
 from waffle_hub.utils.metric_logger import MetricLogger
@@ -110,8 +110,8 @@ class Hub:
 
     # evaluate results
     EVALUATE_FILE = "evaluate.json"
-    CONFUSIONMATRIX_FILE = "confusion_matrix.jpg"
-    FALSE_PREDICT_DIR = Path("false")
+    CONFUSION_MATRIX_FILE = "confusion_matrix.jpg"
+    MIS_PREDICT_DIR = Path("mispredictions")
     FALSE_POSSITIVE_DIR = Path("fp")
     FALSE_NEGATIVE_DIR = Path("fn")
 
@@ -649,20 +649,20 @@ class Hub:
         return self.hub_dir / Hub.INFERENCE_DIR
 
     @cached_property
-    def false_predict_dir(self) -> Path:
+    def mis_predict_dir(self) -> Path:
         """Comparing pred and label in Evaluation. Directory"""
-        return self.hub_dir / Hub.FALSE_PREDICT_DIR
+        return self.hub_dir / Hub.MIS_PREDICT_DIR
 
     @cached_property
     def fp_dir(self) -> Path:
         """False Possitive Directory"""
-        return self.false_predict_dir / Hub.FALSE_POSSITIVE_DIR
-    
+        return self.mis_predict_dir / Hub.FALSE_POSSITIVE_DIR
+
     @cached_property
     def fn_dir(self) -> Path:
         """False Negative Directory"""
-        return self.false_predict_dir / Hub.FALSE_NEGATIVE_DIR
-        
+        return self.mis_predict_dir / Hub.FALSE_NEGATIVE_DIR
+
     @cached_property
     def inference_file(self) -> Path:
         """Inference Results File"""
@@ -672,7 +672,7 @@ class Hub:
     def draw_dir(self) -> Path:
         """Draw Results Directory"""
         return self.inference_dir / Hub.DRAW_DIR
-    
+
     @cached_property
     def train_log_dir(self) -> Path:
         """Train Logs Directory"""
@@ -711,7 +711,8 @@ class Hub:
     @cached_property
     def confusionmatrix_file(self) -> Path:
         """Confusion matrix file after Evaluate"""
-        return self.hub_dir / Hub.CONFUSIONMATRIX_FILE
+        return self.hub_dir / Hub.CONFUSION_MATRIX_FILE
+
     @cached_property
     def waffle_file(self) -> Path:
         """Export Waffle file"""
@@ -1139,7 +1140,7 @@ class Hub:
         workers: int = 2,
         seed: int = 0,
         advance_params: Union[dict, str] = None,
-        verbose: bool = True
+        verbose: bool = True,
     ) -> TrainResult:
         """Start Train
 
@@ -1388,48 +1389,28 @@ class Hub:
             status_logger.set_current_step(i)
 
         metrics = evaluate_function(
-            preds, labels, self.task, len(self.categories), image_size=cfg.image_size, extended_summary = cfg.extended_summary
+            preds, labels, self.task, len(self.categories), image_size=cfg.image_size
         )
-        if cfg.get_confusion_matrix == True:
-            if dataset.task == "OBJECT_DETECTION":
-                confusion_matrix = metrics.confusion_matrix
-                conf_list = self.get_category_names()
-                conf_list += ['background']
-                df_cm = pd.DataFrame(confusion_matrix, index = [i for i in conf_list], columns =  [i for i in conf_list])
-                sn.set_theme(font_scale=1.0) # for label size
-                plt.figure(figsize = (12,10))
-                ax = plt.axes()
-                sn.heatmap(df_cm, annot=True, fmt='.10g', cmap = 'Reds', ax = ax) # font size
-                ax.set_title('Confusion Matrix')
-                plt.xlabel("labels",fontsize = 22)
-                plt.ylabel("predicts",fontsize = 22)
-                plt.savefig(self.confusionmatrix_file)
-                    
-            elif dataset.task == "CLASSIFICATION":
-                confusion_matrix = metrics.confusion_matrix
-                conf_list = self.get_category_names()
-                df_cm = pd.DataFrame(confusion_matrix, index = [i for i in conf_list], columns =  [i for i in conf_list])
-                sn.set_theme(font_scale=1.0) # for label size
-                plt.figure(figsize = (12,10))
-                ax = plt.axes()
-                sn.heatmap(df_cm, annot=True, fmt='.10g', cmap = 'Reds', ax = ax) # font size
-                ax.set_title('Confusion Matrix')
-                plt.xlabel("labels",fontsize = 22)
-                plt.ylabel("predicts",fontsize = 22)
-                plt.savefig(self.confusionmatrix_file)
-                
-            else:
-                pass
+        if self.task == "OBJECT_DETECTION" or self.task == "CLASSIFICATION":
+            draw_confusion_matrix(
+                metrics.confusion_matrix,
+                self.task,
+                self.get_category_names(),
+                self.confusionmatrix_file,
+            )
+
+        else:
+            pass
 
         result_metrics = []
-                
+
         for tag, value in metrics.to_dict().items():
             if value == None:
                 continue
             elif isinstance(value, list):
                 if self.task == "OBJECT_DETECTION" or self.task == "CLASSIFICATION":
                     if len(self.get_category_names()) == len(value) - 1:
-                        """for object detection confusion matrix """
+                        """for object detection confusion matrix"""
                         values = [
                             {
                                 "class_name": cat,
@@ -1437,10 +1418,7 @@ class Hub:
                             }
                             for cat, cat_value in zip(self.get_category_names(), value)
                         ]
-                        values.append({
-                            "class_name": "background",
-                            "value": value[-1]
-                        })
+                        values.append({"class_name": "background", "value": value[-1]})
                     else:
                         values = [
                             {
@@ -1450,59 +1428,49 @@ class Hub:
                             for cat, cat_value in zip(self.get_category_names(), value)
                         ]
             elif isinstance(value, set):
-                values = list(value)
-            
+                values = []
+                pred_list = list(value)
+                set_file = io.load_json(getattr(dataset, f"{cfg.set_name}_set_file"))
+                for pred in pred_list:
+                    image_info = dataset.image_dict[set_file[pred]]
+                    values.append({pred: image_info.file_name})
             else:
                 values = value
             result_metrics.append({"tag": tag, "value": values})
 
-        # fp, fn에 대해서 draw해야함
+        io.save_json(result_metrics, self.evaluate_file)
+
         if (cfg.draw == True) & (self.task == "OBJECT_DETECTION"):
-            io.make_directory(self.false_predict_dir)
+            io.make_directory(self.mis_predict_dir)
             io.make_directory(self.fp_dir)
             io.make_directory(self.fn_dir)
-            
+
             set_file = io.load_json(getattr(dataset, f"{cfg.set_name}_set_file"))
-            
-            #fp
+
             for result_tag in result_metrics:
-                if result_tag['tag'] == 'fp_images_set':
-                    for fp in result_tag['value']:
-                        image_num = set_file[fp]
+                if (
+                    (result_tag["tag"] == "fp_images_set") or (result_tag["tag"] == "fn_images_set")
+                ) & (result_tag["value"] != None):
+                    for img in result_tag["value"]:
+                        image_num = set_file[list(img.keys())[0]]
                         image_info = dataset.image_dict[image_num]
                         draw_pred = draw_results(
-                            image = str(dataset.raw_image_dir / image_info.file_name),
-                            results = preds[fp],
-                            names = [x["name"] for x in self.categories]
+                            image=str(dataset.raw_image_dir / image_info.file_name),
+                            results=preds[list(img.keys())[0]],
+                            names=[x["name"] for x in self.categories],
                         )
                         draw_label = draw_results(
-                            image = str(dataset.raw_image_dir / image_info.file_name),
-                            results = labels[fp],
-                            names = [x["name"] for x in self.categories]
-                        )          
-                        
-                        draw_path = self.fp_dir / Path(image_info.file_name)
-                        save_images(draw_path, [draw_pred, draw_label], create_directory = True)
-                        
-                if result_tag['tag'] == 'fn_images_set':
-                    for fn in result_tag['value']:
-                        image_num = set_file[fn]
-                        image_info = dataset.image_dict[image_num]
-                        draw_pred = draw_results(
-                            image = str(dataset.raw_image_dir / image_info.file_name),
-                            results = preds[fn],
-                            names = [x["name"] for x in self.categories]
-                        )
-                        draw_label = draw_results(
-                            image = str(dataset.raw_image_dir / image_info.file_name),
-                            results = labels[fn],
-                            names = [x["name"] for x in self.categories]
+                            image=str(dataset.raw_image_dir / image_info.file_name),
+                            results=labels[list(img.keys())[0]],
+                            names=[x["name"] for x in self.categories],
                         )
 
-                        draw_path = self.fn_dir / Path(image_info.file_name)
-                        save_images(draw_path, [draw_pred, draw_label], create_directory = True)
-                        
-        io.save_json(result_metrics, self.evaluate_file)
+                        if result_tag["tag"] == "fp_images_set":
+                            draw_path = self.fp_dir / Path(image_info.file_name)
+                        elif result_tag["tag"] == "fn_images_set":
+                            draw_path = self.fn_dir / Path(image_info.file_name)
+
+                        save_images(draw_path, [draw_pred, draw_label], create_directory=True)
 
     def on_evaluate_end(self, cfg: EvaluateConfig):
         pass
@@ -1525,8 +1493,6 @@ class Hub:
         workers: int = 2,
         device: str = "0",
         draw: bool = False,
-        extended_summary = False,
-        get_confusion_matrix = True
     ) -> EvaluateResult:
         """Start Evaluate
 
@@ -1614,8 +1580,6 @@ class Hub:
                 device="cpu" if device == "cpu" else f"cuda:{device}",
                 draw=draw,
                 dataset_root_dir=dataset.root_dir,
-                extended_summary = extended_summary,
-                get_confusion_matrix = get_confusion_matrix
             )
 
             result = EvaluateResult()

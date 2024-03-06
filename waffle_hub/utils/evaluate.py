@@ -6,7 +6,9 @@ from typing import Union
 import torch
 from torchmetrics.classification import (
     Accuracy,
-    ConfusionMatrix as ClassificationConfusionMatrix,
+)
+from torchmetrics.classification import ConfusionMatrix as ClassificationConfusionMatrix
+from torchmetrics.classification import (
     F1Score,
     Precision,
     Recall,
@@ -23,7 +25,11 @@ from waffle_hub.schema.evaluate import (
 )
 from waffle_hub.schema.fields import Annotation
 from waffle_hub.utils.conversion import convert_polygon_to_mask
-from waffle_hub.utils.object_detecion.confusion_matrix import ConfusionMatrix as ObjectDetectionConfusionMatrix
+from waffle_hub.utils.object_detecion.confusion_matrix import (
+    ConfusionMatrix,
+)
+
+ObjectDetectionConfusionMatrix = ConfusionMatrix
 
 logger = logging.getLogger(__name__)
 
@@ -127,7 +133,9 @@ def evaluate_classification(
     recalls = Recall(task="multiclass", num_classes=num_classes, average="none")(preds, labels)
     precisions = Precision(task="multiclass", num_classes=num_classes, average="none")(preds, labels)
     f1_scores = F1Score(task="multiclass", num_classes=num_classes, average="none")(preds, labels)
-    confmats = ClassificationConfusionMatrix(task="multiclass", num_classes=num_classes)(preds, labels)
+    confmats = ClassificationConfusionMatrix(task="multiclass", num_classes=num_classes)(
+        preds, labels
+    )
 
     result = ClassificationMetric(
         accuracy=float(mean_acc),
@@ -144,12 +152,7 @@ def evaluate_classification(
 
 
 def evaluate_object_detection(
-    preds: list[Annotation],
-    labels: list[Annotation],
-    num_classes: int,
-    extended_summary: bool,
-    *args,
-    **kwargs
+    preds: list[Annotation], labels: list[Annotation], num_classes: int, *args, **kwargs
 ) -> ObjectDetectionMetric:
     preds = convert_to_torchmetric_format(preds, TaskType.OBJECT_DETECTION, prediction=True)
     labels = convert_to_torchmetric_format(labels, TaskType.OBJECT_DETECTION)
@@ -160,49 +163,39 @@ def evaluate_object_detection(
         class_metrics=True,
     )(preds, labels)
 
-    metric = ObjectDetectionConfusionMatrix.getConfusionMatrix(preds = preds,labels = labels, num_classes = num_classes)
-    
-    f1_scores = ObjectDetectionConfusionMatrix.f1_scores(metric['tpfpfn'])
+    metric = ObjectDetectionConfusionMatrix.getConfusionMatrix(
+        preds=preds, labels=labels, num_classes=num_classes
+    )
+
+    f1_scores = ObjectDetectionConfusionMatrix.f1_scores(metric["tpfpfn"])
     f1_score = ObjectDetectionConfusionMatrix.f1_score(f1_scores)
-    
-    if extended_summary == True:
-        result = ObjectDetectionMetric(
-            mAP=float(map_dict["map"]),
-            mAP_50=float(map_dict["map_50"]),
-            mAR_100=float(map_dict["mar_100"]),
-            precision_per_class=map_dict["map_per_class"].tolist(),
-            f1_score = f1_score,
-            f1_score_per_class=f1_scores,
-            confusion_matrix=metric['confusion_matrix'],
-            mAP_75=float(map_dict["map_75"]),
-            mAP_small=float(map_dict["map_small"]),
-            mAP_medium=float(map_dict["map_medium"]),
-            mAP_large=float(map_dict["map_large"]),
-            mAR_1=float(map_dict["mar_1"]),
-            mAR_10=float(map_dict["mar_10"]),
-            mAR_small=float(map_dict["mar_small"]),
-            mAR_medium=float(map_dict["map_medium"]),
-            mAR_large=float(map_dict["map_large"]),
-            mAR_100_per_class=map_dict["mar_100_per_class"].tolist(),
-            tpfpfn_table=metric['tpfpfn'],
-            fp_images_set = metric['fp'],
-            fn_images_set = metric['fn']
-        )
-        
-    elif extended_summary == False:
-        result = ObjectDetectionMetric(
-            mAP = float(map_dict["map"]),
-            mAP_50=float(map_dict["map_50"]),
-            mAR_100 = float(map_dict["mar_100"]),
-            precision_per_class=map_dict["map_per_class"].tolist(),
-            f1_score = f1_score,
-            f1_score_per_class=f1_scores,
-            confusion_matrix=metric['confusion_matrix'],
-            fp_images_set = metric['fp'],
-            fn_images_set = metric['fn']
-        )
+
+    result = ObjectDetectionMetric(
+        mAP=float(map_dict["map"]),
+        mAP_50=float(map_dict["map_50"]),
+        mAR_100=float(map_dict["mar_100"]),
+        precision_per_class=map_dict["map_per_class"].tolist(),
+        f1_score=f1_score,
+        f1_score_per_class=f1_scores,
+        confusion_matrix=metric["confusion_matrix"],
+        mAP_75=float(map_dict["map_75"]),
+        mAP_small=float(map_dict["map_small"]),
+        mAP_medium=float(map_dict["map_medium"]),
+        mAP_large=float(map_dict["map_large"]),
+        mAR_1=float(map_dict["mar_1"]),
+        mAR_10=float(map_dict["mar_10"]),
+        mAR_small=float(map_dict["mar_small"]),
+        mAR_medium=float(map_dict["map_medium"]),
+        mAR_large=float(map_dict["map_large"]),
+        mAR_100_per_class=map_dict["mar_100_per_class"].tolist(),
+        tpfpfn_table=metric["tpfpfn"],
+        fp_images_set=metric["fp"],
+        fn_images_set=metric["fn"],
+    )
+
     return result
-    
+
+
 def evaluate_instance_segmentation(
     preds: list[Annotation], labels: list[Annotation], num_classes: int, *args, **kwargs
 ) -> InstanceSegmentationMetric:
@@ -253,14 +246,16 @@ def evalute_semantic_segmentation(
     for pred, label in zip(preds, labels):
         if pred["masks"].numel() == 0:  # If the object isn't detected
             continue
-        
+
         _mpa = 0
         for label_index, class_id in enumerate(label["labels"]):
             pred_index = torch.where(pred["labels"] == class_id)[0]
             if pred_index.numel() == 0:
                 continue
 
-            _mpa += torch.sum(pred["masks"][pred_index] == label["masks"][label_index]) / torch.numel(label["masks"][label_index])
+            _mpa += torch.sum(
+                pred["masks"][pred_index] == label["masks"][label_index]
+            ) / torch.numel(label["masks"][label_index])
         mean_pixel_accuracy += _mpa / len(label["labels"])
     mean_pixel_accuracy /= len(labels)
 
@@ -269,15 +264,15 @@ def evalute_semantic_segmentation(
     for pred, label in zip(preds, labels):
         if pred["masks"].numel() == 0:  # If the object isn't detected
             continue
-        
+
         _iou = 0
         for label_index, class_id in enumerate(label["labels"]):
             pred_index = torch.where(pred["labels"] == class_id)[0]
             if pred_index.numel() == 0:
                 continue
 
-            label_mask = (label["masks"][label_index] == 255)
-            pred_mask = (pred["masks"][pred_index] == 255)
+            label_mask = label["masks"][label_index] == 255
+            pred_mask = pred["masks"][pred_index] == 255
 
             intersection = torch.sum(pred_mask & label_mask)
             union = torch.sum(pred_mask) + torch.sum(label_mask) - intersection
@@ -285,7 +280,7 @@ def evalute_semantic_segmentation(
             if union == 0:
                 continue
 
-            _iou += (intersection / union)
+            _iou += intersection / union
         iou += _iou / len(label["labels"])
     iou /= len(labels)
 

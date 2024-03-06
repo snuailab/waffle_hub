@@ -44,9 +44,7 @@ class EvaluateConfig(BaseSchema):
     workers: int = None
     device: str = None
     draw: bool = None
-    get_confusion_matrix: bool = None
     dataset_root_dir: str = None
-    extended_summary: bool = None
 
 
 @dataclass
