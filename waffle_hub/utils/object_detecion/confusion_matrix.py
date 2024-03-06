@@ -200,47 +200,37 @@ class ODConfusionMatrix:
         return result
 
     @staticmethod
-    def f1_scores(TPFPFN: list[dict]):
-        """Find f1_score per class.
+    def f1(
+        TPFPFN: list[dict],
+    ):
+        result = dict()
+        f1_scores = []
+        weighted_f1_score = 0
 
-        Args:
-            TPFPFN (list): tp, fp, fn value
-        """
-        result = []
-        for conf in TPFPFN:
-            precision = conf["tp"] / (conf["tp"] + conf["fp"])
-            recall = conf["tp"] / (conf["tp"] + conf["fn"])
-            result.append(2 * (precision * recall) / (precision + recall))
-
-        return result
-
-    @staticmethod
-    def macro_f1_score(f1_scores: list):
-        """Find average f1_scores."""
-        return sum(f1_scores) / len(f1_scores)
-
-    @staticmethod
-    def micro_f1_score(TPFPFN: list[dict]):
+        cnt_true = []
+        ratio = []
         total_tp = 0
         total_fp = 0
         total_fn = 0
+
         for conf in TPFPFN:
             total_tp += conf["tp"]
             total_fp += conf["fp"]
             total_fn += conf["fn"]
+            precision = conf["tp"] / (conf["tp"] + conf["fp"])
+            recall = conf["tp"] / (conf["tp"] + conf["fn"])
+            f1_scores.append(2 * (precision * recall) / (precision + recall))
+            cnt_true.append(conf["tp"] + conf["fn"])
+        macro_f1_score = sum(f1_scores) / len(f1_scores)
+        micro_f1_score = total_tp / (total_tp + 0.5 * (total_fp + total_fn))
 
-        return total_tp / (total_tp + 0.5 * (total_fp + total_fn))
-
-    @staticmethod
-    def weighted_f1_score(TPFPFN: list[dict], f1_scores: list[float]):
-        cnt_true = []
-        ratio = []
-        result = 0
-
-        for true_sum in TPFPFN:
-            cnt_true.append(true_sum["tp"] + true_sum["fn"])
         for num in range(len(TPFPFN)):
             ratio.append(cnt_true[num] / sum(cnt_true))
-            result += ratio[num] * f1_scores[num]
+            weighted_f1_score += ratio[num] * f1_scores[num]
 
-        return result
+        return {
+            "f1_scores": f1_scores,
+            "macro_f1_score": macro_f1_score,
+            "micro_f1_score": micro_f1_score,
+            "weighted_f1_score": weighted_f1_score,
+        }
