@@ -217,20 +217,21 @@ def getf1(
     total_tp = 0
     total_fp = 0
     total_fn = 0
+    eps = 1e-7
 
     for conf in TPFPFN:
         total_tp += conf["tp"]
         total_fp += conf["fp"]
         total_fn += conf["fn"]
-        precision = conf["tp"] / (conf["tp"] + conf["fp"])
-        recall = conf["tp"] / (conf["tp"] + conf["fn"])
-        f1_scores.append(2 * (precision * recall) / (precision + recall))
+        precision = conf["tp"] / (conf["tp"] + conf["fp"] + eps)
+        recall = conf["tp"] / (conf["tp"] + conf["fn"] + eps)
+        f1_scores.append(2 * (precision * recall) / (precision + recall + eps))
         cnt_true.append(conf["tp"] + conf["fn"])
-    macro_f1_score = sum(f1_scores) / len(f1_scores)
-    micro_f1_score = total_tp / (total_tp + 0.5 * (total_fp + total_fn))
+    macro_f1_score = sum(f1_scores) / (len(f1_scores) + eps)
+    micro_f1_score = total_tp / (total_tp + 0.5 * (total_fp + total_fn) + eps)
 
     for num in range(len(TPFPFN)):
-        ratio.append(cnt_true[num] / sum(cnt_true))
+        ratio.append(cnt_true[num] / (sum(cnt_true) + eps))
         weighted_f1_score += ratio[num] * f1_scores[num]
 
     return {
