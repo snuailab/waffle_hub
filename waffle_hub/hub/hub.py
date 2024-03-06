@@ -112,7 +112,7 @@ class Hub:
     EVALUATE_FILE = "evaluate.json"
     CONFUSION_MATRIX_FILE = "confusion_matrix.jpg"
     MIS_PREDICT_DIR = Path("mispredictions")
-    FALSE_POSSITIVE_DIR = Path("fp")
+    FALSE_POSITIVE_DIR = Path("fp")
     FALSE_NEGATIVE_DIR = Path("fn")
 
     # inference results
@@ -655,8 +655,8 @@ class Hub:
 
     @cached_property
     def fp_dir(self) -> Path:
-        """False Possitive Directory"""
-        return self.mis_predict_dir / Hub.FALSE_POSSITIVE_DIR
+        """False Positive Directory"""
+        return self.mis_predict_dir / Hub.FALSE_POSITIVE_DIR
 
     @cached_property
     def fn_dir(self) -> Path:
@@ -1408,26 +1408,26 @@ class Hub:
             if value == None:
                 continue
             elif isinstance(value, list):
-                if self.task == "OBJECT_DETECTION" or self.task == "CLASSIFICATION":
-                    if len(self.get_category_names()) == len(value) - 1:
-                        """for object detection confusion matrix"""
-                        values = [
-                            {
-                                "class_name": cat,
-                                "value": cat_value,
-                            }
-                            for cat, cat_value in zip(self.get_category_names(), value)
-                        ]
-                        values.append({"class_name": "background", "value": value[-1]})
-                    else:
-                        values = [
-                            {
-                                "class_name": cat,
-                                "value": cat_value,
-                            }
-                            for cat, cat_value in zip(self.get_category_names(), value)
-                        ]
+                if len(self.get_category_names()) == len(value) - 1:
+                    """for object detection confusion matrix"""
+                    values = [
+                        {
+                            "class_name": cat,
+                            "value": cat_value,
+                        }
+                        for cat, cat_value in zip(self.get_category_names(), value)
+                    ]
+                    values.append({"class_name": "background", "value": value[-1]})
+                else:
+                    values = [
+                        {
+                            "class_name": cat,
+                            "value": cat_value,
+                        }
+                        for cat, cat_value in zip(self.get_category_names(), value)
+                    ]
             elif isinstance(value, set):
+                """It can load the misprediction image info."""
                 values = []
                 pred_list = list(value)
                 set_file = io.load_json(getattr(dataset, f"{cfg.set_name}_set_file"))
@@ -1441,6 +1441,7 @@ class Hub:
         io.save_json(result_metrics, self.evaluate_file)
 
         if (cfg.draw == True) & (self.task == "OBJECT_DETECTION"):
+            # Draw evalutation option in object_detection
             io.make_directory(self.mis_predict_dir)
             io.make_directory(self.fp_dir)
             io.make_directory(self.fn_dir)

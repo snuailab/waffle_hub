@@ -10,7 +10,7 @@ from PIL import Image, ImageDraw, ImageFont
 from waffle_utils.file.network import get_file_from_url
 
 from waffle_hub import TaskType
-from waffle_hub.schema.fields import Annotation, Category
+from waffle_hub.schema.fields import Annotation
 from waffle_hub.temp_utils.image.io import load_image
 
 FONT_URL = "https://raw.githubusercontent.com/snuailab/assets/main/waffle/fonts/gulim.ttc"
@@ -207,7 +207,17 @@ def draw_confusion_matrix(
     save_path: Union[Path, str],
     theme="Reds",
 ):
-    """Draw confusion matrix"""
+    """
+    For object detection and classification tasks only, the confusion matrix is ​​saved as an image file.
+    You can check the number of annotations about which objects were detected in the file.
+
+    Args:
+        conf_mat (list): Square matrix for predict, label
+        task (str): Task name. only "OBJECT_DETECTION", "CLASSIFICATION"
+        categories (list): class dictionary or list.
+        save_path (Union[Path, str]): Saving Path
+        theme(str): Heatmap theme. Please refer to seaborn for more details.
+    """
     if task == "OBJECT_DETECTION":
         categories += ["background"]
     df_cm = pd.DataFrame(conf_mat, index=[i for i in categories], columns=[i for i in categories])
