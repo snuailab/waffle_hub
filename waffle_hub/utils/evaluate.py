@@ -26,10 +26,8 @@ from waffle_hub.schema.evaluate import (
 from waffle_hub.schema.fields import Annotation
 from waffle_hub.utils.conversion import convert_polygon_to_mask
 from waffle_hub.utils.object_detecion.confusion_matrix import (
-    ConfusionMatrix,
+    ODConfusionMatrix,
 )
-
-ObjectDetectionConfusionMatrix = ConfusionMatrix
 
 logger = logging.getLogger(__name__)
 
@@ -163,12 +161,12 @@ def evaluate_object_detection(
         class_metrics=True,
     )(preds, labels)
 
-    metric = ObjectDetectionConfusionMatrix.getConfusionMatrix(
+    metric = ODConfusionMatrix.getConfusionMatrix(
         preds=preds, labels=labels, num_classes=num_classes
     )
 
-    f1_scores = ObjectDetectionConfusionMatrix.f1_scores(metric["tpfpfn"])
-    f1_score = ObjectDetectionConfusionMatrix.f1_score(f1_scores)
+    f1_scores = ODConfusionMatrix.f1_scores(metric["tpfpfn"])
+    f1_score = ODConfusionMatrix.f1_score(f1_scores)
 
     result = ObjectDetectionMetric(
         mAP=float(map_dict["map"]),

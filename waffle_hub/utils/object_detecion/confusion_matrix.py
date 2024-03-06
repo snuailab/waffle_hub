@@ -4,7 +4,7 @@ from waffle_hub.schema.evaluate import ObjectDetectionMetric
 from waffle_hub.schema.fields import Annotation, Category
 
 
-class ConfusionMatrix:
+class ODConfusionMatrix:
     """
     ...
     """
