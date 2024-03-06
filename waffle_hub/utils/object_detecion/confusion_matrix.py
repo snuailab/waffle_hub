@@ -215,6 +215,18 @@ class ODConfusionMatrix:
         return result
 
     @staticmethod
-    def f1_score(f1_scores: list):
+    def macro_f1_score(f1_scores: list):
         """Find average f1_scores."""
         return sum(f1_scores) / len(f1_scores)
+
+    @staticmethod
+    def micro_f1_score(TPFPFN: list[dict]):
+        total_tp = 0
+        total_fp = 0
+        total_fn = 0
+        for conf in TPFPFN:
+            total_tp += conf["tp"]
+            total_fp += conf["fp"]
+            total_fn += conf["fn"]
+
+        return total_tp / (total_tp + 0.5 * (total_fp + total_fn))

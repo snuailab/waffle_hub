@@ -166,31 +166,32 @@ def evaluate_object_detection(
     )
 
     f1_scores = ODConfusionMatrix.f1_scores(metric["tpfpfn"])
-    f1_score = ODConfusionMatrix.f1_score(f1_scores)
+    macro_f1_score = ODConfusionMatrix.macro_f1_score(f1_scores)
+    micro_f1_score = ODConfusionMatrix.micro_f1_score(metric["tpfpfn"])
 
     result = ObjectDetectionMetric(
         mAP=float(map_dict["map"]),
         mAP_50=float(map_dict["map_50"]),
-        mAR_100=float(map_dict["mar_100"]),
-        precision_per_class=map_dict["map_per_class"].tolist(),
-        f1_score=f1_score,
-        f1_score_per_class=f1_scores,
-        confusion_matrix=metric["confusion_matrix"],
         mAP_75=float(map_dict["map_75"]),
         mAP_small=float(map_dict["map_small"]),
         mAP_medium=float(map_dict["map_medium"]),
         mAP_large=float(map_dict["map_large"]),
         mAR_1=float(map_dict["mar_1"]),
         mAR_10=float(map_dict["mar_10"]),
+        mAR_100=float(map_dict["mar_100"]),
         mAR_small=float(map_dict["mar_small"]),
         mAR_medium=float(map_dict["map_medium"]),
         mAR_large=float(map_dict["map_large"]),
+        precision_per_class=map_dict["map_per_class"].tolist(),
         mAR_100_per_class=map_dict["mar_100_per_class"].tolist(),
+        confusion_matrix=metric["confusion_matrix"],
         tpfpfn_table=metric["tpfpfn"],
         fp_images_set=metric["fp"],
         fn_images_set=metric["fn"],
+        f1_score_per_class=f1_scores,
+        macro_f1_score=macro_f1_score,
+        micro_f1_score=micro_f1_score,
     )
-
     return result
 
 
