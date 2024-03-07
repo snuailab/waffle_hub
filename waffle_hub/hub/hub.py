@@ -1391,6 +1391,7 @@ class Hub:
         metrics = evaluate_function(
             preds, labels, self.task, len(self.categories), image_size=cfg.image_size
         )
+        # TODO: Confusion matrix visualization functions other than 'OBJECT_DETECTION' and 'CLASSIFICATION' are required.
         if self.task == "OBJECT_DETECTION" or self.task == "CLASSIFICATION":
             draw_confusion_matrix(
                 metrics.confusion_matrix,
@@ -1398,9 +1399,6 @@ class Hub:
                 self.get_category_names(),
                 self.confusionmatrix_file,
             )
-
-        else:
-            pass
 
         result_metrics = []
 
