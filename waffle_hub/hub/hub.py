@@ -54,7 +54,7 @@ from waffle_hub.schema.running_status import (
     InferencingStatus,
     TrainingStatus,
 )
-from waffle_hub.temp_utils.image.io import save_image, save_images
+from waffle_hub.temp_utils.image.io import save_image, batch_save_images
 from waffle_hub.temp_utils.video.io import create_video_writer
 from waffle_hub.utils.data import (
     IMAGE_EXTS,
@@ -1471,7 +1471,7 @@ class Hub:
                         elif result_tag["tag"] == "fn_images_set":
                             draw_path = self.fn_dir / Path(image_info.file_name)
 
-                        save_images(draw_path, [draw_pred, draw_label], create_directory=True)
+                        batch_save_images(draw_path, [draw_pred, draw_label], create_directory=True)
 
     def on_evaluate_end(self, cfg: EvaluateConfig):
         pass
