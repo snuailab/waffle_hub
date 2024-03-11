@@ -1388,7 +1388,7 @@ class Hub:
         metrics = evaluate_function(
             preds, labels, self.task, len(self.categories), image_size=cfg.image_size
         )
-        if self.task == "OBJECT_DETECTION" or self.task == "CLASSIFICATION":
+        if self.task == TaskType.OBJECT_DETECTION or self.task == TaskType.CLASSIFICATION:
             draw_confusion_matrix(
                 metrics.confusion_matrix,
                 self.task,
