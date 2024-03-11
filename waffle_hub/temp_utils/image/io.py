@@ -21,7 +21,7 @@ def save_image(output_path: Union[str, Path], image: Mat, create_directory: bool
         with open(str(output_path), mode="w+b") as f:
             img_arr.tofile(f)
 
-def save_images(output_path: Union[str, Path], images: list[Mat], create_directory: bool = False) -> None:
+def batch_save_images(output_path: Union[str, Path], images: list[Mat], create_directory: bool = False) -> None:
     output_path = Path(output_path)
     if create_directory:
         make_directory(output_path.parent)
