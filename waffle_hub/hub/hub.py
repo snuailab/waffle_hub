@@ -19,10 +19,7 @@ from typing import Union
 
 import cpuinfo
 import cv2
-import matplotlib.pyplot as plt
 import numpy as np
-import pandas as pd
-import seaborn as sn
 import torch
 import tqdm
 from waffle_utils.file import io
