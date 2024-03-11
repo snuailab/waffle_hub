@@ -1405,8 +1405,9 @@ class Hub:
             if value == None:
                 continue
             elif isinstance(value, list):
-                if len(self.get_category_names()) == len(value) - 1:
-                    """for object detection confusion matrix"""
+                # When a value comes into the 'list' instance, it is matched 1:1 with the category name.
+                if len(self.get_categories()) == len(value) - 1:
+                    #  In the case of "object detection", this is a conditional statement to indicate a new category called "background" when creating a confusion matrix.
                     values = [
                         {
                             "class_name": cat,
@@ -1424,7 +1425,8 @@ class Hub:
                         for cat, cat_value in zip(self.get_category_names(), value)
                     ]
             elif isinstance(value, set):
-                """It can load the misprediction image info."""
+                # When a value comes into the 'set' instance, set_file is searched to get a list of false positive (FN) and false positive (FP) images.
+                # 'value' matches the image index. Match the actual image with set_file.
                 values = []
                 pred_list = list(value)
                 set_file = io.load_json(getattr(dataset, f"{cfg.set_name}_set_file"))
