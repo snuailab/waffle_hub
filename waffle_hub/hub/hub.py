@@ -36,7 +36,7 @@ from waffle_hub.schema.configs import (
     TrainConfig,
 )
 from waffle_hub.schema.data import ImageInfo
-from waffle_hub.schema.fields import Annotation, Category
+from waffle_hub.schema.fields import Category
 from waffle_hub.schema.result import (
     EvaluateResult,
     ExportOnnxResult,
