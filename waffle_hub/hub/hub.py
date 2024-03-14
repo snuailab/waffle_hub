@@ -36,7 +36,7 @@ from waffle_hub.schema.configs import (
     TrainConfig,
 )
 from waffle_hub.schema.data import ImageInfo
-from waffle_hub.schema.fields import Category
+from waffle_hub.schema.fields import Annotation, Category
 from waffle_hub.schema.result import (
     EvaluateResult,
     ExportOnnxResult,
@@ -1431,7 +1431,9 @@ class Hub:
                 set_file = io.load_json(getattr(dataset, f"{cfg.set_name}_set_file"))
                 for pred in pred_list:
                     image_info = dataset.image_dict[set_file[pred]]
-                    values.append({pred: image_info.file_name})
+                    values.append(
+                        {pred: {"file_name": image_info.file_name, "image_id": image_info.image_id}}
+                    )
             else:
                 values = value
             result_metrics.append({"tag": tag, "value": values})
