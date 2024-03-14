@@ -2,7 +2,10 @@ import logging
 from pathlib import Path
 from typing import Union
 
+import matplotlib.pyplot as plt
 import numpy as np
+import pandas as pd
+import seaborn as sn
 from PIL import Image, ImageDraw, ImageFont
 from waffle_utils.file.network import get_file_from_url
 
@@ -195,6 +198,37 @@ def draw_semantic_segmentation(
     image = np.array(pil_image)
 
     return image
+
+
+def draw_confusion_matrix(
+    conf_mat: list,
+    task: str,
+    categories: list[str],
+    save_path: Union[Path, str],
+    theme="Reds",
+):
+    """
+    For object detection and classification tasks only, the confusion matrix is ​​saved as an image file.
+    You can check the number of annotations about which objects were detected in the file.
+
+    Args:
+        conf_mat (list): Square matrix for predict, label
+        task (str): Task name. only "OBJECT_DETECTION", "CLASSIFICATION"
+        categories (list): class dictionary or list.
+        save_path (Union[Path, str]): Saving Path
+        theme(str): Heatmap theme. Please refer to seaborn for more details.
+    """
+    if task == "OBJECT_DETECTION":
+        categories += ["background"]
+    df_cm = pd.DataFrame(conf_mat, index=[i for i in categories], columns=[i for i in categories])
+    sn.set_theme(font_scale=1.0)
+    plt.figure(figsize=(12, 10))
+    ax = plt.axes()
+    sn.heatmap(df_cm, annot=True, fmt=".10g", cmap=theme, ax=ax)
+    ax.set_title("Confusion Matrix")
+    plt.xlabel("labels", fontsize=22)
+    plt.ylabel("predicts", fontsize=22)
+    plt.savefig(save_path)
 
 
 def draw_results(

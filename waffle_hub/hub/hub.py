@@ -51,7 +51,7 @@ from waffle_hub.schema.running_status import (
     InferencingStatus,
     TrainingStatus,
 )
-from waffle_hub.temp_utils.image.io import save_image
+from waffle_hub.temp_utils.image.io import batch_save_images, save_image
 from waffle_hub.temp_utils.video.io import create_video_writer
 from waffle_hub.utils.data import (
     IMAGE_EXTS,
@@ -59,7 +59,7 @@ from waffle_hub.utils.data import (
     get_dataset_class,
     get_image_transform,
 )
-from waffle_hub.utils.draw import draw_results
+from waffle_hub.utils.draw import draw_confusion_matrix, draw_results
 from waffle_hub.utils.evaluate import evaluate_function
 from waffle_hub.utils.memory import device_context
 from waffle_hub.utils.metric_logger import MetricLogger
@@ -107,6 +107,10 @@ class Hub:
 
     # evaluate results
     EVALUATE_FILE = "evaluate.json"
+    CONFUSION_MATRIX_FILE = "confusion_matrix.jpg"
+    MIS_PREDICT_DIR = Path("mispredictions")
+    FALSE_POSITIVE_DIR = Path("fp")
+    FALSE_NEGATIVE_DIR = Path("fn")
 
     # inference results
     INFERENCE_FILE = "inferences.json"
@@ -642,6 +646,21 @@ class Hub:
         return self.hub_dir / Hub.INFERENCE_DIR
 
     @cached_property
+    def mis_predict_dir(self) -> Path:
+        """Comparing pred and label in Evaluation. Directory"""
+        return self.hub_dir / Hub.MIS_PREDICT_DIR
+
+    @cached_property
+    def fp_dir(self) -> Path:
+        """False Positive Directory"""
+        return self.mis_predict_dir / Hub.FALSE_POSITIVE_DIR
+
+    @cached_property
+    def fn_dir(self) -> Path:
+        """False Negative Directory"""
+        return self.mis_predict_dir / Hub.FALSE_NEGATIVE_DIR
+
+    @cached_property
     def inference_file(self) -> Path:
         """Inference Results File"""
         return self.inference_dir / Hub.INFERENCE_FILE
@@ -685,6 +704,11 @@ class Hub:
     def evaluate_file(self) -> Path:
         """Evaluate Json File"""
         return self.hub_dir / Hub.EVALUATE_FILE
+
+    @cached_property
+    def confusionmatrix_file(self) -> Path:
+        """Confusion matrix file after Evaluate"""
+        return self.hub_dir / Hub.CONFUSION_MATRIX_FILE
 
     @cached_property
     def waffle_file(self) -> Path:
@@ -1365,21 +1389,89 @@ class Hub:
             preds, labels, self.task, len(self.categories), image_size=cfg.image_size
         )
 
+        # TODO: Confusion matrix visualization functions other than 'OBJECT_DETECTION' and 'CLASSIFICATION' are required.
+        if self.task == TaskType.OBJECT_DETECTION or self.task == TaskType.CLASSIFICATION:
+            draw_confusion_matrix(
+                metrics.confusion_matrix,
+                self.task,
+                self.get_category_names(),
+                self.confusionmatrix_file,
+            )
+
         result_metrics = []
+
         for tag, value in metrics.to_dict().items():
-            if isinstance(value, list):
-                values = [
-                    {
-                        "class_name": cat,
-                        "value": cat_value,
-                    }
-                    for cat, cat_value in zip(self.get_category_names(), value)
-                ]
+            if value == None:
+                continue
+            elif isinstance(value, list):
+                # When a value comes into the 'list' instance, it is matched 1:1 with the category name.
+                if len(self.get_categories()) == len(value) - 1:
+                    #  In the case of "object detection", this is a conditional statement to indicate a new category called "background" when creating a confusion matrix.
+                    values = [
+                        {
+                            "class_name": cat,
+                            "value": cat_value,
+                        }
+                        for cat, cat_value in zip(self.get_category_names(), value)
+                    ]
+                    values.append({"class_name": "background", "value": value[-1]})
+                else:
+                    values = [
+                        {
+                            "class_name": cat,
+                            "value": cat_value,
+                        }
+                        for cat, cat_value in zip(self.get_category_names(), value)
+                    ]
+            elif isinstance(value, set):
+                # When a value comes into the 'set' instance, set_file is searched to get a list of false positive (FN) and false positive (FP) images.
+                # 'value' matches the image index. Match the actual image with set_file.
+                values = []
+                pred_list = list(value)
+                set_file = io.load_json(getattr(dataset, f"{cfg.set_name}_set_file"))
+                for pred in pred_list:
+                    image_info = dataset.image_dict[set_file[pred]]
+                    values.append(
+                        {pred: {"file_name": image_info.file_name, "image_id": image_info.image_id}}
+                    )
             else:
                 values = value
             result_metrics.append({"tag": tag, "value": values})
 
         io.save_json(result_metrics, self.evaluate_file)
+
+        if (cfg.draw == True) & (self.task == "OBJECT_DETECTION"):
+            # Draw evalutation option in object_detection
+            io.make_directory(self.mis_predict_dir)
+            io.make_directory(self.fp_dir)
+            io.make_directory(self.fn_dir)
+
+            set_file = io.load_json(getattr(dataset, f"{cfg.set_name}_set_file"))
+
+            for result_tag in result_metrics:
+                if (
+                    (result_tag["tag"] == "fp_images_set") or (result_tag["tag"] == "fn_images_set")
+                ) & (result_tag["value"] != None):
+                    for img in result_tag["value"]:
+                        image_num = set_file[list(img.keys())[0]]
+                        image_info = dataset.image_dict[image_num]
+                        draw_pred = draw_results(
+                            image=str(dataset.raw_image_dir / image_info.file_name),
+                            results=preds[list(img.keys())[0]],
+                            names=[x["name"] for x in self.categories],
+                        )
+                        draw_label = draw_results(
+                            image=str(dataset.raw_image_dir / image_info.file_name),
+                            results=labels[list(img.keys())[0]],
+                            names=[x["name"] for x in self.categories],
+                        )
+
+                        if result_tag["tag"] == "fp_images_set":
+                            draw_path = self.fp_dir / Path(image_info.file_name)
+                        elif result_tag["tag"] == "fn_images_set":
+                            draw_path = self.fn_dir / Path(image_info.file_name)
+
+                        batch_save_images(draw_path, [draw_pred, draw_label], create_directory=True)
 
     def on_evaluate_end(self, cfg: EvaluateConfig):
         pass

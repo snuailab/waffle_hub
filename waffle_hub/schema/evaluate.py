@@ -17,8 +17,16 @@ class ObjectDetectionMetric(BaseSchema):
     mAR_small: float
     mAR_medium: float
     mAR_large: float
-    mAP_per_class: list[float]
+    precision_per_class: list[float]
     mAR_100_per_class: list[float]
+    confusion_matrix: list[dict] = None
+    tpfpfn_table: list[float] = None
+    fp_images_set: set = None
+    fn_images_set: set = None
+    f1_score_per_class: list[float] = None
+    macro_f1_score: float = None
+    micro_f1_score: float = None
+    weighted_f1_score: float = None
 
 
 @dataclass
