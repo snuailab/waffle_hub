@@ -22,6 +22,8 @@ class Image(BaseField):
         self.width = width
         self.height = height
         self.original_file_name = original_file_name
+        if date_captured == 0:
+            date_captured = None
         self.date_captured = date_captured
 
     # properties

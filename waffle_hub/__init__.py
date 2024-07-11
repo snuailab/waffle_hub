@@ -1,4 +1,4 @@
-__version__ = "0.3.1"
+__version__ = "0.3.3a3"
 
 import enum
 from collections import OrderedDict
@@ -54,15 +54,12 @@ class BaseEnum(enum.Enum, metaclass=CustomEnumMeta):
 
 class DataType(BaseEnum):
     # TODO: map to same value
-
     YOLO = enum.auto()
     ULTRALYTICS = enum.auto()
-
     COCO = enum.auto()
-
     AUTOCARE_DLT = enum.auto()
-
     TRANSFORMERS = enum.auto()
+    DATUMARO = enum.auto()
 
 
 class TaskType(BaseEnum):
@@ -128,6 +125,7 @@ EXPORT_MAP = OrderedDict(
         DataType.COCO: "COCO",
         DataType.AUTOCARE_DLT: "AUTOCARE_DLT",
         DataType.TRANSFORMERS: "TRANSFORMERS",
+        DataType.DATUMARO: "DATUMARO",
     }
 )
 

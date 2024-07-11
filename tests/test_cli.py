@@ -104,7 +104,9 @@ def _evaluate(hub_name: str, dataset: Dataset, tmpdir: Path):
     "
     ret = run_cli(cmd)
     assert ret.returncode == 0
-    assert (tmpdir / hub_name / "evaluate.json").exists()
+    assert (
+        tmpdir / hub_name / "evaluate" / Path(dataset.root_dir).stem / dataset.name / "evaluate.json"
+    ).exists()
     assert (tmpdir / hub_name / "running_status" / "evaluating_status.json").exists()
 
 

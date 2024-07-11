@@ -21,6 +21,7 @@ from waffle_hub import EXPORT_MAP, DataType, SplitMethod, TaskType
 from waffle_hub.dataset.adapter import (
     export_autocare_dlt,
     export_coco,
+    export_datumaro,
     export_transformers,
     export_yolo,
     import_autocare_dlt,
@@ -689,7 +690,7 @@ class Dataset:
         dataset_info = DatasetInfo.load(dataset_info_file)
 
         ds = cls(**dataset_info.to_dict(), root_dir=root_dir)
-        ds.create_index()
+        # ds.create_index()
         return ds
 
     @classmethod
@@ -716,8 +717,8 @@ class Dataset:
             Dataset: Dataset Class
 
         """
-        if isinstance(src_root_dirs, str):
-            src_root_dirs = [src_root_dirs] * len(src_names)
+        if isinstance(src_root_dirs, (str, Path)):
+            src_root_dirs = [str(src_root_dirs)] * len(src_names)
         if len(src_names) != len(src_root_dirs):
             raise ValueError("Length of src_names and src_root_dirs should be same.")
         if isinstance(task, str):
@@ -1669,26 +1670,45 @@ class Dataset:
         )
 
     # export
-    def get_split_ids(self) -> list[list[int]]:
+    def get_split_ids(self, set_name: str = None) -> Union[list[list[int]], list[int]]:
         """
         Get split ids
+        Args:
+            set_name (str, optional): set name. Defaults to None. if None, return all split ids.
 
         Returns:
-            list[list[int]]: split ids
+            Union[list[list[int]], list[int]]: split ids
         """
         if not self.train_set_file.exists():
             raise FileNotFoundError("There is no set files. Please run ds.split() first")
 
-        train_ids: list[int] = (
-            io.load_json(self.train_set_file) if self.train_set_file.exists() else []
-        )
-        val_ids: list[int] = io.load_json(self.val_set_file) if self.val_set_file.exists() else []
-        test_ids: list[int] = io.load_json(self.test_set_file) if self.test_set_file.exists() else []
-        unlabeled_ids: list[int] = (
-            io.load_json(self.unlabeled_set_file) if self.unlabeled_set_file.exists() else []
-        )
-
-        return [train_ids, val_ids, test_ids, unlabeled_ids]
+        if set_name:
+            if set_name == "train":
+                return io.load_json(self.train_set_file) if self.train_set_file.exists() else []
+            elif set_name == "val":
+                return io.load_json(self.val_set_file) if self.val_set_file.exists() else []
+            elif set_name == "test":
+                return io.load_json(self.test_set_file) if self.test_set_file.exists() else []
+            elif set_name == "unlabeled":
+                return (
+                    io.load_json(self.unlabeled_set_file) if self.unlabeled_set_file.exists() else []
+                )
+            else:
+                raise ValueError(f"Invalid set name: {set_name}")
+        else:
+            train_ids: list[int] = (
+                io.load_json(self.train_set_file) if self.train_set_file.exists() else []
+            )
+            val_ids: list[int] = (
+                io.load_json(self.val_set_file) if self.val_set_file.exists() else []
+            )
+            test_ids: list[int] = (
+                io.load_json(self.test_set_file) if self.test_set_file.exists() else []
+            )
+            unlabeled_ids: list[int] = (
+                io.load_json(self.unlabeled_set_file) if self.unlabeled_set_file.exists() else []
+            )
+            return [train_ids, val_ids, test_ids, unlabeled_ids]
 
     def get_background_ids(self) -> list[int]:
         """
@@ -1743,6 +1763,8 @@ class Dataset:
             export_function = export_autocare_dlt
         elif data_type in [DataType.TRANSFORMERS]:
             export_function = export_transformers
+        elif data_type in [DataType.DATUMARO]:
+            export_function = export_datumaro
 
         else:
             raise ValueError(f"Invalid data_type: {data_type}")

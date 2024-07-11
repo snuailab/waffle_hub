@@ -34,6 +34,8 @@ class TrainConfig(BaseSchema):
 @dataclass
 class EvaluateConfig(BaseSchema):
     dataset_name: str = None
+    dataset_root_dir: str = None
+    output_path: str = None
     set_name: str = None
     batch_size: int = None
     image_size: list[int] = None
@@ -44,7 +46,6 @@ class EvaluateConfig(BaseSchema):
     workers: int = None
     device: str = None
     draw: bool = None
-    dataset_root_dir: str = None
 
 
 @dataclass

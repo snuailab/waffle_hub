@@ -8,7 +8,7 @@ FOURCC_MAP = {
     "mp4": cv2.VideoWriter_fourcc(*"mp4v"),
     "avi": cv2.VideoWriter_fourcc(*"xvid")
     if cv2.VideoWriter_fourcc(*"xvid") == -1
-    else cv2.VideoWriter_fourcc(*"mjpg"),
+    else cv2.VideoWriter_fourcc(*"MJPG"),
     "wmv": cv2.VideoWriter_fourcc(*"wmv2"),
     "mov": cv2.VideoWriter_fourcc(*"xvid"),
     "flv": cv2.VideoWriter_fourcc(*"flv1"),

@@ -34,7 +34,7 @@ def _export_coco(
     image_dir = export_dir / "images"
 
     for split, image_ids in zip(
-        ["train", "val", "test", "unlabeled"],
+        ["instances_train", "instances_val", "instances_test", "unlabeled"],
         [train_ids, val_ids, test_ids, unlabeled_ids],
     ):
         if len(image_ids) == 0:
@@ -68,6 +68,12 @@ def _export_coco(
                 if d.get("segmentation", None):
                     if isinstance(d["segmentation"], dict):
                         d["segmentation"] = convert_rle_to_polygon(d["segmentation"])
+                else:
+                    d["segmentation"] = []
+                if d.get("bbox", None) is None:
+                    d["bbox"] = []
+                if d.get("iscrowd", None) is None:
+                    d["iscrowd"] = 0
                 annotation_id = d.pop("annotation_id")
                 coco["annotations"].append({"id": annotation_id, **d})
 
@@ -158,8 +164,7 @@ def import_coco(self, coco_files: list[str], coco_root_dirs: list[str]):
             if not image_path.exists():
                 raise FileNotFoundError(f"{image_path} does not exist.")
 
-            if set_name:
-                file_name = f"{set_name}/{file_name}"
+            file_name = f"{file_name}"
 
             self.add_images(
                 [Image.from_dict({**image_dict, "image_id": image_id, "file_name": file_name})]

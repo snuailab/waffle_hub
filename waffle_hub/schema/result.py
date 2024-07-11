@@ -13,6 +13,9 @@ class TrainResult(BaseSchema):
 
 @dataclass
 class EvaluateResult(BaseSchema):
+    dataset_name: str = None
+    dataset_root_dir: str = None
+    dataset_set_name: str = None
     eval_metrics: list[dict] = None
 
 
